@@ -91,6 +91,31 @@ Retrieval should apply metadata filters wherever possible.
 - Mention requirement changes in the session summary.
 - End every coding session with a medium-detailed Conventional Commit message suggestion; do not commit automatically.
 
+## 11. Python Dependency Management
+
+- Record every successful Python package installation, uninstall, or upgrade in the applicable dependency file immediately.
+- Update `requirements.txt` after every project virtual-environment `pip install`, uninstall, or upgrade.
+- When dependencies are grouped, also update the relevant file, such as `requirements-dev.txt`.
+- Keep dependency entries alphabetized where practical, free of duplicates, and pinned unless the project intentionally documents an unpinned policy.
+- Remove dependencies that are no longer required.
+- Verify that the application still runs after dependency changes.
+- Report all dependency additions, removals, and upgrades in the session summary.
+
+## 12. Project State Synchronization
+
+- No implementation may leave repository documentation, dependency declarations, configuration examples, or operational instructions out of sync.
+- Update this file whenever project requirements change.
+- Update Python dependency files whenever packages are installed, uninstalled, or upgraded.
+- Update `.env.example` whenever environment variables are added, removed, renamed, or materially changed.
+- Update `README.md` whenever setup, usage, or architecture changes.
+- Update architecture documentation after major structural changes.
+- Update API documentation when endpoints or interfaces change.
+- Update database migration documentation when schemas change.
+- Update Docker and Compose files when deployment requirements change.
+- Update configuration examples when configuration behavior changes.
+- Update changelogs or development notes when significant features are completed.
+- Before ending a coding session, review the change set and synchronize every affected repository artifact.
+
 ## Pending Clarifications
 
 None currently recorded.
