@@ -13,6 +13,7 @@ The goal is not just document chat. The goal is a trusted knowledge operating sy
 
 - Fully local / on-premise deployment
 - Open-source LLM support
+- Model-agnostic AI through a unified local inference abstraction
 - Role-based and department-based access control
 - Evidence-backed answers with citations
 - Agentic RAG with planner, retriever, critic, verifier, and response agents

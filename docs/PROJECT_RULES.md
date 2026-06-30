@@ -16,6 +16,78 @@ The canonical project requirements are maintained in `PROJECT_REQUIREMENTS.md`. 
 - Do not design core features around OpenAI, Claude, Gemini, Groq, Cerebras, or other cloud APIs.
 - Any cloud-model experiment must be clearly marked as temporary and non-production.
 
+# Model Agnosticism & Local AI Deployment
+
+### Core Principle
+
+- Knowledge OS must remain **model-agnostic**.
+- Never design the system around a single LLM vendor or model family.
+- All AI functionality must communicate through a common abstraction layer.
+
+### Local-First AI
+
+The entire AI stack must run on infrastructure owned by the organization.
+
+No cloud inference providers may be required for core functionality, including but not limited to:
+
+- OpenAI
+- Anthropic
+- Google Gemini API
+- AWS Bedrock
+- Azure OpenAI
+- Any other hosted LLM APIs
+
+All prompts, retrieved documents, embeddings, intermediate reasoning, and generated responses must remain inside the organization's infrastructure.
+
+### Supported Model Families
+
+The platform should support local deployment of multiple open-weight model families, including:
+
+- Meta (Llama)
+- Google (Gemma)
+- Microsoft (Phi)
+- Mistral AI
+- Qwen
+- DeepSeek
+
+The architecture must not favor any particular model family.
+
+### Model Abstraction Layer
+
+All LLM integrations must use a unified interface.
+
+Changing models should require configuration changes only.
+
+The implementation should support multiple local inference engines, including:
+
+- Ollama (development)
+- vLLM (production)
+- Future local inference runtimes
+
+### Development Policy
+
+Notebook experiments must:
+
+- benchmark multiple models
+- avoid model-specific assumptions
+- keep retrieval independent from the chosen LLM
+- make switching models possible through configuration only
+
+### Production Philosophy
+
+Knowledge OS is an AI platform—not an application tied to a specific language model.
+
+Organizations should be free to choose whichever local open-weight model best satisfies their requirements for:
+
+- performance
+- licensing
+- multilingual capability
+- hardware availability
+- cost
+- security
+
+without requiring application-level code changes.
+
 ## 3. Token Efficiency
 
 - Optimize every RAG experiment for low token usage.

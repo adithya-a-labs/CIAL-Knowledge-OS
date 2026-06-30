@@ -44,6 +44,13 @@ Write what worked and what failed.
 
 Decide whether the technique should move into the final pipeline.
 
+## Model Independence Reminder
+
+- All notebooks must remain model-agnostic.
+- Never hardcode prompts, APIs, or logic around a single model family.
+- Every notebook should be executable with any supported local model by changing configuration only.
+- Notebook experiments should compare multiple models whenever practical.
+
 General rules:
 
 - Prefer small, understandable experiments.

@@ -116,6 +116,62 @@ Retrieval should apply metadata filters wherever possible.
 - Update changelogs or development notes when significant features are completed.
 - Before ending a coding session, review the change set and synchronize every affected repository artifact.
 
+## 13. Model Agnosticism & Local AI Deployment
+
+### Core Principle
+
+Knowledge OS must remain **model-agnostic**. The platform shall never depend on a single LLM provider, vendor, or model family. Every AI component must be designed behind a common abstraction layer so that models can be replaced without requiring application-level changes.
+
+### Local-First AI
+
+All AI inference must execute on infrastructure owned and controlled by the organization.
+
+No cloud-hosted inference providers (OpenAI, Anthropic, Google Gemini API, AWS Bedrock, Azure OpenAI, etc.) shall be required for any core platform functionality.
+
+All prompts, retrieved documents, embeddings, intermediate reasoning, and generated responses must remain within the organization's internal infrastructure.
+
+### Supported Model Families
+
+Knowledge OS should support local deployment of open-weight models from multiple vendors, including but not limited to:
+
+* Meta (Llama)
+* Google (Gemma)
+* Microsoft (Phi)
+* Mistral AI
+* Qwen
+* DeepSeek
+
+The architecture must not make assumptions that favor any individual model family.
+
+### Model Abstraction Layer
+
+Every LLM integration must communicate through a unified interface.
+
+Changing the active model should require only a configuration change rather than modifications to business logic.
+
+Future integrations should support multiple local inference engines, including:
+
+* Ollama (development)
+* vLLM (production)
+* Additional local inference runtimes as required
+
+### Development Policy
+
+During notebook development and experimentation:
+
+* Multiple models should be benchmarked against the same retrieval pipeline.
+* Model-specific prompt engineering should be minimized.
+* Retrieval quality should remain independent of the selected LLM.
+* Any notebook should be executable with different supported models by changing configuration only.
+
+### Production Philosophy
+
+Knowledge OS is an AI platform, not an application tied to a specific language model.
+
+Organizations should be free to choose the model that best satisfies their requirements for performance, hardware availability, licensing, security, multilingual capability, and cost, without requiring changes to the surrounding platform.
+
+This principle must remain true throughout the lifetime of the project.
+
 ## Pending Clarifications
 
 None currently recorded.
