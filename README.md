@@ -98,6 +98,21 @@ generation, benchmarking, and visualization live in `src/cial_knowledge_os`.
 Embedded Qdrant permits only one process per storage path. Close other notebook
 kernels or clients before reopening the same `data/qdrant/` directory.
 
+## Batch QA Exports
+
+Notebook-defined question lists can be evaluated without notebook-side loops or
+file handling:
+
+```python
+from cial_knowledge_os import export_batch_answers
+
+csv_path = export_batch_answers(pipeline=pipeline, questions=questions)
+```
+
+Exports are written locally beneath `outputs/batch_answers/` using versioned,
+non-overwriting filenames. See `docs/BATCH_QA_EXPORT.md` for naming options, input
+file support, metrics, and the CSV schema.
+
 ## Project Rules
 
 All development must follow the rules in:

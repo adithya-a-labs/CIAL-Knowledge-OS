@@ -183,6 +183,18 @@ This principle must remain true throughout the lifetime of the project.
   services.
 - Keep local sample fixtures separate from ignored runtime and real-document data.
 
+## 15. Batch Question-Answer Export
+
+- Provide a reusable source API that accepts notebook-defined question lists and
+  exports grounded answers, citations, retrieval scores, and timing metrics to CSV.
+- Keep question iteration, failure isolation, metrics collection, directory
+  creation, version numbering, and file writing out of notebooks.
+- Store exports under the repository-local `outputs/batch_answers/` hierarchy and
+  never overwrite an earlier version.
+- Keep batch retrieval and generation offline, local-only, model-agnostic, and
+  implemented through existing pipeline abstractions.
+- Record a failed row and continue when an individual question cannot be answered.
+
 ## Pending Clarifications
 
 None currently recorded.

@@ -1,5 +1,6 @@
 """Reusable, local-first components for CIAL Knowledge OS."""
 
+from .batch_qa import CSV_COLUMNS, export_batch_answers
 from .benchmarking import Timer, benchmark_pipeline_steps, print_benchmark_table
 from .chunking import chunk_documents, summarize_chunks
 from .config import KnowledgeOSConfig
@@ -33,6 +34,7 @@ from .visualization import (
 
 __all__ = [
     "BasicRAGPipeline",
+    "CSV_COLUMNS",
     "KnowledgeOSConfig",
     "Timer",
     "benchmark_pipeline_steps",
@@ -43,6 +45,7 @@ __all__ = [
     "create_sample_airport_documents",
     "embed_texts",
     "ensure_collection",
+    "export_batch_answers",
     "format_retrieved_context",
     "generate_answer",
     "get_embedding_dimension",

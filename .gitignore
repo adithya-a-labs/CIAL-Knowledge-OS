@@ -19,6 +19,7 @@ data/raw/
 data/qdrant/
 data/cache/
 data/exports/
+outputs/
 
 # Real documents
 data/pdf/
