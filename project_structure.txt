@@ -1,0 +1,56 @@
+Folder PATH listing for volume DATA
+Volume serial number is 00000083 F0DA:6D90
+E:.
+|   .gitignore
+|   LICENSE
+|   project_structure.txt
+|   README.md
+|   requirements.txt
+|   
++---.agents
++---data
+|   +---embeddings
+|   |       .gitkeep
+|   |       
+|   +---processed
+|   |       .gitkeep
+|   |       
+|   \---raw
+|           .gitkeep
+|           
++---docs
+|       NOTEBOOK_GUIDELINES.md
+|       PROJECT_RULES.md
+|       
++---documents
+|   +---Manuals
+|   |       .gitkeep
+|   |       
+|   +---Policies
+|   |       .gitkeep
+|   |       
+|   +---Reports
+|   |       .gitkeep
+|   |       
+|   \---SOPs
+|           .gitkeep
+|           
++---frontend
+|       .gitkeep
+|       
++---notebooks
+|       01_Basic_RAG.ipynb
+|       02_Query_Transformations.ipynb
+|       03_Hybrid_Retrieval.ipynb
+|       04_Reranking.ipynb
+|       05_Agentic_RAG.ipynb
+|       06_Evaluation.ipynb
+|       Final_Enterprise_RAG.ipynb
+|       
+\---references
+        rag_from_scratch_10_and_11.ipynb
+        rag_from_scratch_12_to_14.ipynb
+        rag_from_scratch_15_to_18.ipynb
+        rag_from_scratch_1_to_4.ipynb
+        rag_from_scratch_5_to_9.ipynb
+        

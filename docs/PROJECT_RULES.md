@@ -260,3 +260,42 @@ If code written during this session should later be modularized or improved, exp
 ## Questions for the Next Session
 
 List any open engineering questions that should be resolved before proceeding.
+
+## 22. Reference Notebook Usage
+
+The notebooks inside `references/` are **learning resources only**.
+
+They demonstrate RAG concepts and algorithms but are **not** the architectural standard for this project.
+
+Many of these notebooks use cloud-based services such as:
+
+- ChatOpenAI
+- OpenAI Embeddings
+- OpenAI API
+- Cohere APIs
+- LangSmith
+
+These are used only because they were the original implementations.
+
+### When implementing any technique from the reference notebooks:
+
+- Do **not** copy cloud-specific code.
+- Preserve the underlying RAG technique, not the implementation.
+- Replace cloud components with local, open-source alternatives.
+- Assume the final system must run completely offline.
+- Do not introduce API keys or hosted inference unless explicitly instructed for a temporary experiment.
+
+Preferred local replacements include:
+
+| Cloud Example | Preferred Local Alternative |
+|---------------|-----------------------------|
+| ChatOpenAI | Ollama / vLLM / llama.cpp |
+| OpenAI Embeddings | BGE / E5 / Qwen Embeddings / Nomic Embed |
+| Cohere Reranker | BGE Reranker / Local Cross-Encoder |
+| LangSmith | Local logging and evaluation |
+
+### Important
+
+If a reference notebook contains cloud-specific code, **reinterpret the algorithm using the project's approved local stack rather than reproducing the original implementation.**
+
+The reference notebooks should be treated as conceptual guides, not implementation templates.
