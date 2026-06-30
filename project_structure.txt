@@ -1,56 +1,40 @@
-Folder PATH listing for volume DATA
-Volume serial number is 00000083 F0DA:6D90
-E:.
-|   .gitignore
-|   LICENSE
-|   project_structure.txt
-|   README.md
-|   requirements.txt
-|   
-+---.agents
-+---data
-|   +---embeddings
-|   |       .gitkeep
-|   |       
-|   +---processed
-|   |       .gitkeep
-|   |       
-|   \---raw
-|           .gitkeep
-|           
-+---docs
-|       NOTEBOOK_GUIDELINES.md
-|       PROJECT_RULES.md
-|       
-+---documents
-|   +---Manuals
-|   |       .gitkeep
-|   |       
-|   +---Policies
-|   |       .gitkeep
-|   |       
-|   +---Reports
-|   |       .gitkeep
-|   |       
-|   \---SOPs
-|           .gitkeep
-|           
-+---frontend
-|       .gitkeep
-|       
-+---notebooks
-|       01_Basic_RAG.ipynb
-|       02_Query_Transformations.ipynb
-|       03_Hybrid_Retrieval.ipynb
-|       04_Reranking.ipynb
-|       05_Agentic_RAG.ipynb
-|       06_Evaluation.ipynb
-|       Final_Enterprise_RAG.ipynb
-|       
-\---references
-        rag_from_scratch_10_and_11.ipynb
-        rag_from_scratch_12_to_14.ipynb
-        rag_from_scratch_15_to_18.ipynb
-        rag_from_scratch_1_to_4.ipynb
-        rag_from_scratch_5_to_9.ipynb
-        
+CIAL-Knowledge-OS/
+|-- docs/
+|   |-- NOTEBOOK_GUIDELINES.md
+|   |-- PROJECT_REQUIREMENTS.md
+|   `-- PROJECT_RULES.md
+|-- notebooks/
+|   |-- 00_Setup_Check.ipynb
+|   |-- 01_Basic_RAG.ipynb
+|   |-- 02_Query_Transformations.ipynb
+|   |-- 03_Hybrid_Retrieval.ipynb
+|   |-- 04_Reranking.ipynb
+|   |-- 05_Agentic_RAG.ipynb
+|   |-- 06_Evaluation.ipynb
+|   `-- Final_Enterprise_RAG.ipynb
+|-- src/
+|   `-- cial_knowledge_os/
+|       |-- __init__.py
+|       |-- benchmarking.py
+|       |-- chunking.py
+|       |-- config.py
+|       |-- embeddings.py
+|       |-- llm.py
+|       |-- loaders.py
+|       |-- rag_pipeline.py
+|       |-- retrieval.py
+|       |-- vectorstore.py
+|       `-- visualization.py
+|-- data/
+|   |-- sample/       # Versioned, non-sensitive fixtures
+|   |-- raw/          # Ignored runtime text
+|   |-- pdf/          # Ignored real documents
+|   |-- qdrant/       # Ignored embedded database
+|   |-- cache/        # Ignored runtime cache
+|   `-- exports/      # Ignored generated exports
+|-- references/       # Conceptual learning resources only
+|-- .gitattributes
+|-- .gitignore
+|-- pyproject.toml
+|-- README.md
+`-- requirements.txt

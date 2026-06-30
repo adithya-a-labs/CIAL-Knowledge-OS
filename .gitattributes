@@ -1,18 +1,7 @@
-# Auto-detect text files
 * text=auto
-
-# Keep notebooks as LF
-*.ipynb text eol=lf
-
-# Python
 *.py text eol=lf
-
-# Markdown
 *.md text eol=lf
-
-# Shell scripts
+*.ipynb text eol=lf
 *.sh text eol=lf
-
-# Windows scripts
 *.bat text eol=crlf
 *.ps1 text eol=crlf

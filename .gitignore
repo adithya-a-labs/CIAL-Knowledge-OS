@@ -1,23 +1,35 @@
 # Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
 
-# Virtual environment
+# Virtual environments
 .venv/
+venv/
 
 # Jupyter
 .ipynb_checkpoints/
 
 # Environment variables
 .env
+.env.*
 
-# Generated RAG data
+# Runtime data
 data/raw/
 data/qdrant/
+data/cache/
+data/exports/
+
+# Real documents
 data/pdf/
+data/documents/
 
 # Logs
 *.log
-data/pdf/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/

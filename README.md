@@ -63,7 +63,40 @@ The goal is not just document chat. The goal is a trusted knowledge operating sy
 
 ## Current Status
 
-Planning and foundation stage for the CIAL Knowledge OS internship/project.
+Notebook-first RAG experimentation with reusable implementation modules under
+`src/cial_knowledge_os`.
+
+## Local Setup
+
+Python 3.11 or newer is required. Install the pinned local stack and the package:
+
+```bash
+python -m pip install -r requirements.txt
+python -m pip install -e .
+```
+
+On an isolated host, stage approved wheels first and replace the first command with
+`python -m pip install --no-index --find-links <wheelhouse> -r requirements.txt`.
+
+The embedding model must already exist in the local Hugging Face cache, and the
+configured Ollama model must already exist in the local Ollama store. The pipeline
+uses `BAAI/bge-m3` and `qwen2.5:7b` by default. No model or document is sent to a
+hosted service.
+
+Place non-sensitive text fixtures in `data/sample/`, temporary text input in
+`data/raw/`, and approved local PDFs in `data/pdf/`. PDF ingestion prefers Docling
+and falls back to PyMuPDF. Each experiment's Qdrant data is written beneath
+`data/qdrant/` and must not be committed.
+
+## Experiment Architecture
+
+`notebooks/01_Basic_RAG.ipynb` is the learning and orchestration layer. Reusable
+configuration, loading, chunking, embedding, vector storage, retrieval, local
+generation, benchmarking, and visualization live in `src/cial_knowledge_os`.
+`BasicRAGPipeline` composes those modules while exposing every intermediate result.
+
+Embedded Qdrant permits only one process per storage path. Close other notebook
+kernels or clients before reopening the same `data/qdrant/` directory.
 
 ## Project Rules
 
