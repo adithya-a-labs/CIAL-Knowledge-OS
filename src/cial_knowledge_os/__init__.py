@@ -20,6 +20,7 @@ from .retrieval import (
 )
 from .vectorstore import (
     create_qdrant_client,
+    ensure_collection,
     index_chunks,
     recreate_collection,
     reset_qdrant_storage,
@@ -41,6 +42,7 @@ __all__ = [
     "create_qdrant_client",
     "create_sample_airport_documents",
     "embed_texts",
+    "ensure_collection",
     "format_retrieved_context",
     "generate_answer",
     "get_embedding_dimension",

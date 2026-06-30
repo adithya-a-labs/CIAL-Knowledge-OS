@@ -29,7 +29,9 @@ class KnowledgeOSConfig:
     chunk_overlap: int = 120
     top_k: int = 3
     max_context_chars: int = 3_000
-    reset_vectorstore: bool = True
+    # Persistence is the safe default: callers must explicitly opt into deleting
+    # the local embedded Qdrant data.
+    reset_vectorstore: bool = False
 
     def __post_init__(self) -> None:
         self.project_root = Path(self.project_root).expanduser().resolve()

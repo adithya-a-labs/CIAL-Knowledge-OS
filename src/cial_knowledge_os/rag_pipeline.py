@@ -23,8 +23,8 @@ from .loaders import (
 from .retrieval import format_retrieved_context, search_similar_chunks
 from .vectorstore import (
     create_qdrant_client,
+    ensure_collection,
     index_chunks,
-    recreate_collection,
     reset_qdrant_storage,
 )
 
@@ -83,8 +83,16 @@ class BasicRAGPipeline:
         return self.embeddings
 
     def index(self) -> QdrantClient:
+        """Idempotently persist the current chunks in embedded local Qdrant."""
+
         if self.embeddings is None or self.embedding_model is None:
             raise RuntimeError("Call embed() before index().")
+        embedding_dimension = get_embedding_dimension(self.embedding_model)
+        if self.embeddings.ndim != 2 or self.embeddings.shape[1] != embedding_dimension:
+            raise ValueError(
+                f"Embedding array shape {self.embeddings.shape} does not match "
+                f"the model's output dimension {embedding_dimension}."
+            )
         if self.client is not None:
             self.client.close()
             self.client = None
@@ -93,10 +101,10 @@ class BasicRAGPipeline:
         with Timer(self.metrics, "indexing_time"):
             self.client = create_qdrant_client(self.config)
             try:
-                recreate_collection(
+                ensure_collection(
                     self.client,
                     self.config,
-                    get_embedding_dimension(self.embedding_model),
+                    embedding_dimension,
                 )
                 index_chunks(
                     self.client,
