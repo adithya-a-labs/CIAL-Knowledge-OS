@@ -63,3 +63,12 @@ The goal is not just document chat. The goal is a trusted knowledge operating sy
 ## Current Status
 
 Planning and foundation stage for the CIAL Knowledge OS internship/project.
+
+## Project Rules
+
+All development must follow the rules in:
+
+- `docs/PROJECT_RULES.md`
+- `docs/NOTEBOOK_GUIDELINES.md`
+
+These rules prioritize on-prem deployment, open-source local models, token efficiency, metadata-aware retrieval, citation grounding, and enterprise-grade reliability.
