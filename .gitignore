@@ -16,6 +16,8 @@ __pycache__/
 # Generated RAG data
 data/raw/
 data/qdrant/
+data/pdf/
 
 # Logs
 *.log
+data/pdf/
