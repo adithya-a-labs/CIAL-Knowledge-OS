@@ -68,6 +68,7 @@ Planning and foundation stage for the CIAL Knowledge OS internship/project.
 
 All development must follow the rules in:
 
+- `docs/PROJECT_REQUIREMENTS.md` (single source of truth)
 - `docs/PROJECT_RULES.md`
 - `docs/NOTEBOOK_GUIDELINES.md`
 

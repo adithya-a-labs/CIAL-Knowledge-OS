@@ -1,5 +1,7 @@
 # CIAL KnowledgeOS — Project Rules
 
+The canonical project requirements are maintained in `PROJECT_REQUIREMENTS.md`. This document provides detailed development rules and must remain consistent with those requirements.
+
 ## 1. On-Premise First
 
 - No cloud deployment is allowed.
