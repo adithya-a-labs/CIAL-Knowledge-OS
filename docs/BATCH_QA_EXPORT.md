@@ -24,6 +24,11 @@ csv_path = export_batch_answers(
 print(csv_path)
 ```
 
+For `BasicRAGPipeline`, `export_batch_answers()` checks readiness before starting
+the batch. If `load()`, `chunk()`, `embed()`, and `index()` have not completed,
+it raises an actionable `RuntimeError` instead of writing one failed row per
+question. Indexing remains explicit because it can rebuild local vector storage.
+
 The public package also exports `export_batch_answers`, so this is equivalent:
 
 ```python

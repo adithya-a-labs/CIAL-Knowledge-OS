@@ -58,6 +58,20 @@ class BatchQAPipeline(Protocol):
     def answer(self, question: str) -> Mapping[str, Any]: ...
 
 
+def _require_pipeline_ready(pipeline: BatchQAPipeline) -> None:
+    """Reject a known uninitialized pipeline before starting a batch."""
+
+    readiness = getattr(pipeline, "is_ready_for_answering", None)
+    if callable(readiness):
+        readiness = readiness()
+    if readiness is not None and not bool(readiness):
+        raise RuntimeError(
+            "The pipeline is not indexed and cannot answer questions. "
+            "Call pipeline.load(), pipeline.chunk(), pipeline.embed(), and "
+            "pipeline.index() before export_batch_answers()."
+        )
+
+
 def _json_cell(values: Iterable[Any]) -> str:
     """Serialize list-like CSV values as compact, machine-readable JSON."""
 
@@ -236,10 +250,13 @@ def export_batch_answers(
     """Answer questions locally and export a failure-tolerant, versioned CSV.
 
     The pipeline must already be ready for answering (for ``BasicRAGPipeline``,
-    call ``index()`` first). Per-question failures are recorded and do not stop
-    the remainder of the batch.
+    complete ``load()``, ``chunk()``, ``embed()``, and ``index()`` first).
+    A known uninitialized pipeline is rejected before the batch starts.
+    Per-question failures are recorded and do not stop the remainder of the
+    batch.
     """
 
+    _require_pipeline_ready(pipeline)
     config = pipeline.config
     project_root = Path(config.project_root).expanduser().resolve()
     resolved_questions = _resolve_questions(

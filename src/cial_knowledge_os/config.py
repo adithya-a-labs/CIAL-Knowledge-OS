@@ -24,7 +24,7 @@ class KnowledgeOSConfig:
     qdrant_collection_name: str = "cial_basic_rag"
     embedding_model_name: str = "BAAI/bge-m3"
     embedding_device: str = "auto"
-    ollama_model_name: str = "deepseek-r1:14b"
+    ollama_model_name: str = "gemma3:4b"
     chunk_size: int = 700
     chunk_overlap: int = 120
     top_k: int = 3

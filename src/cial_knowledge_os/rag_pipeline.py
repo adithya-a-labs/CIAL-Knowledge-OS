@@ -49,6 +49,12 @@ class BasicRAGPipeline:
         self.embeddings: np.ndarray | None = None
         self.metrics: dict[str, float] = {}
 
+    @property
+    def is_ready_for_answering(self) -> bool:
+        """Return whether retrieval dependencies have been initialized."""
+
+        return self.client is not None and self.embedding_model is not None
+
     def load(self) -> list[Document]:
         create_sample_airport_documents(self.config)
         started_at = time.perf_counter()
