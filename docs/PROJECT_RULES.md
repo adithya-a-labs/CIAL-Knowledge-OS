@@ -163,6 +163,35 @@ Each notebook should:
 - Compare outputs before and after improvements.
 - End with observations, limitations, and next steps.
 
+## Standard Notebook Structure
+
+Every notebook in the `notebooks/` directory must follow this fixed engineering structure:
+
+1. Objective
+2. Theory
+3. Architecture
+4. Implementation
+5. Visualization
+6. Benchmark
+7. Advantages
+8. Limitations
+9. Enterprise Considerations
+10. What we'll improve in the next notebook
+
+Each notebook must be treated as both an experiment and an engineering design document. Notebooks must remain local-first, offline-friendly, and model-agnostic, and they must not introduce cloud-based assumptions, hosted inference requirements, or vendor-specific flows.
+
+Use the sections as follows:
+
+- **Objective** should clearly state what RAG capability is being tested.
+- **Theory** should explain the underlying concept before code is written.
+- **Architecture** should show where the technique fits into the Knowledge OS pipeline.
+- **Implementation** should contain clean, reproducible code that can run with local components.
+- **Visualization** should make the pipeline or outputs easier to understand.
+- **Benchmark** should measure latency, retrieval quality, model behavior, or resource usage where applicable.
+- **Advantages** and **Limitations** should honestly document tradeoffs.
+- **Enterprise Considerations** should explain relevance to a fully local, on-prem CIAL deployment.
+- **What we'll improve in the next notebook** should explain how the next notebook improves the current one.
+
 ## 10. Evaluation First Mindset
 
 Every RAG improvement must be tested against:
