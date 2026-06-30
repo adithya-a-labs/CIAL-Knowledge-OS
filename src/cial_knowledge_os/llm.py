@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from httpx import HTTPError
 from langchain_ollama import OllamaLLM
+from ollama import ResponseError, list as list_ollama_models
 
 from .config import KnowledgeOSConfig
 
@@ -16,7 +18,26 @@ class LocalLLM(Protocol):
 
 
 def create_local_llm(config: KnowledgeOSConfig) -> OllamaLLM:
-    """Create a deterministic local Ollama language-model interface."""
+    """Validate and create a deterministic local Ollama model interface."""
+
+    try:
+        available_models = {
+            model.model
+            for model in list_ollama_models().models
+            if model.model is not None
+        }
+    except (HTTPError, OSError, ResponseError) as exc:
+        raise RuntimeError(
+            "The local Ollama service is unavailable. Start Ollama and confirm "
+            f"that the configured model '{config.ollama_model_name}' is installed."
+        ) from exc
+
+    if config.ollama_model_name not in available_models:
+        raise RuntimeError(
+            f"Configured Ollama model '{config.ollama_model_name}' is not installed "
+            "locally. Install or transfer that model, or change "
+            "KnowledgeOSConfig.ollama_model_name. No model was downloaded."
+        )
 
     return OllamaLLM(model=config.ollama_model_name, temperature=0)
 

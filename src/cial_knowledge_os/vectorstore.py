@@ -15,8 +15,9 @@ from .config import KnowledgeOSConfig
 
 _LOCK_MESSAGE = (
     "Embedded Qdrant storage is locked. Only one process can access the same "
-    "local Qdrant path at a time. Close other notebooks, Python processes, and "
-    "Qdrant clients using this path, then retry."
+    "local Qdrant path at a time. Close other Qdrant clients or restart notebook "
+    "kernels using this path, then retry. Use Qdrant server mode when multiple "
+    "processes need concurrent access."
 )
 
 

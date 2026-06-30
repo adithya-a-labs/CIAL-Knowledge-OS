@@ -1,0 +1,8 @@
+CIAL Terminal Operations SOP
+Version: 1.0
+Owner: Airport Operations Control Centre
+
+Passenger queue monitoring must be reviewed every 15 minutes during peak periods.
+Duty managers must coordinate with airline supervisors when a queue exceeds the
+marked holding area. Escalators, elevators, baggage belts, and passenger boarding
+bridges must be visually checked at the start of each shift.

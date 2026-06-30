@@ -1,0 +1,9 @@
+CIAL Electrical Maintenance Manual
+Version: 1.0
+Owner: Electrical Engineering
+
+Work on energized panels requires voltage-rated insulated gloves, an arc-rated face
+shield, flame-resistant clothing, dielectric safety shoes, insulated tools, and
+lockout-tagout verification wherever isolation is possible. Emergency shutdown
+requires operating the designated stop, notifying electrical control, applying
+lockout-tagout, and recording the event.
