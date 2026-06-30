@@ -12,6 +12,7 @@ from sentence_transformers import SentenceTransformer
 
 from .benchmarking import Timer
 from .chunking import chunk_documents
+from .citations import build_citations, render_answer_with_citations
 from .config import KnowledgeOSConfig
 from .embeddings import embed_texts, get_embedding_dimension, load_embedding_model
 from .llm import LocalLLM, create_local_llm, generate_answer
@@ -136,22 +137,15 @@ class BasicRAGPipeline:
         if self.llm is None:
             self.llm = create_local_llm(self.config)
         with Timer(self.metrics, "generation_latency"):
-            answer = generate_answer(self.llm, question, context)
+            raw_answer = generate_answer(self.llm, question, context)
         self.metrics["total_pipeline_latency"] = time.perf_counter() - started_at
-        citations = [
-            {
-                "reference_id": rank,
-                "source": result.get("source"),
-                "page_number": result.get("page_number"),
-                "chunk_id": result.get("chunk_id"),
-                "score": result.get("score"),
-            }
-            for rank, result in enumerate(results, start=1)
-        ]
+        citations = build_citations(results)
+        answer = render_answer_with_citations(raw_answer, citations)
         return {
             "question": question,
             "retrieved": results,
             "context": context,
+            "raw_answer": raw_answer,
             "answer": answer,
             "citations": citations,
         }

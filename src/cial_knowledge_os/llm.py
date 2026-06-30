@@ -46,7 +46,9 @@ def build_grounded_prompt(question: str, context: str) -> str:
     """Build a short prompt that requires evidence and traceable citations."""
 
     return f"""Answer only from CONTEXT. Cite claims with exact reference IDs such as [1].
-Do not invent or alter citation fields.
+Use reference IDs inline. Do not add a separate reference list.
+The application resolves reference IDs locally.
+Do not invent or alter reference IDs.
 If the answer is absent or evidence is weak, reply exactly:
 "It is not available in the retrieved documents."
 

@@ -3,6 +3,11 @@
 from .batch_qa import CSV_COLUMNS, export_batch_answers
 from .benchmarking import Timer, benchmark_pipeline_steps, print_benchmark_table
 from .chunking import chunk_documents, summarize_chunks
+from .citations import (
+    build_citations,
+    render_answer_with_citations,
+    render_citations,
+)
 from .config import KnowledgeOSConfig
 from .embeddings import embed_texts, get_embedding_dimension, load_embedding_model
 from .llm import build_grounded_prompt, create_local_llm, generate_answer
@@ -39,6 +44,7 @@ __all__ = [
     "Timer",
     "benchmark_pipeline_steps",
     "build_grounded_prompt",
+    "build_citations",
     "chunk_documents",
     "create_local_llm",
     "create_qdrant_client",
@@ -60,6 +66,8 @@ __all__ = [
     "print_benchmark_table",
     "print_retrieval_results",
     "recreate_collection",
+    "render_answer_with_citations",
+    "render_citations",
     "reset_qdrant_storage",
     "search_similar_chunks",
     "summarize_chunks",
