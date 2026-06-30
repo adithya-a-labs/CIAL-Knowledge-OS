@@ -172,6 +172,17 @@ Organizations should be free to choose the model that best satisfies their requi
 
 This principle must remain true throughout the lifetime of the project.
 
+## 14. Reusable Experiment Architecture
+
+- Keep notebooks as lightweight learning and orchestration layers.
+- Put reusable ingestion, chunking, embedding, storage, retrieval, generation,
+  benchmarking, and visualization code under `src/cial_knowledge_os`.
+- Keep notebook cells short, inspectable, rerunnable, and free of large reusable
+  function or class implementations.
+- Reuse the same `src` APIs from future notebooks, evaluation code, and backend
+  services.
+- Keep local sample fixtures separate from ignored runtime and real-document data.
+
 ## Pending Clarifications
 
 None currently recorded.
