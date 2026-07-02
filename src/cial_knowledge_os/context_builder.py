@@ -246,12 +246,14 @@ def compress_context(
         separator = "\n\n" if blocks else ""
         if enabled and token_budget_manager is not None:
             prefix_tokens = token_budget_manager.count(separator + header)
-            remaining_tokens = (
-                token_budget_manager.max_tokens - used - prefix_tokens
-            )
-            if remaining_tokens <= 0:
+            consumed_tokens = used + prefix_tokens
+            if consumed_tokens >= token_budget_manager.max_tokens:
                 omitted_sections = len(results) - position
                 break
+            remaining_tokens = token_budget_manager.remaining(
+                used_tokens=consumed_tokens,
+                max_tokens=token_budget_manager.max_tokens,
+            )
             original_text = text
             text = token_budget_manager.truncate(text, remaining_tokens)
             if not text:

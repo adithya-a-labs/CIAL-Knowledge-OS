@@ -20,7 +20,13 @@ from .phase2_pipeline import Phase2RAGPipeline
 from .query_transformations import QueryTransformer
 from .retrieval import search_similar_chunks
 from .retrievers import BM25Retriever, DenseRetriever, HybridRetriever, Retriever
-from .token_budget import TokenBudgetManager, Tokenizer
+from .token_budget import (
+    TokenBudgetManager,
+    TokenManager,
+    Tokenizer,
+    create_token_budget_manager,
+    create_token_manager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +52,9 @@ class Phase3RAGPipeline(Phase2RAGPipeline):
         self._retrievers: dict[str, Retriever] = {}
         self.bm25_retriever: BM25Retriever | None = None
         self.hybrid_retriever: HybridRetriever | None = None
+        self.token_manager: TokenManager
         self.token_budget_manager: TokenBudgetManager | None = None
+        self._token_config_key: tuple[int | None, str, int | None] | None = None
         super().__init__(
             config=phase3_config,
             embedding_model=embedding_model,
@@ -57,51 +65,38 @@ class Phase3RAGPipeline(Phase2RAGPipeline):
             mode=phase3_config.citation_link_mode,
             base_url=phase3_config.citation_base_url,
         )
-        self._configure_token_budget_if_available()
+        self._configure_token_management()
 
-    def _configure_token_budget_if_available(self) -> None:
+    def _configure_token_management(self) -> None:
+        key = (
+            id(self._provided_tokenizer)
+            if self._provided_tokenizer is not None
+            else None,
+            self.config.tokenizer_encoding_name,
+            self.config.max_context_tokens,
+        )
+        if self._token_config_key == key:
+            return
         if self.config.max_context_tokens is None:
+            self.token_manager = create_token_manager(
+                encoding_name=self.config.tokenizer_encoding_name,
+                tokenizer=self._provided_tokenizer,
+            )
             self.context_builder = ContextBuilder(self.config)
             self.token_budget_manager = None
+            self._token_config_key = key
             return
-        tokenizer = self._provided_tokenizer
-        if tokenizer is None and self.embedding_model is not None:
-            tokenizer = getattr(self.embedding_model, "tokenizer", None)
-        if tokenizer is None:
-            return
-        if (
-            self.token_budget_manager is not None
-            and self.token_budget_manager.tokenizer is tokenizer
-            and self.token_budget_manager.max_tokens
-            == self.config.max_context_tokens
-        ):
-            return
-        self.token_budget_manager = TokenBudgetManager(
-            tokenizer,
+        self.token_budget_manager = create_token_budget_manager(
             max_tokens=self.config.max_context_tokens,
+            encoding_name=self.config.tokenizer_encoding_name,
+            tokenizer=self._provided_tokenizer,
         )
+        self.token_manager = self.token_budget_manager
         self.context_builder = ContextBuilder(
             self.config,
             token_budget_manager=self.token_budget_manager,
         )
-
-    def _require_token_budget(self) -> None:
-        self._configure_token_budget_if_available()
-        if (
-            self.config.max_context_tokens is not None
-            and self.token_budget_manager is None
-        ):
-            raise RuntimeError(
-                "max_context_tokens is configured, but no local tokenizer is "
-                "available. Pass tokenizer=..., provide an embedding model with "
-                "a tokenizer, or set max_context_tokens=None to use the "
-                "backward-compatible character budget."
-            )
-
-    def embed(self):
-        embeddings = super().embed()
-        self._configure_token_budget_if_available()
-        return embeddings
+        self._token_config_key = key
 
     def _dense_search(self, query: str, top_k: int) -> list[dict[str, Any]]:
         if self.client is None or self.embedding_model is None:
@@ -160,7 +155,7 @@ class Phase3RAGPipeline(Phase2RAGPipeline):
     def on_config_changed(self) -> None:
         """Refresh cheap configuration-bound components for experiment sweeps."""
 
-        self._configure_token_budget_if_available()
+        self._configure_token_management()
         if self.hybrid_retriever is not None:
             self.hybrid_retriever.fuser = ReciprocalRankFusion(
                 rank_constant=self.config.rrf_k,
@@ -233,7 +228,7 @@ class Phase3RAGPipeline(Phase2RAGPipeline):
     def answer(self, question: str) -> dict[str, Any]:
         """Run Phase 2 orchestration with Phase 3 retrieval and enrichment."""
 
-        self._require_token_budget()
+        self._configure_token_management()
         response = super().answer(question)
         compressed = response.get("context_stages", {}).get("compressed", [])
         if response.get("answer_status") == "answered":
@@ -261,29 +256,37 @@ class Phase3RAGPipeline(Phase2RAGPipeline):
             if self.token_budget_manager is not None
             else None
         )
+        context_token_count = self.token_manager.count(context)
         response["token_usage"] = (
             {
                 "budget": usage.budget,
                 "used": usage.used,
                 "remaining": usage.remaining,
+                "context_tokens": usage.used,
+                "encoding_name": usage.encoding_name,
                 "truncated_sections": usage.truncated_sections,
                 "omitted_sections": usage.omitted_sections,
                 "budget_type": "tokens",
             }
             if usage is not None
             else {
-                "budget": self.config.max_context_chars,
-                "used": len(context),
-                "remaining": max(
-                    0,
-                    self.config.max_context_chars - len(context),
-                ),
+                "budget": None,
+                "used": context_token_count,
+                "remaining": None,
+                "context_tokens": context_token_count,
+                "encoding_name": self.token_manager.encoding_name,
                 "truncated_sections": sum(
                     bool(item.get("context_truncated"))
                     for item in compressed
                 ),
                 "omitted_sections": 0,
-                "budget_type": "characters",
+                "budget_type": "characters_legacy",
+                "character_budget": self.config.max_context_chars,
+                "characters_used": len(context),
+                "characters_remaining": max(
+                    0,
+                    self.config.max_context_chars - len(context),
+                ),
             }
         )
         response["retrieval_mode"] = self.config.retrieval_mode
@@ -295,9 +298,7 @@ class Phase3RAGPipeline(Phase2RAGPipeline):
             "token_usage": response["token_usage"],
         }
         self.metrics["context_tokens"] = float(
-            response["token_usage"]["used"]
-            if response["token_usage"]["budget_type"] == "tokens"
-            else 0
+            response["token_usage"]["context_tokens"]
         )
         logger.info(
             "phase3_answer_complete",

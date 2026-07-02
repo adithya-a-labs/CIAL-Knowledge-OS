@@ -19,6 +19,11 @@ from .experiment_config import (
     ExperimentGrid,
     ensure_experiment_configs,
 )
+from .token_budget import (
+    DEFAULT_TIKTOKEN_ENCODING,
+    TokenManager,
+    create_token_manager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +97,7 @@ CORE_EXPERIMENT_COLUMNS = [
     "retrieval_trace", "retrieval_top_k", "max_context_chars",
     "neighbor_window", "multi_query_enabled", "neighbor_expansion_enabled",
     "retrieval_mode", "dense_top_k", "bm25_top_k", "rrf_k",
-    "max_context_tokens", "context_tokens",
+    "max_context_tokens", "context_tokens", "token_encoding",
     "total_latency", "retrieval_latency", "context_construction_latency",
     "generation_latency", "status", "error",
 ]
@@ -141,10 +146,6 @@ def _metadata_trace(
     return documents, pages, chunk_ids, scores
 
 
-def _estimate_tokens(text: str) -> int:
-    return max(0, round(len(text) / 4))
-
-
 def _response_row(
     question: BenchmarkQuestion,
     config: ExperimentConfig,
@@ -152,6 +153,7 @@ def _response_row(
     metrics: Mapping[str, Any],
     elapsed: float,
     metric_hooks: Iterable[MetricHook],
+    token_manager: TokenManager,
 ) -> dict[str, Any]:
     answer = str(
         response.get("generated_answer")
@@ -192,11 +194,11 @@ def _response_row(
         "max_context_tokens": parameters.get("max_context_tokens", ""),
     }
     token_usage = response.get("token_usage")
-    context_tokens = (
-        token_usage.get("used", "")
+    context_tokens = token_manager.count(context)
+    token_encoding = (
+        token_usage.get("encoding_name", token_manager.encoding_name)
         if isinstance(token_usage, Mapping)
-        and token_usage.get("budget_type") == "tokens"
-        else ""
+        else token_manager.encoding_name
     )
     row: dict[str, Any] = {
         "experiment_id": config.experiment_id,
@@ -224,8 +226,10 @@ def _response_row(
         "merged_context_sections": _count(response, "merged"),
         "final_context_sections": _count(response, "compressed"),
         "final_context_characters": len(context),
-        "estimated_tokens": _estimate_tokens(context),
+        # Preserve the legacy name while reporting an exact tokenizer count.
+        "estimated_tokens": context_tokens,
         "context_tokens": context_tokens,
+        "token_encoding": token_encoding,
         "retrieval_trace": _json(
             response.get("retrieval_trace")
             or {
@@ -320,6 +324,20 @@ class ExperimentRunner:
                     },
                 )
                 pipeline = self.pipeline_factory(config)
+                token_manager_value = getattr(pipeline, "token_manager", None)
+                token_manager = (
+                    token_manager_value
+                    if isinstance(token_manager_value, TokenManager)
+                    else create_token_manager(
+                        encoding_name=str(
+                            getattr(
+                                pipeline.config,
+                                "tokenizer_encoding_name",
+                                DEFAULT_TIKTOKEN_ENCODING,
+                            )
+                        )
+                    )
+                )
                 rows: list[dict[str, Any]] = []
                 for question in self.benchmark.questions:
                     started = time.perf_counter()
@@ -334,6 +352,7 @@ class ExperimentRunner:
                                 getattr(pipeline, "metrics", {}),
                                 elapsed,
                                 self.metric_hooks,
+                                token_manager,
                             )
                         )
                     except Exception as exc:

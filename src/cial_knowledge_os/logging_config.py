@@ -53,6 +53,8 @@ class _PerRecordFileHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
+            if not self.path.parent.is_dir():
+                return
             message = self.format(record)
             with self.path.open("a", encoding=self.encoding) as handle:
                 handle.write(message + "\n")

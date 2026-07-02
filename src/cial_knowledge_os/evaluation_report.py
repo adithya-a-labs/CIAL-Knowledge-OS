@@ -48,7 +48,8 @@ def build_recommendations(
     safest = _best(ranked, "hallucination_rate", minimize=True)
     best = ranked[0]
     canonical = {
-        "retrieval_top_k", "max_context_chars", "neighbor_window",
+        "retrieval_top_k", "max_context_chars", "max_context_tokens",
+        "token_encoding", "neighbor_window",
         "multi_query_enabled", "neighbor_expansion_enabled",
     }
     config_names = [key for key in best if key in canonical]

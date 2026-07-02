@@ -228,6 +228,18 @@ def write_standalone_html(
         )
         usage = response.get("token_usage")
         usage = usage if isinstance(usage, Mapping) else {}
+        if usage.get("budget_type") == "tokens":
+            usage_label = (
+                f"{usage.get('used', 0)} / {usage.get('budget', 0)} tokens "
+                f"({usage.get('encoding_name', '')})"
+            )
+        else:
+            usage_label = (
+                f"{usage.get('context_tokens', usage.get('used', 0))} tokens "
+                f"({usage.get('encoding_name', '')}); "
+                f"{usage.get('characters_used', 0)} / "
+                f"{usage.get('character_budget', 0)} legacy characters"
+            )
         question_sections.append(
             f"""<article>
 <h3>{index}. {html.escape(str(row.get("question") or ""))}</h3>
@@ -238,7 +250,7 @@ def write_standalone_html(
 <div class="grid">
 {_metric_card("Retrieved chunks", row.get("retrieved_chunks", 0))}
 {_metric_card("Final sections", row.get("final_context_sections", 0))}
-{_metric_card("Context usage", f"{usage.get('used', 0)} / {usage.get('budget', 0)} {usage.get('budget_type', '')}")}
+{_metric_card("Context usage", usage_label)}
 {_metric_card("Latency (s)", row.get("total_latency_seconds", 0))}
 </div>
 </article>"""

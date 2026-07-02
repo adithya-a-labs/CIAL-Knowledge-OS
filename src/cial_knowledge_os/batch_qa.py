@@ -13,6 +13,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from .token_budget import (
+    DEFAULT_TIKTOKEN_ENCODING,
+    TokenManager,
+    create_token_manager,
+)
+
 logger = logging.getLogger(__name__)
 
 CSV_COLUMNS = [
@@ -56,6 +62,7 @@ PHASE3_CSV_COLUMNS = [
     "final_context_tokens",
     "context_budget",
     "context_budget_type",
+    "token_encoding",
     "pdf_links",
     "retrieval_sources",
 ]
@@ -305,12 +312,6 @@ def _stage_count(response: Mapping[str, Any], stage_name: str) -> int:
     return len(_stage_items(response, stage_name))
 
 
-def _estimate_context_tokens(context: str) -> int:
-    """Return a deterministic tokenizer-independent approximation."""
-
-    return len(re.findall(r"\w+|[^\w\s]", context, flags=re.UNICODE))
-
-
 def _query_variant_values(
     response: Mapping[str, Any],
 ) -> tuple[list[dict[str, str]], list[str]]:
@@ -339,7 +340,10 @@ def _query_variant_values(
     return variants, trace_steps
 
 
-def _phase2_row_values(response: Mapping[str, Any]) -> dict[str, Any]:
+def _phase2_row_values(
+    response: Mapping[str, Any],
+    token_manager: TokenManager,
+) -> dict[str, Any]:
     """Extract the inspectable Phase 2 retrieval and context audit trail."""
 
     variants, trace_steps = _query_variant_values(response)
@@ -386,7 +390,8 @@ def _phase2_row_values(response: Mapping[str, Any]) -> dict[str, Any]:
         "merged_context_sections": merged_count,
         "final_context_sections": final_sections,
         "final_context_characters": len(context),
-        "final_context_tokens_estimate": _estimate_context_tokens(context),
+        # Preserve the legacy column name while writing an exact token count.
+        "final_context_tokens_estimate": token_manager.count(context),
         "answer_status": answer_status,
         "retrieval_trace": " → ".join(trace_steps),
     }
@@ -395,6 +400,7 @@ def _phase2_row_values(response: Mapping[str, Any]) -> dict[str, Any]:
 def _phase3_row_values(
     response: Mapping[str, Any],
     config: Any,
+    token_manager: TokenManager,
 ) -> dict[str, Any]:
     token_usage = response.get("token_usage")
     token_usage = token_usage if isinstance(token_usage, Mapping) else {}
@@ -422,9 +428,16 @@ def _phase3_row_values(
         "dense_top_k": getattr(config, "dense_top_k", ""),
         "bm25_top_k": getattr(config, "bm25_top_k", ""),
         "rrf_k": getattr(config, "rrf_k", ""),
-        "final_context_tokens": token_usage.get("used", ""),
-        "context_budget": token_usage.get("budget", ""),
+        "final_context_tokens": token_manager.count(
+            str(response.get("context") or "")
+        ),
+        "context_budget": (
+            token_usage.get("budget")
+            if token_usage.get("budget_type") == "tokens"
+            else token_usage.get("character_budget", "")
+        ),
         "context_budget_type": token_usage.get("budget_type", ""),
+        "token_encoding": token_manager.encoding_name,
         "pdf_links": _json_cell(
             citation.get("pdf_link")
             for citation in citations
@@ -463,6 +476,20 @@ def collect_batch_answers(
     embedding_model = str(getattr(config, "embedding_model_name", "") or "")
     phase2_export = retrieval_depth_attribute == "retrieval_top_k"
     phase3_export = hasattr(config, "retrieval_mode")
+    token_manager_value = getattr(pipeline, "token_manager", None)
+    token_manager = (
+        token_manager_value
+        if isinstance(token_manager_value, TokenManager)
+        else create_token_manager(
+            encoding_name=str(
+                getattr(
+                    config,
+                    "tokenizer_encoding_name",
+                    DEFAULT_TIKTOKEN_ENCODING,
+                )
+            )
+        )
+    )
     columns = [
         *CSV_COLUMNS,
         *(PHASE2_CSV_COLUMNS if phase2_export else []),
@@ -533,9 +560,15 @@ def collect_batch_answers(
                     }
                 )
                 if phase2_export:
-                    row.update(_phase2_row_values(response))
+                    row.update(_phase2_row_values(response, token_manager))
                 if phase3_export:
-                    row.update(_phase3_row_values(response, config))
+                    row.update(
+                        _phase3_row_values(
+                            response,
+                            config,
+                            token_manager,
+                        )
+                    )
             except Exception as exc:
                 row["error"] = str(exc)
                 logger.exception(

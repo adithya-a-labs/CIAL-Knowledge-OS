@@ -122,6 +122,7 @@ def aggregate_experiment(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         or key in {
             "retrieval_top_k", "max_context_chars", "neighbor_window",
             "multi_query_enabled", "neighbor_expansion_enabled",
+            "max_context_tokens", "token_encoding",
         }
     ]
     return {
@@ -150,6 +151,7 @@ def aggregate_experiment(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         ),
         "average_generation_latency": average("generation_latency"),
         "average_context_size": average("final_context_characters"),
+        "average_context_tokens": average("context_tokens"),
         "average_context_sections": average("final_context_sections"),
         "average_retrieved_chunks": average("chunks_before_deduplication"),
         "average_deduplicated_chunks": average("chunks_after_deduplication"),
