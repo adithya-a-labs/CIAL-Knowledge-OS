@@ -99,7 +99,7 @@ class ConfigurationRegressionTests(unittest.TestCase):
         self.assertEqual(phase2.top_k, 3)
         self.assertEqual(phase2.retrieval_top_k, 10)
         self.assertEqual(phase1.max_context_chars, 3_000)
-        self.assertEqual(phase2.max_context_chars, 12_000)
+        self.assertEqual(phase2.max_context_chars, 20_000)
         self.assertGreater(phase2.max_context_chars, phase1.max_context_chars)
         self.assertEqual(phase1.qdrant_dir.name, "cial_basic_rag")
         self.assertEqual(phase2.qdrant_dir.name, "cial_phase2")
@@ -360,7 +360,7 @@ class ContextBudgetAndMetadataTests(unittest.TestCase):
         retained: list[int] = []
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for budget in (3_000, 6_000, 12_000, 25_000):
+            for budget in (3_000, 6_000, 20_000, 25_000):
                 with self.subTest(budget=budget):
                     config = Phase2Config(
                         project_root=root,
@@ -483,7 +483,7 @@ class LightweightPerformanceRegressionTests(unittest.TestCase):
         self.assertTrue(expanded)
         self.assertTrue(merged)
         self.assertTrue(compressed)
-        self.assertLessEqual(len(context), 12_000)
+        self.assertLessEqual(len(context), 20_000)
         self.assertLess(elapsed, 5.0)
 
 

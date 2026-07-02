@@ -71,7 +71,7 @@ class Phase2Config(KnowledgeOSConfig):
     ``retrieval_top_k`` instead of changing the meaning of the existing ``top_k``.
     """
     qdrant_collection_name: str = "cial_phase2"
-    max_context_chars: int = 12_000
+    max_context_chars: int = 20_000
 
     retrieval_top_k: int = 10
     enable_query_rewrite: bool = True
