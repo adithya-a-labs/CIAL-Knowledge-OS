@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -18,6 +19,8 @@ from .experiment_config import (
     ExperimentGrid,
     ensure_experiment_configs,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class EvaluationPipeline(Protocol):
@@ -62,12 +65,18 @@ class ReconfiguringPipelineFactory:
             if target not in self._original:
                 self._original[target] = getattr(config, target)
             setattr(config, target, value)
+        hook = getattr(self.pipeline, "on_config_changed", None)
+        if callable(hook):
+            hook()
         return self.pipeline
 
     def close(self) -> None:
         for name, value in self._original.items():
             setattr(self.pipeline.config, name, value)
         self._original.clear()
+        hook = getattr(self.pipeline, "on_config_changed", None)
+        if callable(hook):
+            hook()
 
 
 CORE_EXPERIMENT_COLUMNS = [
@@ -82,6 +91,8 @@ CORE_EXPERIMENT_COLUMNS = [
     "final_context_sections", "final_context_characters", "estimated_tokens",
     "retrieval_trace", "retrieval_top_k", "max_context_chars",
     "neighbor_window", "multi_query_enabled", "neighbor_expansion_enabled",
+    "retrieval_mode", "dense_top_k", "bm25_top_k", "rrf_k",
+    "max_context_tokens", "context_tokens",
     "total_latency", "retrieval_latency", "context_construction_latency",
     "generation_latency", "status", "error",
 ]
@@ -174,7 +185,19 @@ def _response_row(
             "neighbor_expansion_enabled",
             parameters.get("enable_neighbor_expansion", ""),
         ),
+        "retrieval_mode": parameters.get("retrieval_mode", ""),
+        "dense_top_k": parameters.get("dense_top_k", ""),
+        "bm25_top_k": parameters.get("bm25_top_k", ""),
+        "rrf_k": parameters.get("rrf_k", ""),
+        "max_context_tokens": parameters.get("max_context_tokens", ""),
     }
+    token_usage = response.get("token_usage")
+    context_tokens = (
+        token_usage.get("used", "")
+        if isinstance(token_usage, Mapping)
+        and token_usage.get("budget_type") == "tokens"
+        else ""
+    )
     row: dict[str, Any] = {
         "experiment_id": config.experiment_id,
         "question_id": question.question_id,
@@ -202,6 +225,7 @@ def _response_row(
         "final_context_sections": _count(response, "compressed"),
         "final_context_characters": len(context),
         "estimated_tokens": _estimate_tokens(context),
+        "context_tokens": context_tokens,
         "retrieval_trace": _json(
             response.get("retrieval_trace")
             or {
@@ -276,10 +300,25 @@ class ExperimentRunner:
         | Iterable[ExperimentConfig | Mapping[str, Any]],
     ) -> ExperimentSweepResult:
         configs = ensure_experiment_configs(configurations)
+        logger.info(
+            "evaluation_sweep_started",
+            extra={
+                "event": "evaluation",
+                "configuration_count": len(configs),
+                "question_count": len(self.benchmark.questions),
+            },
+        )
         experiment_files: list[Path] = []
         summaries: list[dict[str, Any]] = []
         try:
             for config in configs:
+                logger.info(
+                    "evaluation_configuration_started",
+                    extra={
+                        "event": "evaluation",
+                        "experiment_id": config.experiment_id,
+                    },
+                )
                 pipeline = self.pipeline_factory(config)
                 rows: list[dict[str, Any]] = []
                 for question in self.benchmark.questions:
@@ -300,6 +339,14 @@ class ExperimentRunner:
                     except Exception as exc:
                         if not self.continue_on_error:
                             raise
+                        logger.exception(
+                            "evaluation_question_failed",
+                            extra={
+                                "event": "evaluation",
+                                "experiment_id": config.experiment_id,
+                                "question_id": question.question_id,
+                            },
+                        )
                         rows.append(
                             {
                                 "experiment_id": config.experiment_id,
@@ -330,6 +377,14 @@ class ExperimentRunner:
                     row.get("status") == "failed" for row in rows
                 )
                 summaries.append(summary)
+                logger.info(
+                    "evaluation_configuration_complete",
+                    extra={
+                        "event": "evaluation",
+                        "experiment_id": config.experiment_id,
+                        "failed_questions": summary["failed_questions"],
+                    },
+                )
         finally:
             close = getattr(self.pipeline_factory, "close", None)
             if callable(close):
@@ -349,6 +404,13 @@ class ExperimentRunner:
             summaries=ranked,
             experiment_rows=None,
             recommendations=recommendations,
+        )
+        logger.info(
+            "evaluation_sweep_complete",
+            extra={
+                "event": "evaluation",
+                "configuration_count": len(configs),
+            },
         )
         return ExperimentSweepResult(
             output_root=self.output_root,
