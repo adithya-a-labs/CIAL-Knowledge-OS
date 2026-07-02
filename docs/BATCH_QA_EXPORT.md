@@ -47,8 +47,9 @@ csv_path = export_batch_answers(
 ```
 
 `top_k` applies only during the export and the pipeline's configured value is
-restored afterward. Without `run_name`, the API infers a name from the pipeline
-class and falls back to `batch_qa`.
+restored afterward. It targets `top_k` for Phase 1 and `retrieval_top_k` for
+Phase 2. Without `run_name`, the API infers a name from the pipeline class and
+falls back to `batch_qa`.
 
 Questions may alternatively be loaded from a UTF-8 text file with one question per
 line or a CSV file containing a `question` column:
@@ -113,3 +114,30 @@ UTF-8 with a byte-order mark for compatibility with Excel and LibreOffice.
 
 If one question fails, its row has `status` set to `failed` and contains the
 exception message in `error`; remaining questions continue normally.
+
+## Phase 2 Extension
+
+Passing a `Phase2RAGPipeline` reuses the same exporter and calls its complete
+`answer()` workflow for every question. Query transformations, multi-query
+retrieval, deduplication, neighbor expansion, context construction, local
+generation, and citation formatting are therefore reflected in each row.
+
+The original Phase 1 columns above remain unchanged. Phase 2 exports append:
+
+| Column | Meaning |
+|---|---|
+| `query_variants` | JSON array containing each transformation technique and query. |
+| `chunks_before_deduplication` | Combined chunks retrieved across all query variants. |
+| `chunks_after_deduplication` | Unique chunks after `(source, page, chunk_id)` deduplication. |
+| `chunks_after_neighbor_expansion` | Evidence count after adding configured neighbors. |
+| `merged_context_sections` | Contiguous sections produced by overlap merging. |
+| `final_context_sections` | Merged sections retained after context compression. |
+| `final_context_characters` | Exact final prompt-context length in characters. |
+| `final_context_tokens_estimate` | Offline tokenizer-independent token estimate. |
+| `answer_status` | `Answered` or `Insufficient Evidence`; separate from export success/failure. |
+| `retrieval_trace` | Concise query-to-context audit trail for the row. |
+
+The existing `status` column continues to represent export execution
+(`success` or `failed`). `answer_status` records whether the corpus supported a
+grounded answer. Existing source, page, chunk, and score columns use the final
+compressed evidence blocks for Phase 2 so they align with answer citations.

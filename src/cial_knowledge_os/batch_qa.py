@@ -32,6 +32,19 @@ CSV_COLUMNS = [
     "error",
 ]
 
+PHASE2_CSV_COLUMNS = [
+    "query_variants",
+    "chunks_before_deduplication",
+    "chunks_after_deduplication",
+    "chunks_after_neighbor_expansion",
+    "merged_context_sections",
+    "final_context_sections",
+    "final_context_characters",
+    "final_context_tokens_estimate",
+    "answer_status",
+    "retrieval_trace",
+]
+
 _OUTPUT_SUBDIRECTORIES = (
     "batch_answers",
     "evaluations",
@@ -171,9 +184,12 @@ def _write_versioned_csv(
     rows: list[dict[str, Any]],
     batch_root: Path,
     run_name: str,
+    *,
+    columns: list[str] | None = None,
 ) -> Path:
     """Write a new CSV using exclusive creation so no prior export is replaced."""
 
+    fieldnames = columns or CSV_COLUMNS
     output_dir = batch_root / run_name
     output_dir.mkdir(parents=True, exist_ok=True)
     version = _next_version(output_dir, run_name)
@@ -185,7 +201,7 @@ def _write_versioned_csv(
                 encoding="utf-8-sig",
                 newline="",
             ) as handle:
-                writer = csv.DictWriter(handle, fieldnames=CSV_COLUMNS)
+                writer = csv.DictWriter(handle, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(rows)
             return output_path.resolve()
@@ -225,10 +241,12 @@ def _blank_row(
     top_k: int,
     model_name: str,
     embedding_model: str,
+    columns: list[str] | None = None,
 ) -> dict[str, Any]:
+    fieldnames = columns or CSV_COLUMNS
     return {
         column: ""
-        for column in CSV_COLUMNS
+        for column in fieldnames
     } | {
         "question": question,
         "top_k": top_k,
@@ -236,6 +254,117 @@ def _blank_row(
         "embedding_model": embedding_model,
         "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
         "status": "failed",
+    }
+
+
+def _stage_items(
+    response: Mapping[str, Any],
+    stage_name: str,
+) -> list[Mapping[str, Any]]:
+    stages = response.get("context_stages")
+    if not isinstance(stages, Mapping):
+        return []
+    value = stages.get(stage_name)
+    if not isinstance(value, Iterable) or isinstance(value, (str, bytes, Mapping)):
+        return []
+    return [item for item in value if isinstance(item, Mapping)]
+
+
+def _stage_count(response: Mapping[str, Any], stage_name: str) -> int:
+    counts = response.get("stage_counts")
+    if isinstance(counts, Mapping):
+        value = counts.get(stage_name)
+        try:
+            return int(value) if value is not None else 0
+        except (TypeError, ValueError):
+            pass
+    return len(_stage_items(response, stage_name))
+
+
+def _estimate_context_tokens(context: str) -> int:
+    """Return a deterministic tokenizer-independent approximation."""
+
+    return len(re.findall(r"\w+|[^\w\s]", context, flags=re.UNICODE))
+
+
+def _query_variant_values(
+    response: Mapping[str, Any],
+) -> tuple[list[dict[str, str]], list[str]]:
+    variants_value = response.get("query_variants")
+    if not isinstance(variants_value, Iterable) or isinstance(
+        variants_value,
+        (str, bytes, Mapping),
+    ):
+        return [], []
+
+    variants: list[dict[str, str]] = []
+    trace_steps: list[str] = []
+    labels = {
+        "original": "Original Query",
+        "rewritten": "Rewritten Query",
+        "keyword_expanded": "Keyword Expansion",
+        "domain_reformulation": "Domain Reformulation",
+    }
+    for value in variants_value:
+        if not isinstance(value, Mapping):
+            continue
+        technique = str(value.get("technique") or "")
+        query = str(value.get("query") or "")
+        variants.append({"technique": technique, "query": query})
+        trace_steps.append(f"{labels.get(technique, technique or 'Query')}: {query}")
+    return variants, trace_steps
+
+
+def _phase2_row_values(response: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract the inspectable Phase 2 retrieval and context audit trail."""
+
+    variants, trace_steps = _query_variant_values(response)
+    retrieved_count = _stage_count(response, "retrieved")
+    deduplicated_count = _stage_count(response, "deduplicated")
+    expanded_count = _stage_count(response, "expanded")
+    merged_count = _stage_count(response, "merged")
+    final_sections = _stage_count(response, "compressed")
+    context = str(response.get("context") or "")
+    answer_status_value = str(response.get("answer_status") or "")
+    if not answer_status_value:
+        answer_text = str(
+            response.get("raw_answer") or response.get("answer") or ""
+        )
+        answer_status_value = (
+            "insufficient_evidence"
+            if "no reliable answer could be generated" in answer_text.casefold()
+            else "answered"
+        )
+    answer_status = (
+        "Insufficient Evidence"
+        if answer_status_value.casefold().replace(" ", "_")
+        == "insufficient_evidence"
+        else "Answered"
+    )
+
+    trace_steps.extend(
+        [
+            f"Retrieved {retrieved_count} chunks",
+            f"Deduplicated to {deduplicated_count}",
+            f"Neighbor Expanded to {expanded_count}",
+            f"Final Context: {final_sections} merged sections",
+        ]
+    )
+    return {
+        "query_variants": json.dumps(
+            variants,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
+        "chunks_before_deduplication": retrieved_count,
+        "chunks_after_deduplication": deduplicated_count,
+        "chunks_after_neighbor_expansion": expanded_count,
+        "merged_context_sections": merged_count,
+        "final_context_sections": final_sections,
+        "final_context_characters": len(context),
+        "final_context_tokens_estimate": _estimate_context_tokens(context),
+        "answer_status": answer_status,
+        "retrieval_trace": " → ".join(trace_steps),
     }
 
 
@@ -264,7 +393,11 @@ def export_batch_answers(
         questions_path=questions_path,
         project_root=project_root,
     )
-    requested_top_k = int(top_k if top_k is not None else config.top_k)
+    retrieval_depth_attribute = (
+        "retrieval_top_k" if hasattr(config, "retrieval_top_k") else "top_k"
+    )
+    configured_top_k = getattr(config, retrieval_depth_attribute)
+    requested_top_k = int(top_k if top_k is not None else configured_top_k)
     if requested_top_k <= 0:
         raise ValueError("top_k must be greater than zero.")
 
@@ -273,29 +406,52 @@ def export_batch_answers(
     )
     model_name = str(getattr(config, "ollama_model_name", "") or "")
     embedding_model = str(getattr(config, "embedding_model_name", "") or "")
-    original_top_k = config.top_k
+    original_top_k = configured_top_k
+    phase2_export = retrieval_depth_attribute == "retrieval_top_k"
+    columns = [
+        *CSV_COLUMNS,
+        *(PHASE2_CSV_COLUMNS if phase2_export else []),
+    ]
     rows: list[dict[str, Any]] = []
 
     try:
-        config.top_k = requested_top_k
+        setattr(config, retrieval_depth_attribute, requested_top_k)
         for question in resolved_questions:
             row = _blank_row(
                 question=question,
                 top_k=requested_top_k,
                 model_name=model_name,
                 embedding_model=embedding_model,
+                columns=columns,
             )
             started_at = time.perf_counter()
             try:
                 if not question:
                     raise ValueError("Question must not be blank.")
                 response = pipeline.answer(question)
-                retrieved_value = response.get("retrieved") or []
+                final_context_results = (
+                    _stage_items(response, "compressed")
+                    if phase2_export
+                    else []
+                )
+                retrieved_value = (
+                    final_context_results
+                    or response.get("retrieved")
+                    or []
+                )
                 retrieved = [
                     result
                     for result in retrieved_value
                     if isinstance(result, Mapping)
                 ]
+                response_retrieved = response.get("retrieved") or []
+                retrieved_chunks = len(
+                    [
+                        result
+                        for result in response_retrieved
+                        if isinstance(result, Mapping)
+                    ]
+                )
                 sources, files, pages, chunks, scores = _metadata_lists(retrieved)
                 metrics = pipeline.metrics
                 row.update(
@@ -306,7 +462,7 @@ def export_batch_answers(
                         "page_numbers": _json_cell(pages),
                         "chunk_ids": _json_cell(chunks),
                         "retrieval_scores": _json_cell(scores),
-                        "retrieved_chunks": len(retrieved),
+                        "retrieved_chunks": retrieved_chunks,
                         "answer_latency_seconds": round(
                             float(metrics.get("generation_latency", 0.0)),
                             6,
@@ -318,6 +474,8 @@ def export_batch_answers(
                         "status": "success",
                     }
                 )
+                if phase2_export:
+                    row.update(_phase2_row_values(response))
             except Exception as exc:
                 row["error"] = str(exc)
             finally:
@@ -327,7 +485,12 @@ def export_batch_answers(
                 )
                 rows.append(row)
     finally:
-        config.top_k = original_top_k
+        setattr(config, retrieval_depth_attribute, original_top_k)
 
     batch_root = _create_output_structure(project_root)
-    return _write_versioned_csv(rows, batch_root, safe_run_name)
+    return _write_versioned_csv(
+        rows,
+        batch_root,
+        safe_run_name,
+        columns=columns,
+    )
