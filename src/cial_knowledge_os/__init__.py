@@ -1,6 +1,13 @@
 """Reusable, local-first components for CIAL Knowledge OS."""
 
-from .batch_qa import CSV_COLUMNS, PHASE2_CSV_COLUMNS, export_batch_answers
+from .batch_qa import (
+    CSV_COLUMNS,
+    PHASE2_CSV_COLUMNS,
+    PHASE3_CSV_COLUMNS,
+    BatchAnswerCollection,
+    collect_batch_answers,
+    export_batch_answers,
+)
 from .benchmarking import Timer, benchmark_pipeline_steps, print_benchmark_table
 from .benchmark_loader import Benchmark, BenchmarkQuestion, load_benchmark
 from .chunking import chunk_documents, summarize_chunks
@@ -9,7 +16,8 @@ from .citations import (
     render_answer_with_citations,
     render_citations,
 )
-from .config import KnowledgeOSConfig, Phase2Config
+from .citation_links import CitationLinkBuilder
+from .config import KnowledgeOSConfig, Phase2Config, Phase3Config, RunArtifactNames
 from .context_builder import (
     INSUFFICIENT_EVIDENCE_RESPONSE,
     ContextBuilder,
@@ -33,6 +41,7 @@ from .experiment_runner import (
     ExperimentSweepResult,
     ReconfiguringPipelineFactory,
 )
+from .fusion import ReciprocalRankFusion
 from .llm import build_grounded_prompt, create_local_llm, generate_answer
 from .loaders import (
     create_sample_airport_documents,
@@ -43,6 +52,14 @@ from .loaders import (
 )
 from .rag_pipeline import BasicRAGPipeline
 from .phase2_pipeline import Phase2RAGPipeline
+from .phase3_pipeline import Phase3RAGPipeline
+from .phase3_reporting import (
+    write_results_csv,
+    write_results_xlsx,
+    write_latency_svg,
+    write_standalone_html,
+)
+from .phase3_runner import Phase3Runner, Phase3RunResult
 from .query_transformations import (
     QueryTransformer,
     QueryVariant,
@@ -60,6 +77,15 @@ from .retrieval_postprocessing import (
     expand_neighbor_chunks,
     retrieve_multiple_queries,
 )
+from .retrievers import (
+    BM25Retriever,
+    DenseRetriever,
+    HybridRetriever,
+    Retriever,
+    default_bm25_tokenize,
+)
+from .run_manager import RunManager, RunPaths
+from .token_budget import TokenBudgetManager, TokenBudgetUsage
 from .vectorstore import (
     create_qdrant_client,
     ensure_collection,
@@ -107,9 +133,26 @@ __all__ = [
     "BenchmarkQuestion",
     "CSV_COLUMNS",
     "PHASE2_CSV_COLUMNS",
+    "PHASE3_CSV_COLUMNS",
+    "BatchAnswerCollection",
+    "BM25Retriever",
+    "CitationLinkBuilder",
+    "DenseRetriever",
+    "HybridRetriever",
     "KnowledgeOSConfig",
     "Phase2Config",
+    "Phase3Config",
     "Phase2RAGPipeline",
+    "Phase3RAGPipeline",
+    "Phase3Runner",
+    "Phase3RunResult",
+    "ReciprocalRankFusion",
+    "Retriever",
+    "RunArtifactNames",
+    "RunManager",
+    "RunPaths",
+    "TokenBudgetManager",
+    "TokenBudgetUsage",
     "ContextBuilder",
     "ContextBuildResult",
     "ExperimentConfig",
@@ -128,6 +171,7 @@ __all__ = [
     "build_citations",
     "build_recommendations",
     "chunk_documents",
+    "collect_batch_answers",
     "citation_quality_table",
     "create_local_llm",
     "create_qdrant_client",
@@ -135,6 +179,7 @@ __all__ = [
     "compress_context",
     "context_stage_counts_table",
     "deduplicate_results",
+    "default_bm25_tokenize",
     "display_context_sections_table",
     "display_high_duplicate_chunks_table",
     "display_low_score_chunks_table",
@@ -194,4 +239,8 @@ __all__ = [
     "summarize_chunks",
     "summarize_documents",
     "write_recommendation_report",
+    "write_results_csv",
+    "write_results_xlsx",
+    "write_latency_svg",
+    "write_standalone_html",
 ]
