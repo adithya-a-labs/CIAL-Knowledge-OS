@@ -14,6 +14,7 @@ from cial_knowledge_os.batch_qa import (
     export_batch_answers,
 )
 from cial_knowledge_os.rag_pipeline import BasicRAGPipeline
+from cial_knowledge_os.token_budget import create_token_manager
 
 
 class _ReadyPipeline:
@@ -199,9 +200,9 @@ class ExportBatchAnswersTests(unittest.TestCase):
                 rows[0]["final_context_characters"],
                 str(len("Final grounded context.")),
             )
-            self.assertGreater(
+            self.assertEqual(
                 int(rows[0]["final_context_tokens_estimate"]),
-                0,
+                create_token_manager().count("Final grounded context."),
             )
             self.assertEqual(len(json.loads(rows[0]["query_variants"])), 4)
             self.assertEqual(rows[0]["answer_status"], "Answered")

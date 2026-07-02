@@ -11,7 +11,11 @@ from cial_knowledge_os.config import KnowledgeOSConfig, Phase2Config, Phase3Conf
 from cial_knowledge_os.fusion import ReciprocalRankFusion
 from cial_knowledge_os.phase3_pipeline import Phase3RAGPipeline
 from cial_knowledge_os.retrievers import BM25Retriever
-from cial_knowledge_os.token_budget import TokenBudgetManager
+from cial_knowledge_os.token_budget import (
+    TiktokenTokenizer,
+    TokenBudgetManager,
+    create_token_manager,
+)
 
 
 def _result(index: int, text: str, score: float = 0.5) -> dict[str, Any]:
@@ -69,6 +73,7 @@ class Phase3ConfigurationTests(unittest.TestCase):
         self.assertEqual(phase2.retrieval_top_k, 10)
         self.assertEqual(phase3.retrieval_mode, "hybrid")
         self.assertEqual(phase3.max_context_tokens, 4096)
+        self.assertEqual(phase3.tokenizer_encoding_name, "cl100k_base")
 
     def test_invalid_phase3_values_fail_actionably(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -159,6 +164,17 @@ class BM25AndFusionTests(unittest.TestCase):
 
 
 class TokenBudgetAndPipelineTests(unittest.TestCase):
+    def test_tiktoken_is_the_primary_exact_counter(self) -> None:
+        manager = create_token_manager(encoding_name="cl100k_base")
+
+        self.assertIsInstance(manager.tokenizer, TiktokenTokenizer)
+        self.assertEqual(manager.count("hello world"), 2)
+        self.assertEqual(manager.truncate("hello world again", 2), "hello world")
+        self.assertEqual(
+            manager.remaining(used_tokens=2, max_tokens=5),
+            3,
+        )
+
     def test_token_manager_counts_and_truncates_exactly(self) -> None:
         manager = TokenBudgetManager(_CharacterTokenizer(), max_tokens=5)
         self.assertEqual(manager.count("abcdef"), 6)
@@ -201,6 +217,37 @@ class TokenBudgetAndPipelineTests(unittest.TestCase):
         self.assertTrue(response["citations"][0]["pdf_link"].startswith("file:///"))
         self.assertIn("References:", response["answer"])
 
+    def test_phase3_context_budget_uses_tiktoken_by_default(self) -> None:
+        evidence = _result(
+            2,
+            "Exact evidence repeated for token fitting. " * 20,
+            score=0.8,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            pipeline = Phase3RAGPipeline(
+                Phase3Config(
+                    project_root=Path(directory),
+                    max_context_tokens=80,
+                    max_query_variants=1,
+                    enable_neighbor_expansion=False,
+                ),
+                llm=_CitingLLM(),
+                retrievers={
+                    "dense": _StaticRetriever("dense", [evidence]),
+                    "bm25": _StaticRetriever("bm25", [evidence]),
+                },
+            )
+            response = pipeline.answer("What is documented?")
+
+        usage = response["token_usage"]
+        self.assertEqual(usage["encoding_name"], "cl100k_base")
+        self.assertEqual(
+            usage["used"],
+            pipeline.token_manager.count(response["context"]),
+        )
+        self.assertLessEqual(usage["used"], 80)
+        self.assertGreaterEqual(usage["remaining"], 0)
+
     def test_custom_retrieval_mode_is_added_by_injection_only(self) -> None:
         evidence = _result(3, "Graph-backed evidence.", score=0.9)
         with tempfile.TemporaryDirectory() as directory:
@@ -225,6 +272,36 @@ class TokenBudgetAndPipelineTests(unittest.TestCase):
 
         self.assertEqual(response["retrieval_mode"], "knowledge_graph")
         self.assertTrue(response["retrieved"])
+
+    def test_character_budget_fallback_still_reports_exact_tiktoken_usage(
+        self,
+    ) -> None:
+        evidence = _result(4, "Legacy character-bounded evidence.", score=0.9)
+        with tempfile.TemporaryDirectory() as directory:
+            pipeline = Phase3RAGPipeline(
+                Phase3Config(
+                    project_root=Path(directory),
+                    max_context_tokens=None,
+                    max_context_chars=500,
+                    max_query_variants=1,
+                    enable_neighbor_expansion=False,
+                ),
+                llm=_CitingLLM(),
+                retrievers={
+                    "dense": _StaticRetriever("dense", [evidence]),
+                    "bm25": _StaticRetriever("bm25", [evidence]),
+                },
+            )
+            response = pipeline.answer("What is documented?")
+
+        usage = response["token_usage"]
+        self.assertEqual(usage["budget_type"], "characters_legacy")
+        self.assertEqual(usage["encoding_name"], "cl100k_base")
+        self.assertEqual(
+            usage["context_tokens"],
+            pipeline.token_manager.count(response["context"]),
+        )
+        self.assertEqual(usage["character_budget"], 500)
 
 
 if __name__ == "__main__":

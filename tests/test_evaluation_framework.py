@@ -10,6 +10,7 @@ from cial_knowledge_os.benchmark_loader import load_benchmark
 from cial_knowledge_os.experiment_config import ExperimentGrid
 from cial_knowledge_os.experiment_runner import ExperimentRunner
 from cial_knowledge_os.experiment_runner import ReconfiguringPipelineFactory
+from cial_knowledge_os.token_budget import create_token_manager
 
 
 class _OfflinePipeline:
@@ -109,6 +110,10 @@ class EvaluationFrameworkTests(unittest.TestCase):
             self.assertEqual(len(rows), 2)
             self.assertEqual(rows[0]["passed_answer_test"], "True")
             self.assertEqual(rows[1]["safe_failure"], "True")
+            self.assertEqual(
+                int(rows[0]["estimated_tokens"]),
+                create_token_manager().count("CERT-In evidence"),
+            )
             dashboard = result.dashboard_file.read_text(encoding="utf-8")
             self.assertIn("Configuration Leaderboard", dashboard)
             self.assertIn("Experiment Explorer", dashboard)

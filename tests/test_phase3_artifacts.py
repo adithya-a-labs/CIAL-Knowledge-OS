@@ -72,6 +72,8 @@ class _ArtifactPipeline:
                 "budget": 100,
                 "used": 20,
                 "remaining": 80,
+                "context_tokens": 20,
+                "encoding_name": "cl100k_base",
                 "truncated_sections": 0,
                 "omitted_sections": 0,
                 "budget_type": "tokens",
@@ -135,6 +137,10 @@ class Phase3ArtifactTests(unittest.TestCase):
                 csv_header,
                 [*CSV_COLUMNS, *PHASE2_CSV_COLUMNS, *PHASE3_CSV_COLUMNS],
             )
+            csv_values = paths.results_csv.read_text(
+                encoding="utf-8-sig"
+            ).splitlines()[1]
+            self.assertIn("cl100k_base", csv_values)
             workbook = load_workbook(paths.results_xlsx)
             sheet = workbook.active
             pdf_column = csv_header.index("pdf_links") + 1
@@ -151,6 +157,12 @@ class Phase3ArtifactTests(unittest.TestCase):
                     "question_count"
                 ],
                 1,
+            )
+            self.assertEqual(
+                json.loads(paths.config_json.read_text(encoding="utf-8"))[
+                    "tokenizer_encoding_name"
+                ],
+                "cl100k_base",
             )
             self.assertIn(
                 '"event":"run"',
