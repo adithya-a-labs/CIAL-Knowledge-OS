@@ -7,6 +7,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from cial_knowledge_os.visualization import (
     batch_retrieval_trace_table,
@@ -30,6 +31,7 @@ from cial_knowledge_os.visualization import (
     plot_query_variant_contribution,
     plot_retrieval_comparison,
     plot_retrieval_funnel,
+    plot_retrieval_scores,
     plot_score_by_query_variant,
     plot_score_distribution,
     plot_source_distribution,
@@ -280,6 +282,44 @@ class Phase2VisualizationTests(unittest.TestCase):
         self.assertTrue(all(axis.get_title() for axis in axes))
         self.assertEqual(len(trace_table), 2)
         self.assertIn("total_latency_seconds", trace_table.columns)
+
+    def test_visualization_helpers_handle_empty_inputs(self) -> None:
+        empty_trace = {"context_stages": {}, "context": ""}
+        tables = [
+            query_variants_table([]),
+            retrieval_chunks_table([], stage="empty"),
+            retrieval_comparison_table([], []),
+            duplicate_chunk_frequency_table([]),
+            neighbor_expansion_table([], []),
+            context_stage_counts_table(empty_trace),
+            citation_quality_table([]),
+            batch_retrieval_trace_table([]),
+            display_query_variant_contribution_table(empty_trace),
+            display_top_sources_table([]),
+            display_context_sections_table(empty_trace),
+            display_retrieval_trace_table([]),
+            display_low_score_chunks_table([]),
+            display_high_duplicate_chunks_table([]),
+        ]
+        plots = [
+            plot_retrieval_scores([]),
+            plot_retrieval_comparison([], []),
+            plot_duplicate_chunk_frequency([]),
+            plot_context_stage_counts(empty_trace),
+            plot_query_variant_contribution(empty_trace),
+            plot_source_distribution([]),
+            plot_page_distribution([]),
+            plot_score_distribution([]),
+            plot_score_by_query_variant(empty_trace),
+            plot_context_compression_ratio(empty_trace),
+            plot_context_section_lengths(empty_trace),
+            plot_retrieval_funnel(empty_trace),
+            plot_answer_status_distribution([]),
+            plot_latency_by_question([]),
+        ]
+
+        self.assertTrue(all(isinstance(table, pd.DataFrame) for table in tables))
+        self.assertTrue(all(plot is not None for plot in plots))
 
 
 if __name__ == "__main__":

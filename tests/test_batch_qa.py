@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -173,13 +174,36 @@ class ExportBatchAnswersTests(unittest.TestCase):
                 columns = reader.fieldnames
 
             self.assertEqual(columns, [*CSV_COLUMNS, *PHASE2_CSV_COLUMNS])
+            required_phase2_columns = {
+                "query_variants",
+                "chunks_before_deduplication",
+                "chunks_after_deduplication",
+                "chunks_after_neighbor_expansion",
+                "merged_context_sections",
+                "final_context_sections",
+                "final_context_characters",
+                "final_context_tokens_estimate",
+                "answer_status",
+                "retrieval_trace",
+            }
+            self.assertTrue(required_phase2_columns.issubset(columns or []))
             self.assertEqual(pipeline.retrieval_depths, [12, 12])
             self.assertEqual(pipeline.config.retrieval_top_k, 10)
             self.assertEqual(rows[0]["top_k"], "12")
             self.assertEqual(rows[0]["chunks_before_deduplication"], "34")
             self.assertEqual(rows[0]["chunks_after_deduplication"], "19")
             self.assertEqual(rows[0]["chunks_after_neighbor_expansion"], "28")
+            self.assertEqual(rows[0]["merged_context_sections"], "8")
             self.assertEqual(rows[0]["final_context_sections"], "7")
+            self.assertEqual(
+                rows[0]["final_context_characters"],
+                str(len("Final grounded context.")),
+            )
+            self.assertGreater(
+                int(rows[0]["final_context_tokens_estimate"]),
+                0,
+            )
+            self.assertEqual(len(json.loads(rows[0]["query_variants"])), 4)
             self.assertEqual(rows[0]["answer_status"], "Answered")
             self.assertEqual(
                 rows[1]["answer_status"],

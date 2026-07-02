@@ -21,7 +21,7 @@ class KnowledgeOSConfig:
     raw_data_dir: Path | None = None
     pdf_data_dir: Path | None = None
     qdrant_dir: Path | None = None
-    qdrant_collection_name: str = "cial_phase2"
+    qdrant_collection_name: str = "cial_basic_rag"
     embedding_model_name: str = "BAAI/bge-m3"
     embedding_device: str = "auto"
     ollama_model_name: str = "gemma3:12b"
@@ -71,6 +71,7 @@ class Phase2Config(KnowledgeOSConfig):
     ``retrieval_top_k`` instead of changing the meaning of the existing ``top_k``.
     """
     qdrant_collection_name: str = "cial_phase2"
+    max_context_chars: int = 12_000
 
     retrieval_top_k: int = 10
     enable_query_rewrite: bool = True

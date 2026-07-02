@@ -33,6 +33,14 @@ def deduplicate_results(
         input_count += 1
         result = normalize_result(raw_result)
         key = chunk_identity(result)
+        if not key[0] or not key[2]:
+            point_id = result.get("id")
+            fallback = (
+                f"point:{point_id}"
+                if point_id is not None
+                else f"occurrence:{input_count}"
+            )
+            key = (f"__incomplete__:{fallback}", key[1], key[2])
         existing = unique.get(key)
         if existing is None:
             unique[key] = result
@@ -127,7 +135,15 @@ def expand_neighbor_chunks(
         if seed_index is None:
             expanded.append(seed)
             continue
+        retained_seed = dict(seed)
+        retained_seed["metadata"] = dict(seed["metadata"])
+        retained_seed["is_neighbor"] = False
+        retained_seed["seed_chunk_id"] = seed.get("chunk_id")
+        retained_seed["neighbor_offset"] = 0
+        expanded.append(retained_seed)
         for offset in range(-window, window + 1):
+            if offset == 0:
+                continue
             neighbor = by_position.get((source_path(seed), seed_index + offset))
             if neighbor is None:
                 continue
