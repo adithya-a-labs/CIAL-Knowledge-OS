@@ -116,8 +116,10 @@ post-retrieval boundaries without changing ingestion or generation.
 Reusable Phase 2 debugging helpers in `visualization.py` convert live pipeline
 traces into pandas tables and matplotlib plots. They cover query variants,
 single- versus multi-query retrieval, deduplication frequency, neighbor
-provenance, context-stage counts, citation quality, and batch retrieval traces.
-Notebook 02 only supplies real pipeline outputs to these helpers.
+provenance, score strength, source/page concentration, retrieval funnels,
+character-based context compression, section balance, citation quality, batch
+answer status, retrieval traces, and per-question latency. Notebook 02 only
+supplies real pipeline outputs to these helpers.
 
 Embedded Qdrant permits only one process per storage path. Close other notebook
 kernels or clients before reopening the same `data/qdrant/` directory.

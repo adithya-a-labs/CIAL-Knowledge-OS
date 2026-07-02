@@ -190,6 +190,7 @@ def compress_context(
         if enabled and len(text) > remaining:
             text = text[:remaining].rstrip()
             normalized["context_truncated"] = True
+        normalized["text"] = text
         block = header + text
         selected.append(normalized)
         blocks.append(block)

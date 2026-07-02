@@ -130,6 +130,7 @@ Retrieval should apply metadata filters wherever possible.
 - Ensure every Phase 2 batch row runs the complete transformed-query, multi-query retrieval, context construction, generation, and citation workflow.
 - Append query variants, retrieval-stage counts, final context sizes, semantic answer status, and a concise retrieval trace to Phase 2 CSV exports.
 - Provide reusable pandas tables and matplotlib plots for query variants, retrieval comparisons, duplicate frequency, neighbor provenance, context-stage counts, final citation quality, and batch retrieval traces.
+- Include source and page distributions, score diagnostics by query variant, context compression and section-balance views, batch answer-status counts, and per-question latency diagnostics.
 - Generate Phase 2 diagnostics from real pipeline trace data; keep visualization logic out of Notebook 02 and avoid dashboard frameworks.
 - Maintain extension boundaries for later hybrid retrieval, local reranking, and bounded agentic workflows without implementing them in Phase 2.
 

@@ -232,6 +232,7 @@ class ContextConstructionTests(unittest.TestCase):
 
         self.assertLessEqual(len(built.context), 180)
         self.assertTrue(built.compressed[0]["context_truncated"])
+        self.assertLess(len(built.compressed[0]["text"]), 500)
 
 
 class SafeFailureAndCitationTests(unittest.TestCase):

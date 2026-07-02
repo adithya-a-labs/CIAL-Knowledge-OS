@@ -12,11 +12,27 @@ from cial_knowledge_os.visualization import (
     batch_retrieval_trace_table,
     citation_quality_table,
     context_stage_counts_table,
+    display_context_sections_table,
+    display_high_duplicate_chunks_table,
+    display_low_score_chunks_table,
+    display_query_variant_contribution_table,
+    display_retrieval_trace_table,
+    display_top_sources_table,
     duplicate_chunk_frequency_table,
     neighbor_expansion_table,
+    plot_answer_status_distribution,
+    plot_context_compression_ratio,
+    plot_context_section_lengths,
     plot_context_stage_counts,
     plot_duplicate_chunk_frequency,
+    plot_latency_by_question,
+    plot_page_distribution,
+    plot_query_variant_contribution,
     plot_retrieval_comparison,
+    plot_retrieval_funnel,
+    plot_score_by_query_variant,
+    plot_score_distribution,
+    plot_source_distribution,
     query_variants_table,
     retrieval_chunks_table,
     retrieval_comparison_table,
@@ -28,23 +44,26 @@ def _result(
     *,
     score: float = 0.7,
     is_neighbor: bool = False,
+    source: str = "manual.pdf",
+    page: int = 7,
+    matched_queries: tuple[str, ...] = ("original",),
 ) -> dict[str, object]:
-    chunk_id = f"manual:p7:c{chunk_index}"
+    chunk_id = f"{source}:p{page}:c{chunk_index}"
     return {
         "text": f"Evidence for chunk {chunk_index}.",
         "score": score,
-        "source": "manual.pdf",
-        "page_number": 7,
+        "source": source,
+        "page_number": page,
         "chunk_id": chunk_id,
         "is_neighbor": is_neighbor,
         "metadata": {
-            "source": "C:/corpus/manual.pdf",
-            "file_name": "manual.pdf",
-            "page_number": 7,
+            "source": f"C:/corpus/{source}",
+            "file_name": source,
+            "page_number": page,
             "chunk_id": chunk_id,
             "chunk_index": chunk_index,
         },
-        "matched_queries": ["original"],
+        "matched_queries": list(matched_queries),
     }
 
 
@@ -144,6 +163,9 @@ class Phase2VisualizationTests(unittest.TestCase):
                 "chunks_after_neighbor_expansion": 28,
                 "final_context_sections": 7,
                 "final_context_characters": 2000,
+                "retrieval_latency_seconds": 0.4,
+                "answer_latency_seconds": 0.8,
+                "total_latency_seconds": 1.3,
                 "retrieval_trace": "Original Query → Retrieved 34 chunks",
             }
         ]
@@ -154,7 +176,110 @@ class Phase2VisualizationTests(unittest.TestCase):
         self.assertEqual(citation_table.iloc[0]["document"], "manual.pdf")
         self.assertEqual(citation_table.iloc[0]["similarity_score"], 0.75)
         self.assertEqual(batch_table.iloc[0]["chunks_before_deduplication"], 34)
+        self.assertEqual(batch_table.iloc[0]["total_latency_seconds"], 1.3)
         self.assertIn("Retrieved 34", batch_table.iloc[0]["retrieval_trace"])
+
+    def test_additional_debugging_tables_use_phase2_trace_data(self) -> None:
+        original = _result(1, score=0.8)
+        duplicate = _result(1, score=0.75, matched_queries=("rewritten",))
+        weak = _result(
+            2,
+            score=0.3,
+            source="operations.pdf",
+            page=12,
+            matched_queries=("keyword_expanded",),
+        )
+        final = _result(
+            1,
+            score=0.8,
+            matched_queries=("original", "rewritten"),
+        )
+        final["text"] = "Final section text."
+        trace = {
+            "context_stages": {
+                "retrieved": [original, duplicate, weak],
+                "deduplicated": [original, weak],
+                "expanded": [original, weak],
+                "merged": [original, weak],
+                "compressed": [final],
+            },
+            "context": "Final formatted context.",
+        }
+
+        contribution = display_query_variant_contribution_table(trace)
+        sources = display_top_sources_table(trace["context_stages"]["retrieved"])
+        sections = display_context_sections_table(trace)
+        low_scores = display_low_score_chunks_table(
+            trace["context_stages"]["retrieved"],
+            threshold=0.5,
+        )
+        duplicates = display_high_duplicate_chunks_table(
+            trace["context_stages"]["retrieved"]
+        )
+
+        self.assertEqual(
+            set(contribution["query_variant"]),
+            {"original", "rewritten", "keyword_expanded"},
+        )
+        self.assertEqual(sources.iloc[0]["document"], "manual.pdf")
+        self.assertEqual(sections.iloc[0]["section_characters"], 19)
+        self.assertEqual(low_scores.iloc[0]["chunk_id"], weak["chunk_id"])
+        self.assertEqual(duplicates.iloc[0]["frequency"], 2)
+
+    def test_additional_phase2_plots_render_from_synthetic_traces(self) -> None:
+        original = _result(1, score=0.8)
+        rewritten = _result(
+            2,
+            score=0.65,
+            source="operations.pdf",
+            page=12,
+            matched_queries=("rewritten",),
+        )
+        final = dict(original)
+        final["text"] = "Short final evidence."
+        final["matched_queries"] = ["original", "rewritten"]
+        trace = {
+            "context_stages": {
+                "retrieved": [original, rewritten],
+                "deduplicated": [original, rewritten],
+                "expanded": [original, rewritten],
+                "merged": [original, rewritten],
+                "compressed": [final],
+            },
+            "context": "Final prompt context.",
+        }
+        batch_rows = [
+            {
+                "question": "Fast question?",
+                "answer_status": "Answered",
+                "total_latency_seconds": 0.5,
+                "retrieval_trace": "Retrieved 2 chunks",
+            },
+            {
+                "question": "Slow unsupported question?",
+                "answer_status": "Insufficient Evidence",
+                "total_latency_seconds": 2.5,
+                "retrieval_trace": "Retrieved 0 chunks",
+            },
+        ]
+
+        axes = [
+            plot_query_variant_contribution(trace),
+            plot_source_distribution(trace["context_stages"]["retrieved"]),
+            plot_page_distribution(trace["context_stages"]["retrieved"]),
+            plot_score_distribution(trace["context_stages"]["retrieved"]),
+            plot_score_by_query_variant(trace),
+            plot_context_compression_ratio(trace),
+            plot_context_section_lengths(trace),
+            plot_retrieval_funnel(trace),
+            plot_answer_status_distribution(batch_rows),
+            plot_latency_by_question(batch_rows),
+        ]
+        trace_table = display_retrieval_trace_table(batch_rows)
+
+        self.assertTrue(all(axis.get_title() for axis in axes))
+        self.assertEqual(len(trace_table), 2)
+        self.assertIn("total_latency_seconds", trace_table.columns)
 
 
 if __name__ == "__main__":
