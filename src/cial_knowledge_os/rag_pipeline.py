@@ -56,7 +56,8 @@ class BasicRAGPipeline:
         return self.client is not None and self.embedding_model is not None
 
     def load(self) -> list[Document]:
-        create_sample_airport_documents(self.config)
+        if getattr(self.config, "create_sample_documents", False):
+            create_sample_airport_documents(self.config)
         started_at = time.perf_counter()
         text_documents = load_text_documents(self.config)
         pdf_started_at = time.perf_counter()

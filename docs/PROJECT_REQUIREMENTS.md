@@ -58,6 +58,8 @@ Retrieval should apply metadata filters wherever possible.
 - External document processing requires explicit approval.
 - Keep raw documents in controlled local storage.
 - Use non-sensitive sample documents during early experimentation.
+- Never generate synthetic sample documents implicitly during normal pipeline execution.
+- Load an existing sample directory normally, but require an explicit configuration opt-in or setup utility to create demonstration fixtures.
 
 ## 7. Experimentation and Evaluation
 

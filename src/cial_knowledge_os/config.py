@@ -21,7 +21,7 @@ class KnowledgeOSConfig:
     raw_data_dir: Path | None = None
     pdf_data_dir: Path | None = None
     qdrant_dir: Path | None = None
-    qdrant_collection_name: str = "cial_basic_rag"
+    qdrant_collection_name: str = "cial_phase2"
     embedding_model_name: str = "BAAI/bge-m3"
     embedding_device: str = "auto"
     ollama_model_name: str = "gemma3:12b"
@@ -32,6 +32,9 @@ class KnowledgeOSConfig:
     # Persistence is the safe default: callers must explicitly opt into deleting
     # the local embedded Qdrant data.
     reset_vectorstore: bool = False
+    # Synthetic fixtures are opt-in so normal ingestion cannot contaminate a
+    # real corpus when data/sample is absent.
+    create_sample_documents: bool = False
 
     def __post_init__(self) -> None:
         self.project_root = Path(self.project_root).expanduser().resolve()
@@ -67,6 +70,7 @@ class Phase2Config(KnowledgeOSConfig):
     ``KnowledgeOSConfig`` and its Phase 1 defaults remain unchanged. Phase 2 uses
     ``retrieval_top_k`` instead of changing the meaning of the existing ``top_k``.
     """
+    qdrant_collection_name: str = "cial_phase2"
 
     retrieval_top_k: int = 10
     enable_query_rewrite: bool = True

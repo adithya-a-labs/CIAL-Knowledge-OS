@@ -88,6 +88,18 @@ Place non-sensitive text fixtures in `data/sample/`, temporary text input in
 and falls back to PyMuPDF. Each experiment's Qdrant data is written beneath
 `data/qdrant/` and must not be committed.
 
+Existing files under `data/sample/` are loaded normally, but the pipeline never
+creates synthetic sample documents by default. Demonstration fixtures require an
+explicit opt-in:
+
+```python
+from cial_knowledge_os import KnowledgeOSConfig, create_sample_airport_documents
+
+config = KnowledgeOSConfig(create_sample_documents=True)  # pipeline.load() opt-in
+# Or create them explicitly without changing pipeline configuration:
+create_sample_airport_documents(config)
+```
+
 ## Experiment Architecture
 
 `notebooks/01_Basic_RAG.ipynb` is the learning and orchestration layer. Reusable

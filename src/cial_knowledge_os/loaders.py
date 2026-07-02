@@ -43,7 +43,7 @@ lockout-tagout, and recording the event.
 
 
 def create_sample_airport_documents(config: KnowledgeOSConfig) -> list[Path]:
-    """Create small, non-sensitive sample documents without overwriting edits."""
+    """Explicitly create non-sensitive fixtures without overwriting edits."""
 
     config.sample_data_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
