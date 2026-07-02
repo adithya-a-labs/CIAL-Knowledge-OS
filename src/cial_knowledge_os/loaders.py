@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,8 @@ from typing import Any
 from langchain_core.documents import Document
 
 from .config import KnowledgeOSConfig
+
+logger = logging.getLogger(__name__)
 
 SAMPLE_AIRPORT_DOCUMENTS = {
     "terminal_operations_sop.txt": """CIAL Terminal Operations SOP
@@ -131,7 +134,13 @@ def load_pdf_documents(config: KnowledgeOSConfig) -> list[Document]:
         else []
     )
     if not pdf_paths:
-        print(f"No PDFs found. Place local PDF files in: {config.pdf_data_dir}")
+        logger.info(
+            "pdf_corpus_empty",
+            extra={
+                "event": "document_loading",
+                "pdf_data_dir": str(config.pdf_data_dir),
+            },
+        )
         return []
 
     try:
@@ -165,14 +174,28 @@ def load_pdf_documents(config: KnowledgeOSConfig) -> list[Document]:
             except Exception as exc:
                 if not pymupdf_available:
                     raise RuntimeError(f"Docling could not load {path.name}: {exc}") from exc
-                print(f"Docling could not load {path.name}; using local PyMuPDF fallback.")
+                logger.warning(
+                    "docling_pdf_fallback",
+                    extra={
+                        "event": "document_loading",
+                        "source": str(path),
+                        "error": str(exc),
+                    },
+                )
             else:
                 if not pymupdf_available:
                     raise RuntimeError(
                         f"Docling extracted no text from {path.name}, and PyMuPDF "
                         "is not installed as a local fallback."
                     )
-        documents.extend(_load_pdf_with_pymupdf(path))
+        try:
+            documents.extend(_load_pdf_with_pymupdf(path))
+        except Exception as exc:
+            raise RuntimeError(
+                f"Could not read PDF '{path}'. The file may be corrupted, "
+                "encrypted, or unsupported by the configured local loaders. "
+                f"Original error: {exc}"
+            ) from exc
     return documents
 
 
