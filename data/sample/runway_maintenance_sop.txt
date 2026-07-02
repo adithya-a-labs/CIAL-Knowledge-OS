@@ -1,8 +1,0 @@
-CIAL Runway Maintenance SOP
-Version: 1.0
-Owner: Airside Operations
-
-Routine runway surface inspection must be performed every 6 hours and after heavy
-rain, bird-strike reports, foreign-object-debris alerts, or pilot braking-action
-complaints. Maintenance teams must obtain ATC clearance before entering the runway
-strip and maintain continuous radio contact.
