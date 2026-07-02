@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from .token_budget import DEFAULT_TIKTOKEN_ENCODING
+
 
 def _default_project_root() -> Path:
     current = Path.cwd().resolve()
@@ -26,6 +28,7 @@ class KnowledgeOSConfig:
     embedding_model_name: str = "BAAI/bge-m3"
     embedding_device: str = "auto"
     ollama_model_name: str = "gemma3:12b"
+    tokenizer_encoding_name: str = DEFAULT_TIKTOKEN_ENCODING
     chunk_size: int = 700
     chunk_overlap: int = 120
     top_k: int = 3
@@ -52,6 +55,9 @@ class KnowledgeOSConfig:
 
         if self.chunk_size <= 0:
             raise ValueError("chunk_size must be greater than zero.")
+        if not self.tokenizer_encoding_name.strip():
+            raise ValueError("tokenizer_encoding_name must not be blank.")
+        self.tokenizer_encoding_name = self.tokenizer_encoding_name.strip()
         if not 0 <= self.chunk_overlap < self.chunk_size:
             raise ValueError("chunk_overlap must be non-negative and smaller than chunk_size.")
         if self.top_k <= 0:

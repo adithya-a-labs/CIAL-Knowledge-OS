@@ -85,7 +85,15 @@ from .retrievers import (
     default_bm25_tokenize,
 )
 from .run_manager import RunManager, RunPaths
-from .token_budget import TokenBudgetManager, TokenBudgetUsage
+from .token_budget import (
+    DEFAULT_TIKTOKEN_ENCODING,
+    TiktokenTokenizer,
+    TokenBudgetManager,
+    TokenBudgetUsage,
+    TokenManager,
+    create_token_budget_manager,
+    create_token_manager,
+)
 from .vectorstore import (
     create_qdrant_client,
     ensure_collection,
@@ -138,6 +146,7 @@ __all__ = [
     "BM25Retriever",
     "CitationLinkBuilder",
     "DenseRetriever",
+    "DEFAULT_TIKTOKEN_ENCODING",
     "HybridRetriever",
     "KnowledgeOSConfig",
     "Phase2Config",
@@ -153,6 +162,8 @@ __all__ = [
     "RunPaths",
     "TokenBudgetManager",
     "TokenBudgetUsage",
+    "TokenManager",
+    "TiktokenTokenizer",
     "ContextBuilder",
     "ContextBuildResult",
     "ExperimentConfig",
@@ -176,6 +187,8 @@ __all__ = [
     "create_local_llm",
     "create_qdrant_client",
     "create_sample_airport_documents",
+    "create_token_budget_manager",
+    "create_token_manager",
     "compress_context",
     "context_stage_counts_table",
     "deduplicate_results",
