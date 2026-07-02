@@ -2,6 +2,7 @@
 
 from .batch_qa import CSV_COLUMNS, PHASE2_CSV_COLUMNS, export_batch_answers
 from .benchmarking import Timer, benchmark_pipeline_steps, print_benchmark_table
+from .benchmark_loader import Benchmark, BenchmarkQuestion, load_benchmark
 from .chunking import chunk_documents, summarize_chunks
 from .citations import (
     build_citations,
@@ -17,6 +18,21 @@ from .context_builder import (
     merge_overlapping_chunks,
 )
 from .embeddings import embed_texts, get_embedding_dimension, load_embedding_model
+from .evaluation_metrics import (
+    aggregate_experiment,
+    evaluate_answer,
+    rank_experiments,
+)
+from .evaluation_report import (
+    build_recommendations,
+    write_recommendation_report,
+)
+from .experiment_config import ExperimentConfig, ExperimentGrid
+from .experiment_runner import (
+    ExperimentRunner,
+    ExperimentSweepResult,
+    ReconfiguringPipelineFactory,
+)
 from .llm import build_grounded_prompt, create_local_llm, generate_answer
 from .loaders import (
     create_sample_airport_documents,
@@ -83,9 +99,12 @@ from .visualization import (
     retrieval_chunks_table,
     retrieval_comparison_table,
 )
+from .visualization_dashboard import generate_dashboard, load_dashboard_data
 
 __all__ = [
     "BasicRAGPipeline",
+    "Benchmark",
+    "BenchmarkQuestion",
     "CSV_COLUMNS",
     "PHASE2_CSV_COLUMNS",
     "KnowledgeOSConfig",
@@ -93,14 +112,21 @@ __all__ = [
     "Phase2RAGPipeline",
     "ContextBuilder",
     "ContextBuildResult",
+    "ExperimentConfig",
+    "ExperimentGrid",
+    "ExperimentRunner",
+    "ExperimentSweepResult",
     "INSUFFICIENT_EVIDENCE_RESPONSE",
     "QueryTransformer",
     "QueryVariant",
+    "ReconfiguringPipelineFactory",
     "Timer",
     "benchmark_pipeline_steps",
     "batch_retrieval_trace_table",
+    "aggregate_experiment",
     "build_grounded_prompt",
     "build_citations",
+    "build_recommendations",
     "chunk_documents",
     "citation_quality_table",
     "create_local_llm",
@@ -121,11 +147,15 @@ __all__ = [
     "expand_neighbor_chunks",
     "expand_query_keywords",
     "export_batch_answers",
+    "evaluate_answer",
     "format_retrieved_context",
     "generate_answer",
+    "generate_dashboard",
     "get_embedding_dimension",
     "index_chunks",
     "load_all_documents",
+    "load_benchmark",
+    "load_dashboard_data",
     "load_embedding_model",
     "load_pdf_documents",
     "load_text_documents",
@@ -150,6 +180,7 @@ __all__ = [
     "print_benchmark_table",
     "print_retrieval_results",
     "query_variants_table",
+    "rank_experiments",
     "recreate_collection",
     "reformulate_for_domain",
     "render_answer_with_citations",
@@ -162,4 +193,5 @@ __all__ = [
     "search_similar_chunks",
     "summarize_chunks",
     "summarize_documents",
+    "write_recommendation_report",
 ]
