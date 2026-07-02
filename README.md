@@ -91,6 +91,9 @@ python -m pip install -e .
 On an isolated host, stage approved wheels first and replace the first command with
 `python -m pip install --no-index --find-links <wheelhouse> -r requirements.txt`.
 
+The official hash-verified `cl100k_base` tiktoken vocabulary is packaged with
+the Python module, so token counting does not make a network request.
+
 The embedding model must already exist in the local Hugging Face cache, and the
 configured Ollama model must already exist in the local Ollama store. The pipeline
 uses `BAAI/bge-m3` and `gemma3:12b` by default. No model or document is sent to a
@@ -164,9 +167,12 @@ result = Phase3Runner(pipeline=pipeline, config=config).run(
 print(result.paths.report_html)
 ```
 
-The default tokenizer is reused from the loaded local embedding model; no model
-is downloaded by context construction. Set `max_context_tokens=None` to retain
-the Phase 2 character-budget path. Run bundles are written below
+The default token manager uses the configured local tiktoken encoding
+(`cl100k_base` by default); it does not load or download a model. Injecting a
+compatible encoder allows a future model-specific tokenizer without changing
+context, evaluation, or reporting code. Set `max_context_tokens=None` to retain
+the Phase 2 character-budget fitting path; token reporting remains exact
+tiktoken output. Run bundles are written below
 `outputs/batch_answers/03_Hybrid_Retrieval/run_<timestamp>/` and include
 `results.csv`, `results.xlsx`, `report.html`, configuration, summary, retrieval,
 metrics, logs, figures, and per-question context traces.

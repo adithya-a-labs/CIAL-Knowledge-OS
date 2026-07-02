@@ -103,8 +103,9 @@ The frozen Phase 2 baseline is represented by
 The current query rewrite is deterministic string normalization. It does not call
 an LLM. `QueryTransformer` supports registered local strategies, so an AI-based
 rewrite can be introduced later without changing its external role. Likewise,
-Phase 2 estimates tokens for reporting but enforces a character budget rather
-than a tokenizer-aware token budget.
+Phase 2 still enforces its frozen character budget. Its backward-compatible
+export field now receives an exact centralized tiktoken count rather than the
+former tokenizer-independent estimate.
 
 ## Implemented Phase 3: Hybrid Retrieval
 
@@ -114,7 +115,8 @@ than a tokenizer-aware token budget.
 - dense-only, BM25-only, and hybrid modes;
 - proper configurable Reciprocal Rank Fusion with modality ranks and scores;
 - shared chunk reuse plus fingerprinted BM25 token caching;
-- tokenizer-aware context fitting using an already-loaded local tokenizer;
+- centralized tiktoken-aware context fitting, truncation, and reporting;
+- a packaged hash-verified `cl100k_base` vocabulary for offline tokenization;
 - the unchanged Phase 2 character budget when token budgeting is disabled;
 - metadata-derived `file://` and configurable localhost PDF page links;
 - configurable structured logging;

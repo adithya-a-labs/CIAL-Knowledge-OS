@@ -138,7 +138,7 @@ The original Phase 1 columns above remain unchanged. Phase 2 exports append:
 | `merged_context_sections` | Contiguous sections produced by overlap merging. |
 | `final_context_sections` | Merged sections retained after context compression. |
 | `final_context_characters` | Exact final prompt-context length in characters. |
-| `final_context_tokens_estimate` | Offline tokenizer-independent token estimate. |
+| `final_context_tokens_estimate` | Exact centralized tiktoken count; the legacy column name is preserved for compatibility. |
 | `answer_status` | `Answered` or `Insufficient Evidence`; separate from export success/failure. |
 | `retrieval_trace` | Concise query-to-context audit trail for the row. |
 
@@ -165,7 +165,8 @@ original order. Phase 3 appends:
 | `rrf_k` | RRF rank constant. |
 | `final_context_tokens` | Configured-tokenizer context usage. |
 | `context_budget` | Effective token or character limit. |
-| `context_budget_type` | `tokens` or backward-compatible `characters`. |
+| `context_budget_type` | `tokens` or backward-compatible `characters_legacy`. |
+| `token_encoding` | Configured tiktoken encoding or injected tokenizer name. |
 | `pdf_links` | JSON array of clickable evidence links. |
 | `retrieval_sources` | JSON array of contributing retriever names. |
 

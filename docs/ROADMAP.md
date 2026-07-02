@@ -204,8 +204,8 @@ controlled way to combine differently scored result sets.
 - Dense-only compatibility remains available.
 - Run artifacts are complete, deterministic where practical, and independently
   inspectable.
-- Context limits are enforced with the configured tokenizer rather than a
-  character estimate.
+- Context limits are enforced with the centralized configured tiktoken manager
+  rather than a character estimate.
 - Existing Phase 1 and Phase 2 tests and notebook contracts remain valid.
 
 Implementation status: the notebook, reusable modules, compatibility paths,

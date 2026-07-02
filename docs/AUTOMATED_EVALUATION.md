@@ -132,7 +132,9 @@ versioned benchmark.
 Phase 3 reuses the runner and benchmark contracts. `Phase3RAGPipeline` exposes
 the same `answer(question)`, configuration, metrics, context-stage, and citation
 surfaces as Phase 2, while additive evaluation columns record retrieval mode,
-dense/BM25 depths, RRF configuration, and tokenizer-measured context usage.
+dense/BM25 depths, RRF configuration, and exact centralized tiktoken context
+usage. The legacy `estimated_tokens` column remains for schema compatibility but
+contains an exact token-manager count.
 
 Use `ReconfiguringPipelineFactory` with `retrieval_mode` values `dense` and
 `hybrid` to compare both modes against the same frozen benchmark while reusing

@@ -437,6 +437,11 @@ The reference notebooks should be treated as conceptual guides, not implementati
   state before reuse.
 - Enforce `max_context_tokens` with the configured local tokenizer. Use the
   existing character budget only when token budgeting is not configured.
+- Use the centralized tiktoken-backed token manager for counting, truncation,
+  usage reporting, and remaining-capacity calculations across notebooks,
+  pipelines, evaluation, and artifacts.
+- Legacy fields whose names contain `estimate` must retain their schema names
+  but contain exact centralized token counts.
 - Derive PDF links from evidence metadata and keep file and localhost URL modes
   configurable.
 - Let `RunManager` own timestamped run directories and configured artifact

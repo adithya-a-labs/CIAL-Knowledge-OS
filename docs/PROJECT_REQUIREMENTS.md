@@ -250,6 +250,12 @@ This principle must remain true throughout the lifetime of the project.
 - Phase 3 must compare hybrid retrieval with the frozen Phase 2 dense baseline.
 - Add BM25 lexical retrieval and Reciprocal Rank Fusion.
 - Add tokenizer-aware context budgeting.
+- Use `tiktoken` as the primary tokenizer for Phase 3 counting, truncation,
+  budgeting, remaining-capacity calculation, evaluation, and reporting.
+- Route every token operation through the shared token-management module; do not
+  estimate tokens from characters or duplicate token logic.
+- Keep the token codec injectable so a future model-specific tokenizer does not
+  require pipeline, evaluation, or reporting changes.
 - Add clickable citation exports and per-run CSV, XLSX, and standalone HTML
   reports.
 - Add a `RunManager` that writes isolated run artifacts below
