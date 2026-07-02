@@ -427,3 +427,19 @@ The reference notebooks should be treated as conceptual guides, not implementati
   configuration with generated artifacts.
 - Phase 3 may change internals while preserving public behavior: new
   architecture internally, same contracts externally.
+
+## 25. Phase 3 Retrieval and Run Artifacts
+
+- Implement retrievers behind a common protocol and compose them rather than
+  branching throughout the pipeline.
+- Use rank-based RRF for dense/BM25 fusion; never average their raw scores.
+- Reuse the Phase 2 chunk corpus for both indexes and fingerprint lexical cache
+  state before reuse.
+- Enforce `max_context_tokens` with the configured local tokenizer. Use the
+  existing character budget only when token budgeting is not configured.
+- Derive PDF links from evidence metadata and keep file and localhost URL modes
+  configurable.
+- Let `RunManager` own timestamped run directories and configured artifact
+  names. Notebook cells must not create output folders.
+- Emit structured logs for every material stage and actionable errors for
+  invalid, empty, missing, or corrupt inputs.

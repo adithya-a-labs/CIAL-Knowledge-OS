@@ -245,7 +245,7 @@ This principle must remain true throughout the lifetime of the project.
   configuration with each reproducible run.
 - Keep defaults centralized and avoid duplicated hidden constants.
 
-## 19. Phase 3 Planning Baseline
+## 19. Phase 3 Implementation Contract
 
 - Phase 3 must compare hybrid retrieval with the frozen Phase 2 dense baseline.
 - Add BM25 lexical retrieval and Reciprocal Rank Fusion.
@@ -258,6 +258,24 @@ This principle must remain true throughout the lifetime of the project.
   directory.
 - Keep reranking clearly marked as unimplemented unless Phase 3 scope is
   explicitly expanded.
+
+## 20. Structured Logging and Failure Handling
+
+- Use configurable structured logging for indexing, dense and BM25 retrieval,
+  hybrid fusion, token budgeting, report generation, and evaluation.
+- Keep intentional notebook display separate from pipeline logging.
+- Fail actionably for empty lexical corpora, unavailable tokenizers, invalid
+  configuration, missing benchmarks, corrupt documents, and token overflow.
+- Isolate per-question failures in batch and evaluation workflows.
+
+## 21. Retrieval Extensibility and Cache Reuse
+
+- Depend on a small retriever contract rather than retrieval-mode conditionals
+  spread across business logic.
+- Add future retrieval methods through new implementations and composition.
+- Reuse loaded documents, chunks, embeddings, dense indexes, and unchanged BM25
+  token caches; do not recompute them for every query or sweep configuration.
+- Preserve retriever-specific rank and score provenance after fusion.
 
 ## Pending Clarifications
 

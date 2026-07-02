@@ -129,10 +129,19 @@ versioned benchmark.
 
 ## Phase 3 Extension
 
-Phase 3 should reuse the runner and benchmark contracts while adding hybrid
-retrieval metrics and isolated per-run artifacts. It must extend the existing
-`outputs/` tree rather than create a top-level `artifacts/` directory. See
-`CURRENT_STATE.md` for the planned `RunManager` bundle and compatibility policy.
+Phase 3 reuses the runner and benchmark contracts. `Phase3RAGPipeline` exposes
+the same `answer(question)`, configuration, metrics, context-stage, and citation
+surfaces as Phase 2, while additive evaluation columns record retrieval mode,
+dense/BM25 depths, RRF configuration, and tokenizer-measured context usage.
+
+Use `ReconfiguringPipelineFactory` with `retrieval_mode` values `dense` and
+`hybrid` to compare both modes against the same frozen benchmark while reusing
+loaded documents, embeddings, Qdrant state, and the BM25 index. The factory
+invokes the pipeline configuration hook after changes and restores the original
+configuration after the sweep.
+
+`Phase3Runner` separately creates the isolated per-run artifact bundle. It is a
+run report, not a replacement for the aggregate evaluation dashboard.
 
 ## Operational considerations
 

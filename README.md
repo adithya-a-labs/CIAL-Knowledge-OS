@@ -3,7 +3,8 @@
 
 An enterprise-grade, fully offline, notebook-first RAG platform for enterprise
 documentation. The current repository provides completed dense-retrieval Phase
-1 and query/context-construction Phase 2 baselines plus reusable local modules.
+1 and query/context-construction Phase 2 baselines plus an implemented Phase 3
+hybrid-retrieval architecture awaiting full local benchmark qualification.
 Agentic workflows, access control, and production applications remain target
 capabilities, not current implementation claims.
 
@@ -37,8 +38,9 @@ deduplication, neighbor expansion, overlap merging, character-bounded context
 compression, stronger safe failure, final-evidence citation mapping, retrieval
 diagnostics, automated offline evaluation, and regression tests.
 
-The current query rewrite is deterministic, not LLM-based. The current retrieval
-system is dense-only and context budgets are character-based.
+The Phase 3 pipeline adds local BM25, Reciprocal Rank Fusion, tokenizer-aware
+context limits, clickable PDF citations, structured logging, and isolated
+CSV/XLSX/HTML/JSON run bundles. Phase 1 and Phase 2 remain unchanged baselines.
 
 ## Target Production Stack
 
@@ -69,9 +71,10 @@ system is dense-only and context budgets are character-based.
 
 Notebook-first RAG experimentation with reusable implementation modules under
 `src/cial_knowledge_os`. Phase 1 and Phase 2 notebooks are frozen baselines.
-Phase 3 is planned but not implemented; it will focus on BM25, hybrid retrieval,
-Reciprocal Rank Fusion, tokenizer-aware context budgets, clickable citations,
-and per-run CSV/XLSX/standalone-HTML artifact bundles.
+Phase 3 is implemented in reusable modules and
+`notebooks/03_Hybrid_Retrieval.ipynb`. Its full frozen-benchmark quality gate
+must be run with the configured local corpus, embedding model, and Ollama model
+before the phase is frozen as a completed baseline.
 
 See `docs/CURRENT_STATE.md` for the audited architecture, limitations, output
 contracts, frozen notebook policy, and Phase 3 roadmap.
@@ -134,6 +137,39 @@ response = pipeline.run("What controls apply before electrical maintenance?")
 Every Phase 2 stage is available in `response["context_stages"]`; future hybrid
 retrieval and reranking components can be inserted at the retrieval and
 post-retrieval boundaries without changing ingestion or generation.
+
+Phase 3 composes retrievers behind a small protocol and reuses the Phase 2
+ingestion, chunking, query transformation, post-processing, generation, export,
+and evaluation contracts:
+
+```python
+from cial_knowledge_os import Phase3Config, Phase3RAGPipeline, Phase3Runner
+
+config = Phase3Config(
+    retrieval_mode="hybrid",
+    dense_top_k=10,
+    bm25_top_k=10,
+    rrf_k=60,
+    max_context_tokens=4096,
+)
+pipeline = Phase3RAGPipeline(config)
+pipeline.load()
+pipeline.chunk()
+pipeline.embed()
+pipeline.index()
+
+result = Phase3Runner(pipeline=pipeline, config=config).run(
+    questions=["What exact control applies?"],
+)
+print(result.paths.report_html)
+```
+
+The default tokenizer is reused from the loaded local embedding model; no model
+is downloaded by context construction. Set `max_context_tokens=None` to retain
+the Phase 2 character-budget path. Run bundles are written below
+`outputs/batch_answers/03_Hybrid_Retrieval/run_<timestamp>/` and include
+`results.csv`, `results.xlsx`, `report.html`, configuration, summary, retrieval,
+metrics, logs, figures, and per-question context traces.
 
 Reusable Phase 2 debugging helpers in `visualization.py` convert live pipeline
 traces into pandas tables and matplotlib plots. They cover query variants,

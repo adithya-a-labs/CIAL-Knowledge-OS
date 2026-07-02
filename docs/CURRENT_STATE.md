@@ -33,20 +33,21 @@ Local documents
   -> metadata-preserving chunking
   -> local embeddings
   -> embedded local Qdrant
-  -> dense retrieval
+  -> selectable dense, BM25, or hybrid retrieval
+  -> Reciprocal Rank Fusion in hybrid mode
   -> Phase 2 query variants and multi-query evidence collection
   -> deduplication and optional neighbor expansion
-  -> overlap merging and character-bounded context construction
+  -> overlap merging and token-aware or character-compatible context construction
   -> grounded local Ollama generation
-  -> citations, traces, batch exports, and offline evaluation
+  -> clickable citations, traces, run bundles, and offline evaluation
 ```
 
 Notebooks are the learning and orchestration layer. Reusable behavior belongs in
 `src/cial_knowledge_os/`, where ingestion, chunking, embeddings, vector storage,
 retrieval, generation, context construction, evaluation, exports, and
 visualization are split into focused modules. Configuration is centralized in
-`KnowledgeOSConfig` and `Phase2Config`; experiment sweeps add declarative
-`ExperimentConfig` and `ExperimentGrid` values.
+`KnowledgeOSConfig`, `Phase2Config`, and `Phase3Config`; experiment sweeps add
+declarative `ExperimentConfig` and `ExperimentGrid` values.
 
 The current LLM adapter uses Ollama. The surrounding pipeline accepts replaceable
 local model objects, but adapters for other local runtimes such as vLLM and
@@ -104,6 +105,29 @@ an LLM. `QueryTransformer` supports registered local strategies, so an AI-based
 rewrite can be introduced later without changing its external role. Likewise,
 Phase 2 estimates tokens for reporting but enforces a character budget rather
 than a tokenizer-aware token budget.
+
+## Implemented Phase 3: Hybrid Retrieval
+
+`notebooks/03_Hybrid_Retrieval.ipynb` and `Phase3RAGPipeline` now implement:
+
+- a common retriever protocol with dense and `rank-bm25` implementations;
+- dense-only, BM25-only, and hybrid modes;
+- proper configurable Reciprocal Rank Fusion with modality ranks and scores;
+- shared chunk reuse plus fingerprinted BM25 token caching;
+- tokenizer-aware context fitting using an already-loaded local tokenizer;
+- the unchanged Phase 2 character budget when token budgeting is disabled;
+- metadata-derived `file://` and configurable localhost PDF page links;
+- configurable structured logging;
+- a `RunManager` with collision-safe timestamped directories;
+- backward-compatible CSV plus formatted XLSX and standalone HTML reports;
+- configuration, summary, retrieval, metrics, logs, figures, and per-question
+  context artifacts; and
+- additive integration with the existing batch and evaluation contracts.
+
+The implementation and offline tests are complete. Phase 3 is not yet a frozen
+baseline because the full 200-question local-model comparison has not been run
+in this checkout. The empirical exit gate remains a documented Phase 2 versus
+Phase 3 improvement or trade-off on the unchanged frozen benchmark.
 
 ## Evaluation Framework
 
@@ -200,43 +224,28 @@ must extend this `outputs/` hierarchy and must not introduce a new top-level
 
 The current implementation has:
 
-- dense retrieval only;
-- no BM25 or other lexical retrieval;
-- no hybrid lexical/vector retrieval;
-- no Reciprocal Rank Fusion (RRF);
 - no reranking stage;
-- no tokenizer-aware context budgeting;
-- no clickable citation export contract;
-- no per-run XLSX export;
-- no complete standalone per-run HTML artifact bundle;
-- no `RunManager` abstraction; and
-- no completed Phase 3 implementation.
+- no retrieval-time authorization enforcement;
+- no OCR path for image-only PDFs beyond the configured local loaders;
+- no semantic entailment evaluator; and
+- no completed full-corpus Phase 3 benchmark qualification.
 
 The repository does generate a self-contained HTML evaluation dashboard. That is
-an aggregate evaluation report, not the planned per-run Phase 3 artifact bundle.
-Current CSV citations are structured JSON values but are not exported as
-clickable links.
+an aggregate evaluation report and remains separate from the implemented
+standalone per-run Phase 3 report.
 
-## Phase 3 Roadmap
+## Phase 3 Qualification Status
 
-Phase 3 should add and evaluate:
-
-- BM25 lexical retrieval;
-- hybrid dense and lexical retrieval;
-- Reciprocal Rank Fusion;
-- tokenizer-aware context budgeting;
-- clickable citations;
-- a `RunManager` for isolated, reproducible run directories;
-- per-run CSV, XLSX, and standalone HTML reports;
-- machine-readable configuration, summary, retrieval, and metric artifacts;
-- logs, figures, and retained context evidence; and
-- controlled comparisons against the frozen Phase 2 dense baseline.
+Implemented capabilities are covered by deterministic offline tests. Remaining
+qualification work is to run dense and hybrid modes against the same frozen
+benchmark with the approved local corpus/models, retain both artifact sets, and
+document quality, safety, token, and latency trade-offs.
 
 Reranking remains absent from the current system. Unless Phase 3 scope is
 explicitly expanded, keep it as the next post-hybrid phase rather than silently
 mixing it into the Phase 3 comparison.
 
-The intended Phase 3 output contract is:
+The implemented Phase 3 output contract is:
 
 ```text
 outputs/
@@ -285,4 +294,3 @@ Expose these through typed configuration or explicit function arguments, validat
 them at the boundary, serialize the effective configuration with every run, and
 use one resolved configuration throughout the run. Central default values are
 acceptable; hidden duplicated constants are not.
-

@@ -149,5 +149,32 @@ compressed evidence blocks for Phase 2 so they align with answer citations.
 
 Phase 3 is expected to preserve this external CSV behavior while adding an
 isolated per-run bundle with CSV, XLSX, standalone HTML, configuration,
-retrieval, metrics, logs, figures, and context artifacts. That bundle and its
-filenames are planned, not implemented; see `CURRENT_STATE.md`.
+retrieval, metrics, logs, figures, and context artifacts.
+
+## Phase 3 Extension
+
+`collect_batch_answers()` is the shared collection path used by the legacy CSV
+export and `Phase3Runner`. Existing Phase 1 and Phase 2 columns remain in their
+original order. Phase 3 appends:
+
+| Column | Meaning |
+|---|---|
+| `retrieval_mode` | `dense`, `bm25`, or `hybrid`. |
+| `dense_top_k` | Dense candidate depth. |
+| `bm25_top_k` | Lexical candidate depth. |
+| `rrf_k` | RRF rank constant. |
+| `final_context_tokens` | Configured-tokenizer context usage. |
+| `context_budget` | Effective token or character limit. |
+| `context_budget_type` | `tokens` or backward-compatible `characters`. |
+| `pdf_links` | JSON array of clickable evidence links. |
+| `retrieval_sources` | JSON array of contributing retriever names. |
+
+In hybrid rows the legacy `retrieval_scores` column contains fused RRF scores,
+not cosine similarities. Retriever-specific raw scores and ranks remain in the
+full response and `retrieval.json` trace.
+
+`Phase3Runner` writes the configured non-overwriting bundle below
+`outputs/batch_answers/03_Hybrid_Retrieval/run_<timestamp>/`. The XLSX workbook
+formats the established columns and makes the first PDF citation clickable.
+The HTML report embeds all styles and data and requires no server or external
+assets.

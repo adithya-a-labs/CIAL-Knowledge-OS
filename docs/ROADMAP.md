@@ -20,9 +20,9 @@ citation-driven while evolving toward production-ready deployment on
 organization-controlled infrastructure.
 
 The current repository provides completed Phase 1 and Phase 2 experimental
-baselines and reusable modules. Hybrid retrieval, reranking, agentic workflows,
-enterprise access controls, and a production interface are planned rather than
-implemented.
+baselines and an implemented Phase 3 hybrid architecture awaiting full local
+benchmark qualification. Reranking, agentic workflows, enterprise access
+controls, and a production interface remain planned.
 
 ## Guiding Principles
 
@@ -60,7 +60,7 @@ implemented.
 |---|---|---|
 | Phase 1 | Basic Offline RAG | ✅ Completed |
 | Phase 2 | Query Transformations and Context Construction | ✅ Completed |
-| Phase 3 | Hybrid Retrieval | ⏳ Planned / Next |
+| Phase 3 | Hybrid Retrieval | 🧪 Implemented / Qualification Pending |
 | Phase 4 | Reranking and Precision Optimization | 🔮 Planned |
 | Phase 5 | Agentic RAG and Multi-step Retrieval | 🔮 Planned |
 | Phase 6 | Production Hardening and Enterprise UX | 🔮 Planned |
@@ -160,7 +160,7 @@ be evaluated against a frozen benchmark.
 
 ### Phase 3 — Hybrid Retrieval
 
-**Status:** Planned / next. Not implemented.
+**Status:** Implemented; full frozen-benchmark qualification pending.
 
 **Objective**
 
@@ -208,6 +208,11 @@ controlled way to combine differently scored result sets.
   character estimate.
 - Existing Phase 1 and Phase 2 tests and notebook contracts remain valid.
 
+Implementation status: the notebook, reusable modules, compatibility paths,
+structured logs, reports, artifact bundle, and deterministic tests are present.
+The first, empirical exit criterion remains open until the approved local corpus
+and models complete the frozen 200-question dense-versus-hybrid comparison.
+
 ### Phase 4 — Reranking and Precision Optimization
 
 **Status:** Planned.
@@ -243,7 +248,8 @@ larger candidate pool before context construction.
 - The reranker improves defined precision or downstream answer metrics at an
   acceptable measured latency and resource cost.
 - Reranking can be disabled through configuration.
-- Phase 3 remains a reproducible frozen comparison baseline.
+- Phase 3 remains a reproducible comparison baseline after its benchmark
+  qualification is recorded and the phase is frozen.
 
 ### Phase 5 — Agentic RAG and Multi-step Retrieval
 
@@ -380,7 +386,8 @@ The diagram shows the intended end-state flow. Only loading through dense
 retrieval, Phase 2 context construction, local Ollama generation, citations, and
 current evaluation/reporting are implemented today. Lexical retrieval,
 reranking, agent planning, production interfaces, and several enterprise
-controls remain planned.
+controls remain planned. Hybrid lexical/vector retrieval and tokenizer-aware
+context construction are implemented; reranking and agent planning are not.
 
 ```text
 Enterprise Documents
@@ -457,4 +464,3 @@ offline, auditable, enterprise-ready platform where every answer is grounded in
 retrieved evidence, every citation is traceable, unsupported questions fail
 safely, and every architectural improvement is measured against a frozen
 baseline.
-
