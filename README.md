@@ -95,6 +95,30 @@ configuration, loading, chunking, embedding, vector storage, retrieval, local
 generation, benchmarking, and visualization live in `src/cial_knowledge_os`.
 `BasicRAGPipeline` composes those modules while exposing every intermediate result.
 
+`notebooks/02_Query_Transformations_and_Context_Construction.ipynb` is the Phase 2
+experiment. `Phase2RAGPipeline` extends the basic pipeline with deterministic query
+variants, configurable top-10 multi-query retrieval, `(source, page, chunk_id)`
+deduplication, neighbor expansion, overlap merging, bounded context construction,
+and metadata-rich citations. Phase 1 defaults and APIs remain unchanged.
+
+```python
+from cial_knowledge_os import Phase2Config, Phase2RAGPipeline
+
+config = Phase2Config(retrieval_top_k=10, neighbor_window=1)
+pipeline = Phase2RAGPipeline(config)
+response = pipeline.run("What controls apply before electrical maintenance?")
+```
+
+Every Phase 2 stage is available in `response["context_stages"]`; future hybrid
+retrieval and reranking components can be inserted at the retrieval and
+post-retrieval boundaries without changing ingestion or generation.
+
+Reusable Phase 2 debugging helpers in `visualization.py` convert live pipeline
+traces into pandas tables and matplotlib plots. They cover query variants,
+single- versus multi-query retrieval, deduplication frequency, neighbor
+provenance, context-stage counts, citation quality, and batch retrieval traces.
+Notebook 02 only supplies real pipeline outputs to these helpers.
+
 Embedded Qdrant permits only one process per storage path. Close other notebook
 kernels or clients before reopening the same `data/qdrant/` directory.
 
@@ -112,6 +136,11 @@ csv_path = export_batch_answers(pipeline=pipeline, questions=questions)
 Exports are written locally beneath `outputs/batch_answers/` using versioned,
 non-overwriting filenames. See `docs/BATCH_QA_EXPORT.md` for naming options, input
 file support, metrics, and the CSV schema.
+
+The same function accepts `Phase2RAGPipeline`. Phase 2 exports retain all Phase 1
+columns and append query variants, retrieval-stage counts, context sizes,
+semantic answer status, and a concise retrieval trace. Each exported answer runs
+through the complete Phase 2 pipeline; retrieval enhancements are not bypassed.
 
 ## Project Rules
 

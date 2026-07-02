@@ -116,7 +116,24 @@ Retrieval should apply metadata filters wherever possible.
 - Update changelogs or development notes when significant features are completed.
 - Before ending a coding session, review the change set and synchronize every affected repository artifact.
 
-## 13. Model Agnosticism & Local AI Deployment
+## 13. Phase 2 Query and Context Construction
+
+- Preserve Notebook 01 and all Basic RAG APIs as a frozen Phase 1 milestone.
+- Keep Phase 2 reusable logic under `src/cial_knowledge_os`; Notebook 02 only orchestrates experiments.
+- Use configurable top-10 retrieval per query variant without changing Phase 1's top-3 default.
+- Support inspectable original, rewritten, keyword-expanded, and domain-reformulated queries.
+- Merge multi-query retrieval evidence and deduplicate by `(source, page, chunk_id)` before citations, context formatting, or generation.
+- Support configurable source-relative neighbor expansion, contiguous chunk merging, and bounded context compression.
+- Preserve document, page, chunk ID, similarity score, and nested metadata through every retrieval and context stage.
+- Use the explicit Phase 2 safe-failure response when indexed evidence is insufficient.
+- Reuse the Phase 1 batch exporter for Phase 2 without changing Notebook 01 or removing existing CSV columns.
+- Ensure every Phase 2 batch row runs the complete transformed-query, multi-query retrieval, context construction, generation, and citation workflow.
+- Append query variants, retrieval-stage counts, final context sizes, semantic answer status, and a concise retrieval trace to Phase 2 CSV exports.
+- Provide reusable pandas tables and matplotlib plots for query variants, retrieval comparisons, duplicate frequency, neighbor provenance, context-stage counts, final citation quality, and batch retrieval traces.
+- Generate Phase 2 diagnostics from real pipeline trace data; keep visualization logic out of Notebook 02 and avoid dashboard frameworks.
+- Maintain extension boundaries for later hybrid retrieval, local reranking, and bounded agentic workflows without implementing them in Phase 2.
+
+## 14. Model Agnosticism & Local AI Deployment
 
 ### Core Principle
 
@@ -172,7 +189,7 @@ Organizations should be free to choose the model that best satisfies their requi
 
 This principle must remain true throughout the lifetime of the project.
 
-## 14. Reusable Experiment Architecture
+## 15. Reusable Experiment Architecture
 
 - Keep notebooks as lightweight learning and orchestration layers.
 - Put reusable ingestion, chunking, embedding, storage, retrieval, generation,
@@ -183,7 +200,7 @@ This principle must remain true throughout the lifetime of the project.
   services.
 - Keep local sample fixtures separate from ignored runtime and real-document data.
 
-## 15. Batch Question-Answer Export
+## 16. Batch Question-Answer Export
 
 - Provide a reusable source API that accepts notebook-defined question lists and
   exports grounded answers, citations, retrieval scores, and timing metrics to CSV.
