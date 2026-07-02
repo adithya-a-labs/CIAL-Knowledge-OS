@@ -1,6 +1,6 @@
 """Reusable, local-first components for CIAL Knowledge OS."""
 
-from .batch_qa import CSV_COLUMNS, export_batch_answers
+from .batch_qa import CSV_COLUMNS, PHASE2_CSV_COLUMNS, export_batch_answers
 from .benchmarking import Timer, benchmark_pipeline_steps, print_benchmark_table
 from .chunking import chunk_documents, summarize_chunks
 from .citations import (
@@ -8,7 +8,14 @@ from .citations import (
     render_answer_with_citations,
     render_citations,
 )
-from .config import KnowledgeOSConfig
+from .config import KnowledgeOSConfig, Phase2Config
+from .context_builder import (
+    INSUFFICIENT_EVIDENCE_RESPONSE,
+    ContextBuilder,
+    ContextBuildResult,
+    compress_context,
+    merge_overlapping_chunks,
+)
 from .embeddings import embed_texts, get_embedding_dimension, load_embedding_model
 from .llm import build_grounded_prompt, create_local_llm, generate_answer
 from .loaders import (
@@ -19,10 +26,23 @@ from .loaders import (
     summarize_documents,
 )
 from .rag_pipeline import BasicRAGPipeline
+from .phase2_pipeline import Phase2RAGPipeline
+from .query_transformations import (
+    QueryTransformer,
+    QueryVariant,
+    expand_query_keywords,
+    reformulate_for_domain,
+    rewrite_query,
+)
 from .retrieval import (
     format_retrieved_context,
     print_retrieval_results,
     search_similar_chunks,
+)
+from .retrieval_postprocessing import (
+    deduplicate_results,
+    expand_neighbor_chunks,
+    retrieve_multiple_queries,
 )
 from .vectorstore import (
     create_qdrant_client,
@@ -32,25 +52,52 @@ from .vectorstore import (
     reset_qdrant_storage,
 )
 from .visualization import (
+    batch_retrieval_trace_table,
+    citation_quality_table,
+    context_stage_counts_table,
+    duplicate_chunk_frequency_table,
+    neighbor_expansion_table,
     plot_chunk_size_distribution,
+    plot_context_stage_counts,
+    plot_duplicate_chunk_frequency,
+    plot_retrieval_comparison,
     plot_retrieval_scores,
     plot_timing_breakdown,
+    query_variants_table,
+    retrieval_chunks_table,
+    retrieval_comparison_table,
 )
 
 __all__ = [
     "BasicRAGPipeline",
     "CSV_COLUMNS",
+    "PHASE2_CSV_COLUMNS",
     "KnowledgeOSConfig",
+    "Phase2Config",
+    "Phase2RAGPipeline",
+    "ContextBuilder",
+    "ContextBuildResult",
+    "INSUFFICIENT_EVIDENCE_RESPONSE",
+    "QueryTransformer",
+    "QueryVariant",
     "Timer",
     "benchmark_pipeline_steps",
+    "batch_retrieval_trace_table",
     "build_grounded_prompt",
     "build_citations",
     "chunk_documents",
+    "citation_quality_table",
     "create_local_llm",
     "create_qdrant_client",
     "create_sample_airport_documents",
+    "compress_context",
+    "context_stage_counts_table",
+    "deduplicate_results",
+    "duplicate_chunk_frequency_table",
     "embed_texts",
     "ensure_collection",
+    "expand_neighbor_chunks",
+    "expand_query_keywords",
     "export_batch_answers",
     "format_retrieved_context",
     "generate_answer",
@@ -60,15 +107,26 @@ __all__ = [
     "load_embedding_model",
     "load_pdf_documents",
     "load_text_documents",
+    "merge_overlapping_chunks",
+    "neighbor_expansion_table",
     "plot_chunk_size_distribution",
+    "plot_context_stage_counts",
+    "plot_duplicate_chunk_frequency",
+    "plot_retrieval_comparison",
     "plot_retrieval_scores",
     "plot_timing_breakdown",
     "print_benchmark_table",
     "print_retrieval_results",
+    "query_variants_table",
     "recreate_collection",
+    "reformulate_for_domain",
     "render_answer_with_citations",
     "render_citations",
     "reset_qdrant_storage",
+    "retrieve_multiple_queries",
+    "retrieval_chunks_table",
+    "retrieval_comparison_table",
+    "rewrite_query",
     "search_similar_chunks",
     "summarize_chunks",
     "summarize_documents",

@@ -11,7 +11,14 @@ _REFERENCE_ID_PATTERN = re.compile(r"\[(\d+)\]")
 _GENERIC_REFERENCE_LINE_PATTERN = re.compile(
     r"(?im)^\s*references?\s*:\s*(?:\[\d+\][,\s]*)+\s*$"
 )
-_NO_EVIDENCE_ANSWER = "It is not available in the retrieved documents."
+_NO_EVIDENCE_ANSWERS = {
+    "It is not available in the retrieved documents.",
+    (
+        "The retrieved documents do not contain sufficient evidence to answer "
+        "this question. Based only on the indexed corpus, no reliable answer "
+        "could be generated."
+    ),
+}
 
 
 def build_citations(
@@ -99,7 +106,7 @@ def render_answer_with_citations(
     """Resolve numeric answer markers into a metadata-rich reference section."""
 
     cleaned_answer = _GENERIC_REFERENCE_LINE_PATTERN.sub("", answer).strip()
-    if not cleaned_answer or cleaned_answer == _NO_EVIDENCE_ANSWER or not citations:
+    if not cleaned_answer or cleaned_answer in _NO_EVIDENCE_ANSWERS or not citations:
         return cleaned_answer
 
     valid_ids = {

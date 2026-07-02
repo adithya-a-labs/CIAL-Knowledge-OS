@@ -58,3 +58,32 @@ class KnowledgeOSConfig:
     def _resolve(self, value: Path | None, default: Path) -> Path:
         path = Path(value).expanduser() if value is not None else default
         return path.resolve() if path.is_absolute() else (self.project_root / path).resolve()
+
+
+@dataclass(slots=True)
+class Phase2Config(KnowledgeOSConfig):
+    """Additive configuration for query transformation and context construction.
+
+    ``KnowledgeOSConfig`` and its Phase 1 defaults remain unchanged. Phase 2 uses
+    ``retrieval_top_k`` instead of changing the meaning of the existing ``top_k``.
+    """
+
+    retrieval_top_k: int = 10
+    enable_query_rewrite: bool = True
+    enable_keyword_expansion: bool = True
+    enable_domain_reformulation: bool = True
+    enable_multi_query: bool = True
+    enable_neighbor_expansion: bool = True
+    neighbor_window: int = 1
+    enable_overlap_merging: bool = True
+    enable_context_compression: bool = True
+    max_query_variants: int = 4
+
+    def __post_init__(self) -> None:
+        super(Phase2Config, self).__post_init__()
+        if self.retrieval_top_k <= 0:
+            raise ValueError("retrieval_top_k must be greater than zero.")
+        if self.neighbor_window < 0:
+            raise ValueError("neighbor_window must be non-negative.")
+        if self.max_query_variants <= 0:
+            raise ValueError("max_query_variants must be greater than zero.")

@@ -17,14 +17,23 @@ def search_similar_chunks(
     query: str,
     embedding_model: SentenceTransformer,
     config: KnowledgeOSConfig,
+    *,
+    top_k: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Embed a query locally and return normalized, inspectable search results."""
+    """Embed a query locally and return normalized, inspectable search results.
 
+    ``top_k`` is an additive Phase 2 extension. Omitting it preserves the Phase 1
+    behavior of reading ``config.top_k``.
+    """
+
+    retrieval_limit = config.top_k if top_k is None else top_k
+    if retrieval_limit <= 0:
+        raise ValueError("top_k must be greater than zero.")
     query_vector = embed_texts(embedding_model, [query])[0]
     response = client.query_points(
         collection_name=config.qdrant_collection_name,
         query=query_vector.tolist(),
-        limit=config.top_k,
+        limit=retrieval_limit,
         with_payload=True,
     )
     results: list[dict[str, Any]] = []
@@ -84,10 +93,13 @@ def print_retrieval_results(results: list[dict[str, Any]]) -> None:
         preview = " ".join(str(result.get("text", "")).split())
         if len(preview) > 240:
             preview = preview[:237] + "..."
+        page = result.get("page_number")
+        score = result.get("score")
+        score_label = f"{float(score):.4f}" if score is not None else "Not scored"
         print(
-            f"{rank}. score={result.get('score', 0.0):.4f} | "
-            f"source={result.get('source') or 'unknown'} | "
-            f"page={result.get('page_number') or 'n/a'} | "
-            f"chunk={result.get('chunk_id') or 'n/a'}"
+            f"{rank}. Similarity Score={score_label} | "
+            f"Document={result.get('source') or 'Unknown document'} | "
+            f"Page={page if page is not None else 'Not provided'} | "
+            f"Chunk ID={result.get('chunk_id') or 'Not provided'}"
         )
         print(f"   {preview}")
