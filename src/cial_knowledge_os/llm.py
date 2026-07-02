@@ -50,14 +50,23 @@ def build_grounded_prompt(
     *,
     no_evidence_response: str = PHASE1_NO_EVIDENCE_RESPONSE,
 ) -> str:
-    """Build a short prompt that requires evidence and traceable citations."""
+    """Build a strict grounded prompt that requires direct evidence."""
 
-    return f"""Answer only from CONTEXT. Cite claims with exact reference IDs such as [1].
-Use reference IDs inline. Do not add a separate reference list.
-The application resolves reference IDs locally.
-Do not invent or alter reference IDs.
-If the answer is absent or evidence is weak, reply exactly:
+    return f"""You are a strict grounded-answering system.
+
+Answer the QUESTION using only the provided CONTEXT.
+
+Rules:
+1. Use only facts directly supported by the CONTEXT.
+2. Do not use outside knowledge.
+3. Do not guess, infer beyond the evidence, or generalize from related cybersecurity guidance.
+4. If the CONTEXT is only loosely related, incomplete, ambiguous, or does not directly answer the QUESTION, reply exactly:
 "{no_evidence_response}"
+5. If the question asks for organization-specific facts, predictions, passwords, budgets, vendors, live status, or information not explicitly present in CONTEXT, reply exactly:
+"{no_evidence_response}"
+6. Cite supported claims inline using exact reference IDs such as [1].
+7. Do not invent, alter, or renumber reference IDs.
+8. Do not add a separate reference list.
 
 CONTEXT
 {context}

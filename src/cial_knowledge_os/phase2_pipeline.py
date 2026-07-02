@@ -102,13 +102,31 @@ class Phase2RAGPipeline(BasicRAGPipeline):
                     no_evidence_response=INSUFFICIENT_EVIDENCE_RESPONSE,
                 )
         self.metrics["total_pipeline_latency"] = time.perf_counter() - started_at
-        citations = build_citations(context_result.compressed)
-        answer = render_answer_with_citations(raw_answer, citations)
+        
+        normalized_answer = raw_answer.lower()
+
+        insufficient_markers = (
+            "insufficient evidence",
+            "not available in the retrieved documents",
+            "retrieved documents do not contain",
+            "does not contain sufficient",
+            "cannot be answered",
+            "based only on the indexed corpus, no reliable answer",
+        )
+
         answer_status = (
             "insufficient_evidence"
             if raw_answer == INSUFFICIENT_EVIDENCE_RESPONSE
+            or any(marker in normalized_answer for marker in insufficient_markers)
             else "answered"
         )
+
+        if answer_status == "insufficient_evidence":
+            citations = []
+            answer = raw_answer
+        else:
+            citations = build_citations(context_result.compressed)
+            answer = render_answer_with_citations(raw_answer, citations)
         return {
             "question": question,
             "query_variants": [
