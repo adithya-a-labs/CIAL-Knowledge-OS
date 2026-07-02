@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import re
 import time
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+logger = logging.getLogger(__name__)
 
 CSV_COLUMNS = [
     "question",
@@ -45,6 +48,18 @@ PHASE2_CSV_COLUMNS = [
     "retrieval_trace",
 ]
 
+PHASE3_CSV_COLUMNS = [
+    "retrieval_mode",
+    "dense_top_k",
+    "bm25_top_k",
+    "rrf_k",
+    "final_context_tokens",
+    "context_budget",
+    "context_budget_type",
+    "pdf_links",
+    "retrieval_sources",
+]
+
 _OUTPUT_SUBDIRECTORIES = (
     "batch_answers",
     "evaluations",
@@ -69,6 +84,15 @@ class BatchQAPipeline(Protocol):
     metrics: Mapping[str, Any]
 
     def answer(self, question: str) -> Mapping[str, Any]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class BatchAnswerCollection:
+    """Rows and full responses from one failure-tolerant local batch."""
+
+    columns: tuple[str, ...]
+    rows: tuple[dict[str, Any], ...]
+    responses: tuple[Mapping[str, Any] | None, ...]
 
 
 def _require_pipeline_ready(pipeline: BatchQAPipeline) -> None:
@@ -368,22 +392,56 @@ def _phase2_row_values(response: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def export_batch_answers(
+def _phase3_row_values(
+    response: Mapping[str, Any],
+    config: Any,
+) -> dict[str, Any]:
+    token_usage = response.get("token_usage")
+    token_usage = token_usage if isinstance(token_usage, Mapping) else {}
+    citations = response.get("citations")
+    citations = (
+        citations
+        if isinstance(citations, Iterable)
+        and not isinstance(citations, (str, bytes, Mapping))
+        else []
+    )
+    final_results = _stage_items(response, "compressed")
+    retrieval_sources = list(
+        dict.fromkeys(
+            source
+            for result in final_results
+            for source in (
+                result.get("retrieval_sources")
+                if isinstance(result.get("retrieval_sources"), list)
+                else []
+            )
+        )
+    )
+    return {
+        "retrieval_mode": str(response.get("retrieval_mode") or ""),
+        "dense_top_k": getattr(config, "dense_top_k", ""),
+        "bm25_top_k": getattr(config, "bm25_top_k", ""),
+        "rrf_k": getattr(config, "rrf_k", ""),
+        "final_context_tokens": token_usage.get("used", ""),
+        "context_budget": token_usage.get("budget", ""),
+        "context_budget_type": token_usage.get("budget_type", ""),
+        "pdf_links": _json_cell(
+            citation.get("pdf_link")
+            for citation in citations
+            if isinstance(citation, Mapping) and citation.get("pdf_link")
+        ),
+        "retrieval_sources": _json_cell(retrieval_sources),
+    }
+
+
+def collect_batch_answers(
     *,
     pipeline: BatchQAPipeline,
     questions: Iterable[str] | None = None,
     questions_path: str | Path | None = None,
-    run_name: str | None = None,
     top_k: int | None = None,
-) -> Path:
-    """Answer questions locally and export a failure-tolerant, versioned CSV.
-
-    The pipeline must already be ready for answering (for ``BasicRAGPipeline``,
-    complete ``load()``, ``chunk()``, ``embed()``, and ``index()`` first).
-    A known uninitialized pipeline is rejected before the batch starts.
-    Per-question failures are recorded and do not stop the remainder of the
-    batch.
-    """
+) -> BatchAnswerCollection:
+    """Collect backward-compatible rows while retaining full Phase 3 traces."""
 
     _require_pipeline_ready(pipeline)
     config = pipeline.config
@@ -401,18 +459,17 @@ def export_batch_answers(
     if requested_top_k <= 0:
         raise ValueError("top_k must be greater than zero.")
 
-    safe_run_name = (
-        _sanitize_run_name(run_name) if run_name else _infer_run_name(pipeline)
-    )
     model_name = str(getattr(config, "ollama_model_name", "") or "")
     embedding_model = str(getattr(config, "embedding_model_name", "") or "")
-    original_top_k = configured_top_k
     phase2_export = retrieval_depth_attribute == "retrieval_top_k"
+    phase3_export = hasattr(config, "retrieval_mode")
     columns = [
         *CSV_COLUMNS,
         *(PHASE2_CSV_COLUMNS if phase2_export else []),
+        *(PHASE3_CSV_COLUMNS if phase3_export else []),
     ]
     rows: list[dict[str, Any]] = []
+    responses: list[Mapping[str, Any] | None] = []
 
     try:
         setattr(config, retrieval_depth_attribute, requested_top_k)
@@ -425,6 +482,7 @@ def export_batch_answers(
                 columns=columns,
             )
             started_at = time.perf_counter()
+            response: Mapping[str, Any] | None = None
             try:
                 if not question:
                     raise ValueError("Question must not be blank.")
@@ -476,21 +534,64 @@ def export_batch_answers(
                 )
                 if phase2_export:
                     row.update(_phase2_row_values(response))
+                if phase3_export:
+                    row.update(_phase3_row_values(response, config))
             except Exception as exc:
                 row["error"] = str(exc)
+                logger.exception(
+                    "batch_question_failed",
+                    extra={"event": "batch_qa", "question": question},
+                )
             finally:
                 row["total_latency_seconds"] = round(
                     time.perf_counter() - started_at,
                     6,
                 )
                 rows.append(row)
+                responses.append(response)
     finally:
-        setattr(config, retrieval_depth_attribute, original_top_k)
+        setattr(config, retrieval_depth_attribute, configured_top_k)
+    return BatchAnswerCollection(
+        columns=tuple(columns),
+        rows=tuple(rows),
+        responses=tuple(responses),
+    )
+
+
+def export_batch_answers(
+    *,
+    pipeline: BatchQAPipeline,
+    questions: Iterable[str] | None = None,
+    questions_path: str | Path | None = None,
+    run_name: str | None = None,
+    top_k: int | None = None,
+) -> Path:
+    """Answer questions locally and export a failure-tolerant, versioned CSV.
+
+    The pipeline must already be ready for answering (for ``BasicRAGPipeline``,
+    complete ``load()``, ``chunk()``, ``embed()``, and ``index()`` first).
+    A known uninitialized pipeline is rejected before the batch starts.
+    Per-question failures are recorded and do not stop the remainder of the
+    batch.
+    """
+
+    config = pipeline.config
+    project_root = Path(config.project_root).expanduser().resolve()
+    collection = collect_batch_answers(
+        pipeline=pipeline,
+        questions=questions,
+        questions_path=questions_path,
+        top_k=top_k,
+    )
+
+    safe_run_name = (
+        _sanitize_run_name(run_name) if run_name else _infer_run_name(pipeline)
+    )
 
     batch_root = _create_output_structure(project_root)
     return _write_versioned_csv(
-        rows,
+        list(collection.rows),
         batch_root,
         safe_run_name,
-        columns=columns,
+        columns=list(collection.columns),
     )
