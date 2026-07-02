@@ -85,6 +85,11 @@ outputs/batch_answers/01_Basic_RAG/01_Basic_RAG-v2.csv
 Files are created exclusively. Existing exports are never overwritten, including
 when two local processes attempt to claim the same version.
 
+The standard top-level output roots are `batch_answers/`, `benchmarks/`,
+`evaluations/`, `exports/`, and `logs/`. Some may be empty until a workflow
+creates an artifact. Future phases must extend this hierarchy rather than add a
+new top-level `artifacts/` directory.
+
 ## CSV Schema
 
 Columns are written in this order:
@@ -141,3 +146,8 @@ The existing `status` column continues to represent export execution
 (`success` or `failed`). `answer_status` records whether the corpus supported a
 grounded answer. Existing source, page, chunk, and score columns use the final
 compressed evidence blocks for Phase 2 so they align with answer citations.
+
+Phase 3 is expected to preserve this external CSV behavior while adding an
+isolated per-run bundle with CSV, XLSX, standalone HTML, configuration,
+retrieval, metrics, logs, figures, and context artifacts. That bundle and its
+filenames are planned, not implemented; see `CURRENT_STATE.md`.

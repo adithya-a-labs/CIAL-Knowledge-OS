@@ -1,6 +1,11 @@
-# CIAL KnowledgeOS — Project Rules
+# CIAL Knowledge OS — Project Rules
 
 The canonical project requirements are maintained in `PROJECT_REQUIREMENTS.md`. This document provides detailed development rules and must remain consistent with those requirements.
+
+For the audited implemented state and the Phase 3 boundary, see
+`CURRENT_STATE.md`. Requirements that describe hybrid retrieval, reranking, and
+token-aware budgeting are target-state rules; the completed Phase 2 baseline is
+dense-only and character-bounded.
 
 ## 1. On-Premise First
 
@@ -277,6 +282,9 @@ Even though the current stage uses notebooks, code should be written so it can l
 
 Enterprise RAG should not rely only on vector search.
 
+This is a target-state preference. Hybrid retrieval is not implemented in the
+frozen Phase 1 or Phase 2 baselines.
+
 Prefer combining:
 
 - vector search
@@ -402,3 +410,20 @@ Preferred local replacements include:
 If a reference notebook contains cloud-specific code, **reinterpret the algorithm using the project's approved local stack rather than reproducing the original implementation.**
 
 The reference notebooks should be treated as conceptual guides, not implementation templates.
+
+## 23. Phase Isolation
+
+- Do not modify completed Phase 1 or Phase 2 notebooks.
+- Keep existing notebooks runnable as comparison baselines.
+- Put new phase behavior in a new notebook and reusable source modules.
+- A placeholder notebook does not mark a phase as completed.
+- Extend `outputs/`; do not create a competing top-level artifact root.
+
+## 24. Configuration-Driven Implementation
+
+- Do not hardcode paths, model names, output folders, retrieval modes, token
+  budgets, or artifact filenames in notebooks or business logic.
+- Use typed configuration or explicit API parameters and persist the effective
+  configuration with generated artifacts.
+- Phase 3 may change internals while preserving public behavior: new
+  architecture internally, same contracts externally.

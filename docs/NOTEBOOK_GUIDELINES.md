@@ -1,5 +1,16 @@
 # Notebook Guidelines
 
+## Frozen Baselines
+
+`01_Basic_RAG.ipynb`,
+`02_Query_Transformations_and_Context_Construction.ipynb`, and
+`testing/Phase2_Automated_Evaluation.ipynb` are completed baselines. Do not edit
+them when adding a later phase. Existing notebooks must remain runnable.
+
+Implement new capabilities in a new phase notebook and reusable modules under
+`src/cial_knowledge_os/`. Empty placeholder notebooks are planning slots, not
+evidence that a phase is implemented.
+
 ## Standard Notebook Structure
 
 Every notebook in the `notebooks/` directory must follow this fixed engineering structure:
@@ -92,3 +103,6 @@ General rules:
 - Prefer local OSS models.
 - Prefer local embeddings.
 - Prefer citation-backed answers.
+- Keep paths, models, retrieval modes, context or token budgets, output
+  directories, and artifact filenames in configuration rather than notebook
+  literals.

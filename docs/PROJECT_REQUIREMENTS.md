@@ -1,6 +1,10 @@
-# CIAL KnowledgeOS — Project Requirements
+# CIAL Knowledge OS — Project Requirements
 
-This file is the single source of truth for project requirements. Detailed implementation guidance lives in `PROJECT_RULES.md` and `NOTEBOOK_GUIDELINES.md`; if those documents conflict with this file, this file takes precedence.
+This file is the single source of truth for project requirements. Detailed
+implementation guidance lives in `PROJECT_RULES.md` and
+`NOTEBOOK_GUIDELINES.md`; the verified implementation status and roadmap live in
+`CURRENT_STATE.md`. If those documents conflict with this file, this file takes
+precedence.
 
 ## 1. Product Goal
 
@@ -24,8 +28,11 @@ Build a secure, enterprise-grade Knowledge OS that allows CIAL employees to sear
 
 ## 4. Retrieval and Answering
 
+- The current completed Phase 1 and Phase 2 baseline is dense-only.
 - Retrieve and inspect evidence before generation.
-- Use hybrid retrieval: vector search, keyword/BM25 search, metadata filters, and reranking.
+- The target architecture should use hybrid vector and keyword/BM25 retrieval,
+  metadata filters, and reranking, but these are planned capabilities rather
+  than claims about the current implementation.
 - Improve retrieval quality before increasing model size or context length.
 - Do not pass entire documents to the LLM.
 - Keep prompts and context concise; track token usage and latency where possible.
@@ -120,10 +127,13 @@ Retrieval should apply metadata filters wherever possible.
 
 ## 13. Phase 2 Query and Context Construction
 
+- Treat Phase 2 as completed and frozen.
 - Preserve Notebook 01 and all Basic RAG APIs as a frozen Phase 1 milestone.
 - Keep Phase 2 reusable logic under `src/cial_knowledge_os`; Notebook 02 only orchestrates experiments.
 - Use configurable top-10 retrieval per query variant without changing Phase 1's top-3 default.
-- Support inspectable original, rewritten, keyword-expanded, and domain-reformulated queries.
+- Support inspectable original, deterministically rewritten, keyword-expanded,
+  and domain-reformulated queries. AI/LLM-based rewrite is not part of the
+  completed Phase 2 implementation.
 - Merge multi-query retrieval evidence and deduplicate by `(source, page, chunk_id)` before citations, context formatting, or generation.
 - Support configurable source-relative neighbor expansion, contiguous chunk merging, and bounded context compression.
 - Preserve document, page, chunk ID, similarity score, and nested metadata through every retrieval and context stage.
@@ -214,6 +224,40 @@ This principle must remain true throughout the lifetime of the project.
 - Keep batch retrieval and generation offline, local-only, model-agnostic, and
   implemented through existing pipeline abstractions.
 - Record a failed row and continue when an individual question cannot be answered.
+
+## 17. Phase Isolation and Backward Compatibility
+
+- Do not modify completed Phase 1 or Phase 2 notebooks.
+- Treat Notebook 01, Notebook 02, and the Phase 2 automated-evaluation notebook
+  as frozen, reproducible baselines.
+- Add new phase capabilities through new notebooks and reusable modules.
+- Keep existing notebooks runnable.
+- Phase 3 may replace internal architecture when useful, but must preserve
+  external contracts: **new architecture internally, same contracts
+  externally**.
+
+## 18. Configuration Policy
+
+- Do not hardcode paths, model names, output folders, retrieval modes, token
+  budgets, or artifact filenames in notebooks or business logic.
+- Define operational choices in typed configuration or explicit API parameters.
+- Validate configuration at system boundaries and serialize the effective
+  configuration with each reproducible run.
+- Keep defaults centralized and avoid duplicated hidden constants.
+
+## 19. Phase 3 Planning Baseline
+
+- Phase 3 must compare hybrid retrieval with the frozen Phase 2 dense baseline.
+- Add BM25 lexical retrieval and Reciprocal Rank Fusion.
+- Add tokenizer-aware context budgeting.
+- Add clickable citation exports and per-run CSV, XLSX, and standalone HTML
+  reports.
+- Add a `RunManager` that writes isolated run artifacts below
+  `outputs/batch_answers/03_Hybrid_Retrieval/run_<timestamp>/`.
+- Extend the existing `outputs/` hierarchy; do not add a top-level `artifacts/`
+  directory.
+- Keep reranking clearly marked as unimplemented unless Phase 3 scope is
+  explicitly expanded.
 
 ## Pending Clarifications
 

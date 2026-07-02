@@ -1,7 +1,11 @@
 
 # CIAL Knowledge OS
 
-An AI-native, fully on-premise enterprise knowledge platform designed for Cochin International Airport Ltd. It enables secure document ingestion, semantic search, agentic RAG, evidence-backed answers, verifier workflows, and department-aware knowledge discovery.
+An enterprise-grade, fully offline, notebook-first RAG platform for enterprise
+documentation. The current repository provides completed dense-retrieval Phase
+1 and query/context-construction Phase 2 baselines plus reusable local modules.
+Agentic workflows, access control, and production applications remain target
+capabilities, not current implementation claims.
 
 ## Vision
 
@@ -11,32 +15,32 @@ The goal is not just document chat. The goal is a trusted knowledge operating sy
 
 ## Core Principles
 
-- Fully local / on-premise deployment
-- Open-source LLM support
-- Model-agnostic AI through a unified local inference abstraction
-- Role-based and department-based access control
-- Evidence-backed answers with citations
-- Agentic RAG with planner, retriever, critic, verifier, and response agents
-- Private employee workspace with isolated personal document storage
-- Central repository for organization-approved knowledge
-- Auditability, observability, and reliability first
+- Offline-first, organization-controlled operation
+- Open-source and open-weight local models
+- No cloud inference or cloud vector database
+- Notebook-first experimentation with reusable source modules
+- Configuration-driven and reproducible behavior
+- Model-agnostic component boundaries
+- Token-efficient evidence construction
+- Evidence-backed answers, citations, and safe failure
+- Auditability, observability, and enterprise readiness
 
-## Phase 1 Scope
+## Completed Baselines
 
-- Secure document upload and ingestion
-- Chunking, embeddings, and vector search
-- Central knowledge repository
-- Employee private workspace
-- Chat with documents
-- Source citations and evidence panel
-- Agentic RAG workflow
-- Verifier and critic agents
-- Admin dashboard
-- Department-aware access control
-- Local model deployment plan
-- Basic analytics and audit logs
+Phase 1 implements PDF and text loading, chunking, local embeddings, embedded
+Qdrant, dense retrieval, local Ollama generation, grounded prompts, citations,
+basic benchmarking, visualizations, and versioned batch CSV export.
 
-## Proposed Stack
+Phase 2 adds deterministic query rewrite, keyword expansion, domain
+reformulation, multi-query dense retrieval, evidence collection and exact
+deduplication, neighbor expansion, overlap merging, character-bounded context
+compression, stronger safe failure, final-evidence citation mapping, retrieval
+diagnostics, automated offline evaluation, and regression tests.
+
+The current query rewrite is deterministic, not LLM-based. The current retrieval
+system is dense-only and context budgets are character-based.
+
+## Target Production Stack
 
 ### Frontend
 - React / Next.js
@@ -64,7 +68,13 @@ The goal is not just document chat. The goal is a trusted knowledge operating sy
 ## Current Status
 
 Notebook-first RAG experimentation with reusable implementation modules under
-`src/cial_knowledge_os`.
+`src/cial_knowledge_os`. Phase 1 and Phase 2 notebooks are frozen baselines.
+Phase 3 is planned but not implemented; it will focus on BM25, hybrid retrieval,
+Reciprocal Rank Fusion, tokenizer-aware context budgets, clickable citations,
+and per-run CSV/XLSX/standalone-HTML artifact bundles.
+
+See `docs/CURRENT_STATE.md` for the audited architecture, limitations, output
+contracts, frozen notebook policy, and Phase 3 roadmap.
 
 ## Local Setup
 
@@ -80,7 +90,7 @@ On an isolated host, stage approved wheels first and replace the first command w
 
 The embedding model must already exist in the local Hugging Face cache, and the
 configured Ollama model must already exist in the local Ollama store. The pipeline
-uses `BAAI/bge-m3` and `qwen2.5:7b` by default. No model or document is sent to a
+uses `BAAI/bge-m3` and `gemma3:12b` by default. No model or document is sent to a
 hosted service.
 
 Place non-sensitive text fixtures in `data/sample/`, temporary text input in

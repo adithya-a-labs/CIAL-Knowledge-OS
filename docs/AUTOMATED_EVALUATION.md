@@ -1,7 +1,26 @@
 # Automated Offline Evaluation
 
 The reusable evaluation framework lives in `src/cial_knowledge_os/` and is not
-tied to a notebook phase. A sweep writes this artifact contract:
+tied to a notebook phase. It currently evaluates the frozen Phase 2 dense
+baseline and is designed to accept later pipeline implementations.
+
+## Modules and Responsibilities
+
+| Module | Responsibility |
+|---|---|
+| `benchmark_loader.py` | Load benchmark questions and metadata into typed records. |
+| `evaluation_metrics.py` | Score individual answers, aggregate metrics, and rank configurations using deterministic offline heuristics. |
+| `evaluation_report.py` | Build recommendations and write the Markdown recommendation report. |
+| `experiment_config.py` | Define immutable configurations and deterministic parameter grids. |
+| `experiment_runner.py` | Execute sweeps, isolate question failures, and write experiment, summary, recommendation, and dashboard artifacts. |
+| `visualization_dashboard.py` | Generate a self-contained offline HTML dashboard from embedded CSV and summary data. |
+
+`visualization.py` provides notebook-oriented pandas and matplotlib diagnostics;
+`batch_qa.py` provides general batch answer exports without ground-truth scoring.
+
+## Artifact Contract
+
+A sweep writes this artifact contract:
 
 ```text
 outputs/batch_answers/<phase>/
@@ -85,6 +104,35 @@ Unsupported questions pass only when the pipeline safely refuses. Forbidden
 keywords and unsafe answers to unsupported questions contribute to the
 hallucination metric. This is a heuristic benchmark, not semantic entailment;
 a future local evaluator can be added as a metric hook.
+
+The framework does not currently calculate semantic entailment, labeled
+retrieval recall, BM25/vector contribution, Reciprocal Rank Fusion quality, or
+reranker relevance. Those metrics must be added only when the corresponding
+retrieval stages exist.
+
+## Benchmark
+
+The current frozen benchmark lives at:
+
+```text
+data/benchmarks/cisg/
+|-- benchmark_answers.csv
+|-- benchmark_metadata.json
+|-- cisg_questions_v1.txt
+|-- README.md
+`-- CHANGELOG.md
+```
+
+It contains 200 questions. Do not modify the frozen files for a new phase; use
+the same version for Phase 2 versus Phase 3 comparisons or publish a separately
+versioned benchmark.
+
+## Phase 3 Extension
+
+Phase 3 should reuse the runner and benchmark contracts while adding hybrid
+retrieval metrics and isolated per-run artifacts. It must extend the existing
+`outputs/` tree rather than create a top-level `artifacts/` directory. See
+`CURRENT_STATE.md` for the planned `RunManager` bundle and compatibility policy.
 
 ## Operational considerations
 
