@@ -19,6 +19,7 @@ from .metadata import (
     source_path,
 )
 from .retrieval_postprocessing import deduplicate_results, expand_neighbor_chunks
+from .token_budget import TokenBudgetManager, TokenBudgetUsage
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class ContextBuildResult:
     merged: list[RetrievalResult]
     compressed: list[RetrievalResult]
     context: str
+    token_usage: TokenBudgetUsage | None = None
 
     def stage_counts(self) -> dict[str, int]:
         return {
@@ -81,6 +83,11 @@ def _merge_group(group: Sequence[RetrievalResult]) -> RetrievalResult:
         dict.fromkeys(page_number(item) for item in ordered if page_number(item) is not None)
     )
     scores = [item["score"] for item in ordered if item.get("score") is not None]
+    rrf_scores = [
+        float(item["rrf_score"])
+        for item in ordered
+        if item.get("rrf_score") is not None
+    ]
     matched_queries = list(
         dict.fromkeys(
             query
@@ -88,6 +95,36 @@ def _merge_group(group: Sequence[RetrievalResult]) -> RetrievalResult:
             for query in (item.get("matched_queries") or [])
         )
     )
+    retrieval_sources = list(
+        dict.fromkeys(
+            source
+            for item in ordered
+            for source in (item.get("retrieval_sources") or [])
+        )
+    )
+    retrieval_ranks: dict[str, int] = {}
+    retrieval_scores: dict[str, float | None] = {}
+    for item in ordered:
+        for source, rank in (item.get("retrieval_ranks") or {}).items():
+            try:
+                numeric_rank = int(rank)
+            except (TypeError, ValueError):
+                continue
+            retrieval_ranks[source] = min(
+                numeric_rank,
+                retrieval_ranks.get(source, numeric_rank),
+            )
+        for source, score in (item.get("retrieval_scores") or {}).items():
+            if score is None:
+                retrieval_scores.setdefault(source, None)
+                continue
+            try:
+                numeric_score = float(score)
+            except (TypeError, ValueError):
+                continue
+            existing_score = retrieval_scores.get(source)
+            if existing_score is None or numeric_score > existing_score:
+                retrieval_scores[source] = numeric_score
     if not chunk_ids:
         merged_chunk_id = ""
     elif len(chunk_ids) == 1:
@@ -104,6 +141,16 @@ def _merge_group(group: Sequence[RetrievalResult]) -> RetrievalResult:
             "score": max(scores) if scores else None,
             "matched_queries": matched_queries,
             "merged_chunk_count": len(ordered),
+            **({"rrf_score": max(rrf_scores)} if rrf_scores else {}),
+            **(
+                {
+                    "retrieval_sources": retrieval_sources,
+                    "retrieval_ranks": retrieval_ranks,
+                    "retrieval_scores": retrieval_scores,
+                }
+                if retrieval_sources
+                else {}
+            ),
         }
     )
     return normalize_result(merged)
@@ -158,12 +205,17 @@ def _header(result: Mapping[str, Any], reference_id: int) -> str:
     page_text = str(page) if page is not None and page != "" else "Not provided"
     score = result.get("score")
     score_text = f"{float(score):.3f}" if score is not None else "Not scored"
+    score_label = (
+        "RRF Score"
+        if result.get("rrf_score") is not None
+        else "Similarity Score"
+    )
     return (
         f"[{reference_id}]\n"
         f"Document: {source_label(result)}\n"
         f"Page: {page_text}\n"
         f"Chunk ID: {result.get('chunk_id') or 'Not provided'}\n"
-        f"Similarity Score: {score_text}\n"
+        f"{score_label}: {score_text}\n"
     )
 
 
@@ -172,39 +224,97 @@ def compress_context(
     *,
     max_chars: int,
     enabled: bool = True,
+    token_budget_manager: TokenBudgetManager | None = None,
 ) -> tuple[list[RetrievalResult], str]:
-    """Select and truncate ranked blocks to a deterministic character budget."""
+    """Select and truncate ranked blocks to the configured context budget.
+
+    Supplying ``token_budget_manager`` activates tokenizer-aware fitting.
+    Omitting it preserves the exact Phase 2 character behavior.
+    """
 
     if max_chars <= 0:
         raise ValueError("max_chars must be greater than zero.")
     selected: list[RetrievalResult] = []
     blocks: list[str] = []
     used = 0
-    for result in results:
+    truncated_sections = 0
+    omitted_sections = 0
+    for position, result in enumerate(results):
         normalized = normalize_result(result)
         header = _header(normalized, len(selected) + 1)
         text = normalized["text"].strip()
-        remaining = max_chars - used - len(header) if enabled else len(text)
-        if enabled and remaining <= 0:
-            break
-        if enabled and len(text) > remaining:
-            text = text[:remaining].rstrip()
-            normalized["context_truncated"] = True
+        separator = "\n\n" if blocks else ""
+        if enabled and token_budget_manager is not None:
+            prefix_tokens = token_budget_manager.count(separator + header)
+            remaining_tokens = (
+                token_budget_manager.max_tokens - used - prefix_tokens
+            )
+            if remaining_tokens <= 0:
+                omitted_sections = len(results) - position
+                break
+            original_text = text
+            text = token_budget_manager.truncate(text, remaining_tokens)
+            if not text:
+                omitted_sections = len(results) - position
+                break
+            candidate = "\n\n".join([*blocks, header + text])
+            while (
+                text
+                and token_budget_manager.count(candidate)
+                > token_budget_manager.max_tokens
+            ):
+                text = token_budget_manager.truncate(
+                    text,
+                    token_budget_manager.count(text) - 1,
+                )
+                candidate = "\n\n".join([*blocks, header + text])
+            if not text:
+                omitted_sections = len(results) - position
+                break
+            if text != original_text:
+                normalized["context_truncated"] = True
+                truncated_sections += 1
+        else:
+            remaining = max_chars - used - len(header) if enabled else len(text)
+            if enabled and remaining <= 0:
+                break
+            if enabled and len(text) > remaining:
+                text = text[:remaining].rstrip()
+                normalized["context_truncated"] = True
         normalized["text"] = text
         block = header + text
         selected.append(normalized)
         blocks.append(block)
-        used += len(block) + 2
-        if enabled and used >= max_chars:
+        if token_budget_manager is not None:
+            used = token_budget_manager.count("\n\n".join(blocks))
+        else:
+            used += len(block) + 2
+        if enabled and token_budget_manager is not None:
+            if used >= token_budget_manager.max_tokens:
+                break
+        elif enabled and used >= max_chars:
             break
-    return selected, "\n\n".join(blocks)
+    context = "\n\n".join(blocks)
+    if token_budget_manager is not None:
+        token_budget_manager.record_usage(
+            used=token_budget_manager.count(context),
+            truncated_sections=truncated_sections,
+            omitted_sections=omitted_sections,
+        )
+    return selected, context
 
 
 class ContextBuilder:
     """Compose Phase 2 post-retrieval stages without model dependencies."""
 
-    def __init__(self, config: Phase2Config) -> None:
+    def __init__(
+        self,
+        config: Phase2Config,
+        *,
+        token_budget_manager: TokenBudgetManager | None = None,
+    ) -> None:
         self.config = config
+        self.token_budget_manager = token_budget_manager
 
     def build(
         self,
@@ -234,6 +344,7 @@ class ContextBuilder:
             merged,
             max_chars=self.config.max_context_chars,
             enabled=self.config.enable_context_compression,
+            token_budget_manager=self.token_budget_manager,
         )
         logger.info(
             "Context stages: %s",
@@ -252,4 +363,9 @@ class ContextBuilder:
             merged=merged,
             compressed=compressed,
             context=context,
+            token_usage=(
+                self.token_budget_manager.last_usage
+                if self.token_budget_manager is not None
+                else None
+            ),
         )

@@ -5,7 +5,13 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
+
+
+class CitationLinkResolver(Protocol):
+    """Optional link resolver accepted by :func:`build_citations`."""
+
+    def build(self, result: Mapping[str, Any]) -> str | None: ...
 
 _REFERENCE_ID_PATTERN = re.compile(r"\[(\d+)\]")
 _GENERIC_REFERENCE_LINE_PATTERN = re.compile(
@@ -23,8 +29,13 @@ _NO_EVIDENCE_ANSWERS = {
 
 def build_citations(
     results: Iterable[Mapping[str, Any]],
+    *,
+    link_resolver: CitationLinkResolver | None = None,
 ) -> list[dict[str, Any]]:
-    """Build ranked citations that align one-to-one with retrieval results."""
+    """Build ranked citations that align one-to-one with retrieval results.
+
+    Link enrichment is opt-in so Phase 1 and Phase 2 output remains unchanged.
+    """
 
     citations: list[dict[str, Any]] = []
     for rank, result in enumerate(results, start=1):
@@ -53,6 +64,11 @@ def build_citations(
                 # Retain both human-readable and traceable source forms.
                 "source_file": source_file,
                 "source_path": source_path,
+                **(
+                    {"pdf_link": link_resolver.build(result)}
+                    if link_resolver is not None
+                    else {}
+                ),
             }
         )
     return citations
@@ -95,6 +111,9 @@ def render_citations(
         score = _format_score(citation.get("score"))
         if score is not None:
             details.append(f"score {score}")
+        pdf_link = citation.get("pdf_link")
+        if pdf_link:
+            details.append(f"PDF {pdf_link}")
         lines.append(f"[{reference_id}] " + " | ".join(details))
     return "\n".join(lines)
 
