@@ -175,3 +175,10 @@ All development must follow the rules in:
 - `docs/NOTEBOOK_GUIDELINES.md`
 
 These rules prioritize on-prem deployment, open-source local models, token efficiency, metadata-aware retrieval, citation grounding, and enterprise-grade reliability.
+
+## Documentation
+
+- [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md) describes the audited
+  implementation state, limitations, and immediate Phase 3 boundary.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) describes the long-term phase-by-phase
+  architectural direction without treating planned capabilities as implemented.
