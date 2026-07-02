@@ -1,0 +1,62 @@
+{
+  "name": "CISG Cybersecurity Benchmark",
+  "id": "cisg_benchmark_v1",
+  "version": "1.0.0",
+  "status": "frozen",
+
+  "created_on": "2026-07-03",
+  "created_by": "Adithya A",
+
+  "description": "Ground-truth benchmark for evaluating the CIAL Knowledge OS RAG pipeline.",
+
+  "question_count": 200,
+
+  "categories": {
+    "factual": 50,
+    "definition": 30,
+    "procedure": 30,
+    "comparison": 15,
+    "executive_summary": 15,
+    "enterprise": 20,
+    "cross_document": 20,
+    "unsupported": 20
+  },
+
+  "difficulty_distribution": {
+    "easy": 70,
+    "medium": 90,
+    "hard": 40
+  },
+
+  "source_documents": [
+    "CISG-2023-01 Information Security Practices",
+    "CISG-2024-01 Secure Application Design",
+    "CISG-2024-02 SBOM AIBOM HBOM",
+    "CISG-2025-01 Smart City Security",
+    "CISG-2025-02 Cyber Security Audit Policy",
+    "CISG-2025-03 Cyber Defense Controls for MSMEs",
+    "CISG-2026-01 Space & Satellite Security",
+    "CISG-2026-02 AI-Assisted Vulnerabilities",
+    "CISG-2026-03 AI Vulnerability Protection"
+  ],
+
+  "ground_truth": {
+    "generated_with": "Claude",
+    "verified_by": "Manual review",
+    "outside_knowledge_allowed": false
+  },
+
+  "evaluation": {
+    "supports_keyword_matching": true,
+    "supports_expected_answers": true,
+    "supports_safe_failure_tests": true
+  },
+
+  "compatible_with": [
+    "Phase 2",
+    "Phase 3",
+    "Phase 4",
+    "Phase 5",
+    "Production Knowledge OS"
+  ]
+}
