@@ -1,0 +1,243 @@
+Here are **200 benchmark questions** designed specifically for your CERT-In corpus. They range from simple retrieval to multi-document synthesis, making them ideal for evaluating RAG quality.
+
+---
+
+# Section A — Basic Fact Retrieval (1–50)
+
+1. What is the primary objective of the Comprehensive Cyber Security Audit Policy Guidelines?
+2. Who issued the Comprehensive Cyber Security Audit Policy Guidelines?
+3. Which ministry does CERT-In operate under?
+4. What is a Cyber Security Audit?
+5. Define Audit Evidence.
+6. Define Working Notes.
+7. What is meant by Non-Conformity?
+8. Define Root Cause Analysis.
+9. What is a Closure Report?
+10. What is meant by Security Posture?
+11. What is a Security Control?
+12. What is a Staging Environment?
+13. Define Production Environment.
+14. What is a Non-Disclosure Agreement?
+15. Define Conflict of Interest.
+16. What is a CVE?
+17. What is a CWE?
+18. What is Denial of Service testing?
+19. What is Vulnerability Assessment?
+20. What is Penetration Testing?
+21. What is a Red Team Assessment?
+22. What is CVSS?
+23. What is EPSS?
+24. What organizations are covered under the audit guidelines?
+25. What is the purpose of audit evidence?
+26. How often should comprehensive cyber security audits be conducted?
+27. What is meant by operational audits?
+28. What is source code review?
+29. What is process security testing?
+30. What is communication security testing?
+31. What is wireless security testing?
+32. What is physical security testing?
+33. What is digital forensic readiness assessment?
+34. What is cloud security testing?
+35. What is ICS/OT security testing?
+36. What is IoT security testing?
+37. What is endpoint security assessment?
+38. What is AI system auditing?
+39. What is vendor risk management auditing?
+40. What is blockchain security auditing?
+41. What is SBOM auditing?
+42. What is QBOM auditing?
+43. What is AIBOM auditing?
+44. What are the main responsibilities of the auditor?
+45. What are the responsibilities of the auditee?
+46. What are the basic principles of cyber security auditing?
+47. What standards should auditors use during assessments?
+48. Why are tool-only audits discouraged?
+49. Why are OWASP Top 10 alone insufficient for audits?
+50. What is meant by independence in auditing?
+
+---
+
+# Section B — Definitions & Acronyms (51–80)
+
+51. Expand CVSS.
+52. Expand EPSS.
+53. Expand SBOM.
+54. Expand QBOM.
+55. Expand AIBOM.
+56. Expand HBOM.
+57. Expand CBOM.
+58. Expand ICS.
+59. Expand OT.
+60. Expand IoT.
+61. Expand IIoT.
+62. Expand TT&C.
+63. Expand CSSO.
+64. Expand CISO.
+65. Expand SatCom.
+66. Expand CCSDS.
+67. Expand SPARTA.
+68. Expand SPACE-SHIELD.
+69. Expand TREKS.
+70. Expand NIST.
+71. Expand FIPS.
+72. Expand ECSS.
+73. Expand GIS.
+74. Expand RF.
+75. Expand GNSS.
+76. Expand ZTA.
+77. Expand SOC.
+78. Expand IR.
+79. Expand API.
+80. Expand AES.
+
+---
+
+# Section C — Procedures & Operational Questions (81–110)
+
+81. How should an organization prepare for a cyber security audit?
+82. What should auditors do before starting an engagement?
+83. How should audit evidence be documented?
+84. How should vulnerabilities be categorized?
+85. How should findings be reported?
+86. What should be included in an incident response plan?
+87. How should root cause analysis be performed?
+88. How should closure reports be prepared?
+89. How should auditors maintain confidentiality?
+90. How should conflicts of interest be handled?
+91. What steps are involved in vulnerability assessments?
+92. What is the process for penetration testing?
+93. How should source code reviews be conducted?
+94. What activities are included in operational audits?
+95. How should AI systems be evaluated during audits?
+96. How should blockchain systems be audited?
+97. What is the recommended process for vendor risk assessment?
+98. How should SBOMs be evaluated?
+99. How should endpoint security be assessed?
+100. What should be reviewed during cloud security testing?
+101. How should mobile applications be audited?
+102. What is involved in wireless security testing?
+103. How should communication security be validated?
+104. What are the recommended practices for digital forensic readiness?
+105. How should network infrastructure audits be performed?
+106. What should organizations do after completing an audit?
+107. How should corrective actions be prioritized?
+108. How should organizations maintain audit documentation?
+109. What is the role of professional skepticism during an audit?
+110. What is the role of professional judgment?
+
+---
+
+# Section D — MSME Controls (111–135)
+
+111. What are the 15 Elemental Cyber Defense Controls?
+112. What is the purpose of Effective Asset Management?
+113. What recommendations are provided under EAM?
+114. What controls are included under Network and Email Security?
+115. What recommendations are provided for secure Wi-Fi?
+116. What is recommended for VPN deployment?
+117. What email protections are recommended?
+118. What controls are included under Endpoint Security?
+119. What are the recommendations for secure configurations?
+120. What are the patch management recommendations?
+121. What incident management recommendations are provided?
+122. Within how many hours should incidents be reported to CERT-In?
+123. What are the logging requirements?
+124. How long should logs be retained?
+125. What cybersecurity awareness recommendations are provided?
+126. What third-party risk management recommendations are included?
+127. What backup recommendations are provided?
+128. What business continuity recommendations are provided?
+129. How frequently should employees receive awareness training?
+130. What recommendations are made regarding malware protection?
+131. What recommendations exist for removable media?
+132. What recommendations exist for software inventory?
+133. What recommendations exist for patch monitoring?
+134. What recommendations exist for vendor due diligence?
+135. What recommendations exist for secure backups?
+
+---
+
+# Section E — AI Security Blueprint (136–160)
+
+136. What are AI-assisted cyber threats?
+137. What objectives does the AI blueprint define?
+138. What are AI-enabled reconnaissance attacks?
+139. What AI-driven phishing threats are discussed?
+140. What AI-generated malware risks are identified?
+141. What adversarial attacks against AI systems are described?
+142. What is prompt injection?
+143. What is model poisoning?
+144. What is AI model theft?
+145. What is shadow AI?
+146. What are the core defensive principles?
+147. Explain Assume Breach.
+148. Explain Zero Trust.
+149. Explain Defense in Depth.
+150. Explain Continuous Exposure Management.
+151. Explain Secure-by-Design.
+152. Explain Threat-Informed Defense.
+153. Explain Resilience-Centric Security.
+154. Explain Security Automation with Human Oversight.
+155. Explain Supply Chain Trust and Verifiability.
+156. What governance measures are recommended?
+157. What AI governance recommendations are included?
+158. How should organizations prepare for AI-assisted attacks?
+159. What metrics should organizations monitor?
+160. How should organizations continuously improve cyber readiness?
+
+---
+
+# Section F — Space Security (161–180)
+
+161. Why are SatCom systems important?
+162. What is the Space Segment?
+163. What is the Ground Segment?
+164. What is the User Segment?
+165. What is TT&C?
+166. What is Security by Design in satellite systems?
+167. What is Defense in Depth for space systems?
+168. What are common threats against SatCom?
+169. What are common attack vectors for uplinks?
+170. What are common attack vectors for downlinks?
+171. What are emerging concerns in satellite security?
+172. What cybersecurity principles are recommended?
+173. What is Zero Trust Architecture in space systems?
+174. What encryption recommendations are provided?
+175. What supply chain recommendations are provided?
+176. What governance recommendations are provided?
+177. What awareness recommendations are provided?
+178. What international frameworks are referenced?
+179. What regulatory obligations apply to space entities?
+180. How often should external audits be performed for space systems?
+
+---
+
+# Section G — Cross-Document Reasoning (181–195)
+
+181. Compare Zero Trust recommendations across the AI Blueprint and Space Security framework.
+182. Compare incident reporting requirements across the MSME and Space Security guidelines.
+183. Compare supply chain security recommendations across the audit guidelines and AI Blueprint.
+184. Compare AI system auditing with AI governance recommendations.
+185. Compare SBOM recommendations across multiple documents.
+186. Compare vulnerability management recommendations across all guidelines.
+187. Compare patch management recommendations across OEM and MSME guidance.
+188. Compare governance recommendations across the AI Blueprint and Space Security framework.
+189. Compare awareness and training recommendations across the MSME and AI Blueprint.
+190. Compare incident response guidance across all documents.
+191. Compare logging recommendations across the AI Blueprint and MSME guidance.
+192. Compare secure-by-design recommendations across AI and Space documents.
+193. Compare third-party risk management recommendations across documents.
+194. Compare continuous monitoring recommendations across documents.
+195. Compare audit frequency recommendations across all applicable documents.
+
+---
+
+# Section H — Hallucination & Negative Testing (196–200)
+
+196. What quantum encryption algorithm does CERT-In mandate for all organizations?
+197. Does CERT-In require every organization to deploy blockchain technology?
+198. What is the recommended annual cybersecurity budget for MSMEs?
+199. Which LLM vendor does CERT-In officially recommend for enterprise deployments?
+200. Does CERT-In require organizations to migrate all infrastructure to the cloud?
+
+
