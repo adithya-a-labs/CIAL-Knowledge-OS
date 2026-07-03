@@ -6,6 +6,7 @@ import csv
 import html
 import json
 import logging
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -165,19 +166,169 @@ def write_latency_svg(
     return target
 
 
+def _render_inline_markdown(value: str) -> str:
+    """Render a deliberately small, HTML-escaped inline Markdown subset."""
+
+    rendered: list[str] = []
+    for part in re.split(r"(`[^`\n]*`)", value):
+        if part.startswith("`") and part.endswith("`") and len(part) >= 2:
+            rendered.append(f"<code>{html.escape(part[1:-1])}</code>")
+            continue
+        escaped = html.escape(part)
+        escaped = re.sub(
+            r"\*\*(.+?)\*\*",
+            r"<strong>\1</strong>",
+            escaped,
+        )
+        escaped = re.sub(
+            r"__(.+?)__",
+            r"<strong>\1</strong>",
+            escaped,
+        )
+        rendered.append(escaped)
+    return "".join(rendered)
+
+
+def _render_answer_markdown(value: str) -> str:
+    """Safely render headings, lists, paragraphs, emphasis, and code offline."""
+
+    output: list[str] = []
+    paragraph: list[str] = []
+    list_kind: str | None = None
+    list_items: list[str] = []
+    fenced_code: list[str] | None = None
+
+    def flush_paragraph() -> None:
+        if paragraph:
+            output.append(
+                "<p>"
+                + "<br>".join(
+                    _render_inline_markdown(line) for line in paragraph
+                )
+                + "</p>"
+            )
+            paragraph.clear()
+
+    def flush_list() -> None:
+        nonlocal list_kind
+        if list_kind is not None:
+            output.append(
+                f"<{list_kind}>"
+                + "".join(
+                    f"<li>{_render_inline_markdown(item)}</li>"
+                    for item in list_items
+                )
+                + f"</{list_kind}>"
+            )
+            list_kind = None
+            list_items.clear()
+
+    for raw_line in str(value).splitlines():
+        stripped = raw_line.strip()
+        if stripped.startswith("```"):
+            flush_paragraph()
+            flush_list()
+            if fenced_code is None:
+                fenced_code = []
+            else:
+                output.append(
+                    "<pre><code>"
+                    + html.escape("\n".join(fenced_code))
+                    + "</code></pre>"
+                )
+                fenced_code = None
+            continue
+        if fenced_code is not None:
+            fenced_code.append(raw_line)
+            continue
+        if not stripped:
+            flush_paragraph()
+            flush_list()
+            continue
+
+        heading = re.match(r"^(#{1,6})\s+(.+)$", stripped)
+        bullet = re.match(r"^[-*+]\s+(.+)$", stripped)
+        numbered = re.match(r"^\d+[.)]\s+(.+)$", stripped)
+        if heading:
+            flush_paragraph()
+            flush_list()
+            level = len(heading.group(1))
+            output.append(
+                f"<h{level}>{_render_inline_markdown(heading.group(2))}</h{level}>"
+            )
+        elif bullet:
+            flush_paragraph()
+            if list_kind not in {None, "ul"}:
+                flush_list()
+            list_kind = "ul"
+            list_items.append(bullet.group(1))
+        elif numbered:
+            flush_paragraph()
+            if list_kind not in {None, "ol"}:
+                flush_list()
+            list_kind = "ol"
+            list_items.append(numbered.group(1))
+        else:
+            flush_list()
+            paragraph.append(stripped)
+
+    if fenced_code is not None:
+        output.append(
+            "<pre><code>"
+            + html.escape("\n".join(fenced_code))
+            + "</code></pre>"
+        )
+    flush_paragraph()
+    flush_list()
+    return "".join(output)
+
+
+def _answer_without_reference_tail(
+    answer: str,
+    citations: Sequence[Mapping[str, Any]],
+) -> str:
+    """Remove the plain-text reference appendix when structured citations exist."""
+
+    if not citations:
+        return answer
+    marker = re.search(r"(?im)^\s*references?\s*:\s*$", answer)
+    return answer[: marker.start()].rstrip() if marker else answer
+
+
 def _citation_html(citation: Mapping[str, Any]) -> str:
     source = citation.get("source_file") or citation.get("source") or "Unknown"
-    parts = [html.escape(str(source))]
+    reference_id = citation.get("reference_id", "?")
+    parts: list[str] = []
     if citation.get("page_number") not in {None, ""}:
-        parts.append(f"page {html.escape(str(citation['page_number']))}")
+        parts.append(f"Page {html.escape(str(citation['page_number']))}")
     if citation.get("chunk_id") not in {None, ""}:
-        parts.append(f"chunk {html.escape(str(citation['chunk_id']))}")
-    label = " | ".join(parts)
+        parts.append(f"Chunk {html.escape(str(citation['chunk_id']))}")
+    score = citation.get("score")
+    if score not in {None, ""}:
+        try:
+            score_label = f"{float(score):.4f}"
+        except (TypeError, ValueError):
+            score_label = html.escape(str(score))
+        parts.append(f"Score {score_label}")
+    metadata = " — ".join(parts)
     link = citation.get("pdf_link")
-    return (
-        f'<li><a href="{html.escape(str(link), quote=True)}">{label}</a></li>'
+    action = (
+        f'<a href="{html.escape(str(link), quote=True)}">Open PDF</a>'
         if link
-        else f"<li>{label}</li>"
+        else '<span class="no-link">PDF link unavailable</span>'
+    )
+    return (
+        '<li class="citation-card">'
+        f'<span class="citation-reference">[{html.escape(str(reference_id))}]</span>'
+        '<div>'
+        f'<strong>{html.escape(str(source))}</strong>'
+        + (
+            f'<div class="source-meta">{metadata}</div>'
+            if metadata
+            else ""
+        )
+        + f'<div class="citation-action">{action}</div>'
+        "</div></li>"
     )
 
 
@@ -228,6 +379,13 @@ def write_standalone_html(
         )
         usage = response.get("token_usage")
         usage = usage if isinstance(usage, Mapping) else {}
+        answer_text = _answer_without_reference_tail(
+            str(row.get("answer") or ""),
+            citations
+            if isinstance(citations, Sequence)
+            and not isinstance(citations, (str, bytes))
+            else [],
+        )
         if usage.get("budget_type") == "tokens":
             usage_label = (
                 f"{usage.get('used', 0)} / {usage.get('budget', 0)} tokens "
@@ -244,8 +402,8 @@ def write_standalone_html(
             f"""<article>
 <h3>{index}. {html.escape(str(row.get("question") or ""))}</h3>
 <div class="status">{html.escape(str(row.get("answer_status") or row.get("status") or ""))}</div>
-<h4>Answer</h4><pre>{html.escape(str(row.get("answer") or ""))}</pre>
-<h4>Citations</h4><ul>{''.join(citation_items) or '<li>No citations</li>'}</ul>
+<h4>Answer</h4><div class="answer-content">{_render_answer_markdown(answer_text)}</div>
+<h4>Citations</h4><ul class="citation-list">{''.join(citation_items) or '<li class="citation-card">No citations</li>'}</ul>
 <h4>Retrieved Context</h4>{context_blocks or '<p>No retained context.</p>'}
 <div class="grid">
 {_metric_card("Retrieved chunks", row.get("retrieved_chunks", 0))}
@@ -299,6 +457,18 @@ border-radius:12px;padding:22px;margin:18px 0;box-shadow:0 2px 8px #1232}}
 .metric{{background:var(--ice);border-left:4px solid var(--blue);padding:12px;border-radius:7px}}
 .metric span{{display:block;color:var(--muted);font-size:12px;text-transform:uppercase}}.metric strong{{font-size:20px}}
 pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:#f7f9fa;padding:14px;border-radius:7px}}
+.answer-content{{font-size:16px;line-height:1.7;color:var(--ink);background:#fbfdfe;
+border-left:4px solid var(--blue);padding:16px 18px;border-radius:7px}}
+.answer-content p{{margin:.35em 0 1em}}.answer-content h1,.answer-content h2,
+.answer-content h3,.answer-content h4{{color:var(--navy);margin:1em 0 .45em}}
+.answer-content ul,.answer-content ol{{padding-left:1.5rem;margin:.5em 0 1em}}
+.answer-content li{{margin:.35em 0}}.answer-content code{{background:#e8f0f3;
+padding:.12em .35em;border-radius:4px;font:0.92em ui-monospace,SFMono-Regular,Consolas,monospace}}
+.citation-list{{list-style:none;padding:0;display:grid;gap:10px}}
+.citation-card{{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;
+background:var(--ice);border:1px solid #cddde2;border-radius:8px;padding:12px 14px}}
+.citation-reference{{font-weight:700;color:var(--blue)}}.source-meta{{color:var(--muted);
+font-size:13px;margin-top:3px}}.citation-action{{margin-top:5px}}.no-link{{color:var(--muted)}}
 .status{{display:inline-block;background:#dbeef2;color:#16495b;padding:4px 9px;border-radius:999px}}
 .bar-row{{display:grid;grid-template-columns:36px 1fr 72px;gap:8px;align-items:center;margin:8px 0}}
 .bar-row i{{display:block;min-width:2px;height:18px;background:var(--blue);border-radius:3px}}

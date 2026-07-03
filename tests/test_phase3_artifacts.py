@@ -92,6 +92,27 @@ class _ArtifactPipeline:
         }
 
 
+class _MarkdownArtifactPipeline(_ArtifactPipeline):
+    def answer(self, question: str):
+        response = super().answer(question)
+        response["answer"] = (
+            "**Control summary**\n\n"
+            "* Enable filtering\n"
+            "* Track `AIBOM`\n\n"
+            "1. Review evidence\n"
+            "2. Record findings\n\n"
+            "<script>alert('unsafe')</script>\n\n"
+            "References:\n"
+            "[1] manual.pdf | page 4 | chunk manual:p4:c1"
+        )
+        response["raw_answer"] = response["answer"]
+        response["context_stages"]["compressed"][0]["text"] = (
+            "Grounded <unsafe> evidence."
+        )
+        response["citations"][0]["score"] = 0.0325
+        return response
+
+
 class RunManagerTests(unittest.TestCase):
     def test_run_directories_never_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -167,6 +188,52 @@ class Phase3ArtifactTests(unittest.TestCase):
             self.assertIn(
                 '"event":"run"',
                 paths.logs.read_text(encoding="utf-8"),
+            )
+
+    def test_html_renders_safe_markdown_and_structured_citations(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "manual.pdf").write_bytes(b"%PDF-test")
+            config = Phase3Config(project_root=root)
+            result = Phase3Runner(
+                pipeline=_MarkdownArtifactPipeline(config),
+                config=config,
+            ).run(questions=["What is the control?"])
+
+            csv_text = result.paths.results_csv.read_text(encoding="utf-8-sig")
+            self.assertIn("**Control summary**", csv_text)
+            workbook = load_workbook(result.paths.results_xlsx)
+            answer_column = CSV_COLUMNS.index("answer") + 1
+            self.assertIn(
+                "**Control summary**",
+                workbook.active.cell(2, answer_column).value,
+            )
+
+            report = result.paths.report_html.read_text(encoding="utf-8")
+            answer_start = report.index('<div class="answer-content">')
+            answer_end = report.index("</div>", answer_start)
+            answer_html = report[answer_start:answer_end]
+            self.assertIn("<strong>Control summary</strong>", answer_html)
+            self.assertIn("<ul><li>Enable filtering</li>", answer_html)
+            self.assertIn("<ol><li>Review evidence</li>", answer_html)
+            self.assertIn("<code>AIBOM</code>", answer_html)
+            self.assertNotIn("**Control summary**", answer_html)
+            self.assertNotIn("<pre>", answer_html)
+            self.assertNotIn("<script>", answer_html)
+            self.assertIn("&lt;script&gt;", answer_html)
+            self.assertNotIn("References:", answer_html)
+
+            self.assertIn('class="citation-list"', report)
+            self.assertIn('class="citation-card"', report)
+            self.assertIn("manual.pdf", report)
+            self.assertIn("Page 4", report)
+            self.assertIn("Chunk manual:p4:c1", report)
+            self.assertIn("Score 0.0325", report)
+            self.assertIn("Open PDF", report)
+            self.assertIn("file:///", report)
+            self.assertIn(
+                "<pre>Grounded &lt;unsafe&gt; evidence.</pre>",
+                report,
             )
 
     def test_optional_run_metadata_is_exported_without_changing_default_schema(
