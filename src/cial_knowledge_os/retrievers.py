@@ -281,6 +281,7 @@ class HybridRetriever:
         self.fuser = fuser
         self.candidate_limits = dict(candidate_limits)
         self.parallel = parallel
+        self.last_rankings: dict[str, list[dict[str, Any]]] = {}
 
     def retrieve(self, query: str, *, top_k: int) -> list[dict[str, Any]]:
         def search(retriever: Retriever) -> list[dict[str, Any]]:
@@ -308,6 +309,10 @@ class HybridRetriever:
                 retriever.name: search(retriever)
                 for retriever in self.retrievers
             }
+        self.last_rankings = {
+            name: [dict(result) for result in values]
+            for name, values in rankings.items()
+        }
         results = self.fuser.fuse(rankings, limit=top_k)
         logger.info(
             "hybrid_retrieval_complete",

@@ -65,6 +65,15 @@ PHASE3_CSV_COLUMNS = [
     "token_encoding",
     "pdf_links",
     "retrieval_sources",
+    "dense_result_count",
+    "bm25_result_count",
+    "fused_result_count",
+    "final_context_chunk_count",
+    "context_tokens_used",
+    "token_utilization",
+    "generation_latency_seconds",
+    "citation_count",
+    "unique_source_count",
 ]
 
 _OUTPUT_SUBDIRECTORIES = (
@@ -412,6 +421,26 @@ def _phase3_row_values(
         else []
     )
     final_results = _stage_items(response, "compressed")
+    question_trace = response.get("question_trace")
+    question_trace = (
+        question_trace if isinstance(question_trace, Mapping) else {}
+    )
+    funnel = question_trace.get("context_funnel")
+    funnel = funnel if isinstance(funnel, Mapping) else {}
+    trace_counts = funnel.get("counts")
+    trace_counts = trace_counts if isinstance(trace_counts, Mapping) else {}
+    trace_token_usage = question_trace.get("token_usage")
+    trace_token_usage = (
+        trace_token_usage
+        if isinstance(trace_token_usage, Mapping)
+        else token_usage
+    )
+    latency = question_trace.get("latency")
+    latency = latency if isinstance(latency, Mapping) else {}
+    source_diversity = question_trace.get("source_diversity")
+    source_diversity = (
+        source_diversity if isinstance(source_diversity, Mapping) else {}
+    )
     retrieval_sources = list(
         dict.fromkeys(
             source
@@ -444,6 +473,26 @@ def _phase3_row_values(
             if isinstance(citation, Mapping) and citation.get("pdf_link")
         ),
         "retrieval_sources": _json_cell(retrieval_sources),
+        "dense_result_count": int(trace_counts.get("dense_raw") or 0),
+        "bm25_result_count": int(trace_counts.get("bm25_raw") or 0),
+        "fused_result_count": int(trace_counts.get("fused") or 0),
+        "final_context_chunk_count": int(
+            trace_counts.get("compressed") or len(final_results)
+        ),
+        "context_tokens_used": int(
+            trace_token_usage.get("context_tokens_used")
+            or token_manager.count(str(response.get("context") or ""))
+        ),
+        "token_utilization": float(
+            trace_token_usage.get("utilization_percent") or 0.0
+        ),
+        "generation_latency_seconds": float(
+            latency.get("generation_seconds") or 0.0
+        ),
+        "citation_count": len(citations),
+        "unique_source_count": int(
+            source_diversity.get("unique_source_count") or 0
+        ),
     }
 
 

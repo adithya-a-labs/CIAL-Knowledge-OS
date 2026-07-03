@@ -19,6 +19,7 @@ from .llm import LocalLLM, build_grounded_prompt
 from .phase2_pipeline import Phase2RAGPipeline
 from .query_transformations import QueryTransformer
 from .retrieval import search_similar_chunks
+from .retrieval_trace import build_question_trace
 from .retrievers import BM25Retriever, DenseRetriever, HybridRetriever, Retriever
 from .token_budget import (
     TokenBudgetManager,
@@ -52,6 +53,10 @@ class Phase3RAGPipeline(Phase2RAGPipeline):
         self._retrievers: dict[str, Retriever] = {}
         self.bm25_retriever: BM25Retriever | None = None
         self.hybrid_retriever: HybridRetriever | None = None
+        self.last_modality_results_by_query: dict[
+            str,
+            dict[str, list[dict[str, Any]]],
+        ] = {}
         self.token_manager: TokenManager
         self.token_budget_manager: TokenBudgetManager | None = None
         self._token_config_key: tuple[int | None, str, int | None] | None = None
@@ -210,20 +215,39 @@ class Phase3RAGPipeline(Phase2RAGPipeline):
                 self.build_lexical_index()
         if mode == "hybrid":
             assert self.hybrid_retriever is not None
-            return self.hybrid_retriever.retrieve(
+            results = self.hybrid_retriever.retrieve(
                 query,
                 top_k=self.config.retrieval_top_k,
             )
+            self.last_modality_results_by_query[query] = {
+                **{
+                    name: [dict(item) for item in values]
+                    for name, values in self.hybrid_retriever.last_rankings.items()
+                },
+                "fused": [dict(item) for item in results],
+            }
+            return results
         if mode not in self._retrievers:
             available = ", ".join(sorted([*self._retrievers, "hybrid"]))
             raise ValueError(
                 f"Retrieval mode '{mode}' has no registered retriever. "
                 f"Available modes: {available}."
             )
-        return self._retrievers[mode].retrieve(
+        results = self._retrievers[mode].retrieve(
             query,
             top_k=self.config.retrieval_top_k,
         )
+        self.last_modality_results_by_query[query] = {
+            mode: [dict(item) for item in results],
+            "fused": [dict(item) for item in results],
+        }
+        return results
+
+    def retrieve(self, question: str) -> list[dict[str, Any]]:
+        """Reset and capture modality-level results for one question."""
+
+        self.last_modality_results_by_query = {}
+        return super().retrieve(question)
 
     def answer(self, question: str) -> dict[str, Any]:
         """Run Phase 2 orchestration with Phase 3 retrieval and enrichment."""
@@ -297,6 +321,15 @@ class Phase3RAGPipeline(Phase2RAGPipeline):
             "stage_counts": response.get("stage_counts") or {},
             "token_usage": response["token_usage"],
         }
+        response["question_trace"] = build_question_trace(
+            question=question,
+            response=response,
+            modality_results_by_query=self.last_modality_results_by_query,
+            token_manager=self.token_manager,
+            config=self.config,
+            metrics=self.metrics,
+            link_resolver=self.citation_link_builder,
+        )
         self.metrics["context_tokens"] = float(
             response["token_usage"]["context_tokens"]
         )

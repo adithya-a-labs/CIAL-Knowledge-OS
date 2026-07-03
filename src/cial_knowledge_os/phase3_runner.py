@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import fmean
+from time import perf_counter
 from typing import Any
 
 from .batch_qa import BatchQAPipeline, collect_batch_answers
@@ -252,6 +253,7 @@ class Phase3Runner:
             dict(response) if response is not None else None
             for response in collection.responses
         ]
+        artifact_started_at = perf_counter()
         write_results_csv(paths.results_csv, rows, result_columns)
         write_results_xlsx(paths.results_xlsx, rows, result_columns)
         write_latency_svg(
@@ -277,8 +279,11 @@ class Phase3Runner:
                 ),
                 encoding="utf-8",
             )
-            retrieval_records.append(
-                {
+            trace_value = response_value.get("question_trace")
+            trace = (
+                dict(trace_value)
+                if isinstance(trace_value, Mapping)
+                else {
                     "question": row.get("question"),
                     "retrieval_mode": response_value.get("retrieval_mode"),
                     "query_variants": response_value.get("query_variants") or [],
@@ -287,10 +292,37 @@ class Phase3Runner:
                     "stage_counts": response_value.get("stage_counts") or {},
                     "token_usage": response_value.get("token_usage") or {},
                     "citations": response_value.get("citations") or [],
-                    "context_artifact": context_path.name,
-                    "run_metadata": metadata,
                 }
             )
+            trace["question"] = row.get("question")
+            trace["context_artifact"] = context_path.name
+            trace["run_metadata"] = metadata
+            trace["artifacts"] = {
+                "run_directory": paths.root,
+                "results_csv": paths.results_csv,
+                "results_xlsx": paths.results_xlsx,
+                "report_html": paths.report_html,
+                "config_json": paths.config_json,
+                "summary_json": paths.summary_json,
+                "metrics_json": paths.metrics_json,
+                "retrieval_json": paths.retrieval_json,
+                "logs": paths.logs,
+                "context": context_path,
+                "figures": paths.figures,
+            }
+            latency_value = trace.get("latency")
+            latency = (
+                dict(latency_value)
+                if isinstance(latency_value, Mapping)
+                else {}
+            )
+            latency["artifact_export_seconds"] = round(
+                perf_counter() - artifact_started_at,
+                6,
+            )
+            trace["latency"] = latency
+            response_value["question_trace"] = trace
+            retrieval_records.append(trace)
 
         summary, metrics = self._summaries(
             rows,
