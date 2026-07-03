@@ -283,6 +283,12 @@ def _render_answer_markdown(value: str) -> str:
     return "".join(output)
 
 
+def render_safe_markdown(value: str) -> str:
+    """Public safe Markdown renderer shared by HTML and notebook trace views."""
+
+    return _render_answer_markdown(value)
+
+
 def _answer_without_reference_tail(
     answer: str,
     citations: Sequence[Mapping[str, Any]],
@@ -332,6 +338,213 @@ def _citation_html(citation: Mapping[str, Any]) -> str:
     )
 
 
+def _table_html(
+    headers: Sequence[str],
+    rows: Sequence[Sequence[Any]],
+) -> str:
+    if not rows:
+        return "<p>No data recorded.</p>"
+    head = "".join(f"<th>{html.escape(value)}</th>" for value in headers)
+    body = "".join(
+        "<tr>"
+        + "".join(f"<td>{html.escape(str(value))}</td>" for value in row)
+        + "</tr>"
+        for row in rows
+    )
+    return f'<div class="table-wrap"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
+
+
+def _trace_results_html(
+    results: Sequence[Mapping[str, Any]],
+    *,
+    fused: bool = False,
+) -> str:
+    headers = (
+        [
+            "Final rank",
+            "Source",
+            "Page",
+            "Chunk",
+            "Dense rank",
+            "BM25 rank",
+            "RRF score",
+            "Contribution",
+        ]
+        if fused
+        else [
+            "Rank",
+            "Variant",
+            "Source",
+            "Page",
+            "Chunk",
+            "Score",
+            "Matched terms",
+            "Preview",
+        ]
+    )
+    rows: list[list[Any]] = []
+    for result in results:
+        if fused:
+            rows.append(
+                [
+                    result.get("rank", ""),
+                    result.get("source", ""),
+                    result.get("page", ""),
+                    result.get("chunk_id", ""),
+                    result.get("dense_rank", ""),
+                    result.get("bm25_rank", ""),
+                    result.get("rrf_score", ""),
+                    result.get("retrieval_source", ""),
+                ]
+            )
+        else:
+            rows.append(
+                [
+                    result.get("rank", ""),
+                    result.get("query_variant", ""),
+                    result.get("source", ""),
+                    result.get("page", ""),
+                    result.get("chunk_id", ""),
+                    result.get("score", ""),
+                    ", ".join(result.get("matched_terms") or []),
+                    result.get("text_preview", ""),
+                ]
+            )
+    return _table_html(headers, rows)
+
+
+def _question_trace_html(index: int, trace: Mapping[str, Any]) -> str:
+    variants = [
+        value
+        for value in (trace.get("query_variants") or [])
+        if isinstance(value, Mapping)
+    ]
+    dense = [
+        value
+        for value in (trace.get("dense_results") or [])
+        if isinstance(value, Mapping)
+    ]
+    bm25 = [
+        value
+        for value in (trace.get("bm25_results") or [])
+        if isinstance(value, Mapping)
+    ]
+    fused = [
+        value
+        for value in (trace.get("fused_results") or [])
+        if isinstance(value, Mapping)
+    ]
+    overlap = trace.get("overlap")
+    overlap = overlap if isinstance(overlap, Mapping) else {}
+    dedup = trace.get("deduplication")
+    dedup = dedup if isinstance(dedup, Mapping) else {}
+    neighbors = trace.get("neighbor_expansion")
+    neighbors = neighbors if isinstance(neighbors, Mapping) else {}
+    expanded_chunks = [
+        value
+        for value in (neighbors.get("expanded_chunks") or [])
+        if isinstance(value, Mapping)
+    ]
+    funnel = trace.get("context_funnel")
+    funnel = funnel if isinstance(funnel, Mapping) else {}
+    counts = funnel.get("counts")
+    counts = counts if isinstance(counts, Mapping) else {}
+    token_counts = funnel.get("token_counts")
+    token_counts = token_counts if isinstance(token_counts, Mapping) else {}
+    final_chunks = [
+        value
+        for value in (trace.get("final_context_chunks") or [])
+        if isinstance(value, Mapping)
+    ]
+    decisions = [
+        value
+        for value in (trace.get("decision_summary") or [])
+        if isinstance(value, Mapping)
+    ]
+    variants_html = _table_html(
+        ["Technique", "Query"],
+        [
+            [variant.get("technique", ""), variant.get("query", "")]
+            for variant in variants
+        ],
+    )
+    funnel_order = (
+        "dense_raw",
+        "bm25_raw",
+        "combined",
+        "fused",
+        "retrieved",
+        "deduplicated",
+        "expanded",
+        "merged",
+        "compressed",
+    )
+    funnel_html = _table_html(
+        ["Stage", "Chunks", "Tokens"],
+        [
+            [
+                stage.replace("_", " ").title(),
+                counts.get(stage, ""),
+                token_counts.get(stage, ""),
+            ]
+            for stage in funnel_order
+            if stage in counts
+        ],
+    )
+    final_context_html = "".join(
+        "<details><summary>"
+        + html.escape(
+            f"{chunk.get('source', 'Unknown')} — page {chunk.get('page', '')} "
+            f"— chunk {chunk.get('chunk_id', '')} — "
+            f"{chunk.get('retrieval_source', 'unknown')} — "
+            f"{chunk.get('token_count', 0)} tokens"
+        )
+        + "</summary><pre>"
+        + html.escape(str(chunk.get("text_preview") or ""))
+        + "</pre></details>"
+        for chunk in final_chunks
+    )
+    decisions_html = "".join(
+        '<li class="diagnostic-card"><strong>'
+        + html.escape(str(item.get("signal") or "diagnostic"))
+        + "</strong><span>"
+        + html.escape(str(item.get("recommendation") or ""))
+        + "</span></li>"
+        for item in decisions
+    )
+    return f"""<article class="trace-article">
+<h3>Q{index}: {html.escape(str(trace.get("question") or ""))}</h3>
+<details open><summary>Query transformations</summary>{variants_html}</details>
+<details><summary>Dense retrieval ({len(dense)} results)</summary>{_trace_results_html(dense)}</details>
+<details><summary>BM25 retrieval ({len(bm25)} results)</summary>{_trace_results_html(bm25)}</details>
+<details><summary>RRF fusion ({len(fused)} results)</summary>{_trace_results_html(fused, fused=True)}</details>
+<div class="grid">
+{_metric_card("Dense only", overlap.get("dense_only_count", 0))}
+{_metric_card("BM25 only", overlap.get("bm25_only_count", 0))}
+{_metric_card("Both", overlap.get("both_count", 0))}
+{_metric_card("Duplicates removed", dedup.get("duplicates_removed", 0))}
+{_metric_card("Neighbors added", neighbors.get("neighbors_added", 0))}
+</div>
+<details><summary>Neighbor expansion ({len(expanded_chunks)} total chunks)</summary>
+{_table_html(
+    ["Source", "Page", "Chunk", "Added neighbor"],
+    [
+        [
+            chunk.get("source", ""),
+            chunk.get("page", ""),
+            chunk.get("chunk_id", ""),
+            chunk.get("is_neighbor", False),
+        ]
+        for chunk in expanded_chunks
+    ],
+)}</details>
+<h4>Context construction funnel</h4>{funnel_html}
+<details><summary>Final context preview ({len(final_chunks)} chunks)</summary>
+{final_context_html or '<p>No final context.</p>'}</details>
+<h4>Decision summary</h4><ul class="diagnostic-list">{decisions_html or '<li>No diagnostics.</li>'}</ul>
+</article>"""
+
+
 def write_standalone_html(
     path: str | Path,
     *,
@@ -344,6 +557,11 @@ def write_standalone_html(
     """Write one offline report with embedded styles, data, and charts."""
 
     question_sections: list[str] = []
+    trace_sections: list[str] = []
+    diagnostic_sections: list[str] = []
+    token_sections: list[str] = []
+    latency_sections: list[str] = []
+    citation_sections: list[str] = []
     latency_bars: list[str] = []
     max_latency = max(
         (float(row.get("total_latency_seconds") or 0.0) for row in rows),
@@ -358,6 +576,61 @@ def write_standalone_html(
             if isinstance(citations, Sequence)
             and not isinstance(citations, (str, bytes))
             else []
+        )
+        trace_value = response.get("question_trace")
+        trace = trace_value if isinstance(trace_value, Mapping) else {}
+        if trace:
+            trace_sections.append(_question_trace_html(index, trace))
+            decisions = [
+                value
+                for value in (trace.get("decision_summary") or [])
+                if isinstance(value, Mapping)
+            ]
+            diagnostic_sections.append(
+                f"<article><h3>Q{index}: {html.escape(str(row.get('question') or ''))}</h3><ul class=\"diagnostic-list\">"
+                + "".join(
+                    '<li class="diagnostic-card"><strong>'
+                    + html.escape(str(item.get("signal") or ""))
+                    + "</strong><span>"
+                    + html.escape(str(item.get("recommendation") or ""))
+                    + "</span></li>"
+                    for item in decisions
+                )
+                + "</ul></article>"
+            )
+            trace_usage = trace.get("token_usage")
+            trace_usage = (
+                trace_usage if isinstance(trace_usage, Mapping) else {}
+            )
+            token_sections.append(
+                f"""<article><h3>Q{index}: Token usage</h3><div class="grid">
+{_metric_card("Budget", trace_usage.get("max_context_tokens", ""))}
+{_metric_card("Used", trace_usage.get("context_tokens_used", 0))}
+{_metric_card("Remaining", trace_usage.get("remaining_tokens", ""))}
+{_metric_card("Utilization", f"{trace_usage.get('utilization_percent', 0)}%")}
+{_metric_card("Chunks included", trace_usage.get("chunks_included", 0))}
+{_metric_card("Chunks skipped", trace_usage.get("chunks_skipped", 0))}
+</div></article>"""
+            )
+            trace_latency = trace.get("latency")
+            trace_latency = (
+                trace_latency if isinstance(trace_latency, Mapping) else {}
+            )
+            latency_sections.append(
+                f"<article><h3>Q{index}: Latency breakdown</h3>"
+                + _table_html(
+                    ["Stage", "Seconds"],
+                    [
+                        [key.replace("_", " ").title(), value]
+                        for key, value in trace_latency.items()
+                        if value is not None
+                    ],
+                )
+                + "</article>"
+            )
+        citation_sections.append(
+            f'<article><h3>Q{index}: {html.escape(str(row.get("question") or ""))}</h3>'
+            f'<ul class="citation-list">{"".join(citation_items) or "<li class=\"citation-card\">No citations</li>"}</ul></article>'
         )
         retrieved = response.get("context_stages")
         retrieved = (
@@ -469,6 +742,13 @@ padding:.12em .35em;border-radius:4px;font:0.92em ui-monospace,SFMono-Regular,Co
 background:var(--ice);border:1px solid #cddde2;border-radius:8px;padding:12px 14px}}
 .citation-reference{{font-weight:700;color:var(--blue)}}.source-meta{{color:var(--muted);
 font-size:13px;margin-top:3px}}.citation-action{{margin-top:5px}}.no-link{{color:var(--muted)}}
+.table-wrap{{overflow-x:auto}}table{{width:100%;border-collapse:collapse;margin:10px 0 18px}}
+th,td{{border:1px solid #dce5e8;padding:8px 10px;text-align:left;vertical-align:top}}
+th{{background:var(--navy);color:white}}.trace-article details{{margin:12px 0}}
+.trace-article summary{{font-weight:700;cursor:pointer;color:var(--navy)}}
+.diagnostic-list{{list-style:none;padding:0;display:grid;gap:8px}}
+.diagnostic-card{{display:grid;grid-template-columns:minmax(130px,180px) 1fr;gap:12px;
+background:#f7fafb;border-left:4px solid var(--blue);padding:10px 12px;border-radius:6px}}
 .status{{display:inline-block;background:#dbeef2;color:#16495b;padding:4px 9px;border-radius:999px}}
 .bar-row{{display:grid;grid-template-columns:36px 1fr 72px;gap:8px;align-items:center;margin:8px 0}}
 .bar-row i{{display:block;min-width:2px;height:18px;background:var(--blue);border-radius:3px}}
@@ -478,9 +758,14 @@ details{{border:1px solid #dce5e8;border-radius:6px;padding:8px;margin:8px 0}}a{
 <main>
 <section><h2>Executive Summary</h2><div class="grid">{cards}</div></section>
 <section><h2>Metrics</h2><pre>{html.escape(json.dumps(metrics, indent=2, ensure_ascii=False, default=str))}</pre></section>
-<section><h2>Charts</h2><h3>Question latency</h3>{''.join(latency_bars) or '<p>No latency data.</p>'}</section>
-<section><h2>Questions, Answers, Evidence, Token Usage, and Retrieval Statistics</h2>
+<section><h2>Question Answers</h2>
 {''.join(question_sections) or '<p>No questions were processed.</p>'}</section>
+<section><h2>Per-Question Trace</h2>{''.join(trace_sections) or '<p>No detailed traces recorded.</p>'}</section>
+<section><h2>Retrieval Diagnostics</h2>{''.join(diagnostic_sections) or '<p>No diagnostics recorded.</p>'}</section>
+<section><h2>Token Usage</h2>{''.join(token_sections) or '<p>No token traces recorded.</p>'}</section>
+<section><h2>Latency Breakdown</h2>{''.join(latency_sections)}
+<h3>Question latency comparison</h3>{''.join(latency_bars) or '<p>No latency data.</p>'}</section>
+<section><h2>Citation Evidence</h2>{''.join(citation_sections) or '<p>No citations recorded.</p>'}</section>
 <script type="application/json" id="run-data">{embedded_data}</script>
 </main></body></html>"""
     target = Path(path).expanduser().resolve()
