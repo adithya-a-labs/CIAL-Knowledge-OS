@@ -195,3 +195,63 @@ statistics, the context funnel, exact token usage, generation and artifact
 latencies, citations, source diversity, artifact paths, and decision-focused
 recommendations. The standalone HTML renders the same trace in collapsible
 offline sections; CSV and XLSX retain only compact summary fields.
+
+## Phase 4 Extension
+
+`Phase4Runner` reuses `collect_batch_answers()`, the Phase 3 columns, and the
+same `RunManager`. It appends these machine-readable columns:
+
+| Column | Meaning |
+|---|---|
+| `candidate_chunk_count` | Post-RRF, deduplicated candidates eligible for reranking. |
+| `reranked_candidate_count` | Candidates scored and ordered by the local reranker. |
+| `selected_chunk_count` | Evidence chunks retained by all enabled selection strategies. |
+| `discarded_chunk_count` | Candidates removed before context construction. |
+| `candidate_tokens` | Exact tokens in the Phase 3-style serialized candidate context. |
+| `selected_evidence_tokens` | Exact tokens in selected chunk text before final formatting. |
+| `token_reduction_percent` | Candidate-to-final-context token reduction. |
+| `average_reranker_score` | Mean selected-evidence reranker score; model-specific, not universally calibrated. |
+| `strong_evidence_count` | Selected chunks at or above the configured strong threshold. |
+| `medium_evidence_count` | Selected chunks between configured medium and strong thresholds. |
+| `weak_evidence_count` | Selected chunks below the configured medium threshold. |
+| `reranker_latency_seconds` | Local cross-encoder scoring and sorting latency. |
+| `evidence_selection_latency_seconds` | Keep/discard decision latency. |
+
+Run bundles are written below:
+
+```text
+outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp>/
+|-- results.csv
+|-- results.xlsx
+|-- report.html
+|-- config.json
+|-- summary.json
+|-- metrics.json
+|-- retrieval.json
+|-- logs.txt
+|-- figures/
+`-- context/
+```
+
+`retrieval.json` contains the full Phase 3 trace plus original RRF rank,
+reranker score/rank, selected/discarded status, discard reason, evidence
+strength, metadata completeness, citation availability/link, token counts,
+final-context inclusion, latency, answer, citations, and artifact paths.
+
+The Phase 4 HTML report remains standalone and offline. It adds Executive
+Summary, Answers, Citations, Reranking Trace, Evidence Selection, Token
+Reduction, Latency Breakdown, Evidence Quality, Source Diversity, Selected
+versus Discarded, Discard Reasons, comparison-status, and collapsible
+context/debug sections. Its charts are inline SVG; no CDN or external
+JavaScript is required.
+
+The implementation supports `smoke`, `manual_qa`, `benchmark`, and
+`export_only` modes and `compact`/`full` traces. Full benchmark qualification is
+pending; exported token and score diagnostics must not be described as proven
+quality improvements without benchmark evidence.
+
+Reranker model loading is lazy and cache-first. With the developer default
+`reranker_local_files_only=False`, the first answer downloads and caches a
+missing configured model; later batch runs load it locally. Set
+`reranker_local_files_only=True` for enterprise offline runs. In that mode a
+cache miss skips download and fails before export with manual staging guidance.

@@ -76,6 +76,22 @@ PHASE3_CSV_COLUMNS = [
     "unique_source_count",
 ]
 
+PHASE4_CSV_COLUMNS = [
+    "candidate_chunk_count",
+    "reranked_candidate_count",
+    "selected_chunk_count",
+    "discarded_chunk_count",
+    "candidate_tokens",
+    "selected_evidence_tokens",
+    "token_reduction_percent",
+    "average_reranker_score",
+    "strong_evidence_count",
+    "medium_evidence_count",
+    "weak_evidence_count",
+    "reranker_latency_seconds",
+    "evidence_selection_latency_seconds",
+]
+
 _OUTPUT_SUBDIRECTORIES = (
     "batch_answers",
     "evaluations",
@@ -496,6 +512,63 @@ def _phase3_row_values(
     }
 
 
+def _phase4_row_values(response: Mapping[str, Any]) -> dict[str, Any]:
+    """Flatten additive Phase 4 diagnostics into machine-readable CSV values.
+
+    The input is a Phase 4 response and the output contains only scalar summary
+    columns; full reranking and selection records remain in ``retrieval.json``.
+    Existing Phase 1--3 columns are untouched and retain their order.
+    """
+
+    trace = response.get("question_trace")
+    trace = trace if isinstance(trace, Mapping) else {}
+    token_usage = trace.get("token_usage")
+    token_usage = token_usage if isinstance(token_usage, Mapping) else {}
+    quality = trace.get("evidence_quality")
+    quality = quality if isinstance(quality, Mapping) else {}
+    quality_summary = quality.get("summary")
+    quality_summary = (
+        quality_summary if isinstance(quality_summary, Mapping) else {}
+    )
+    strengths = quality_summary.get("strength_distribution")
+    strengths = strengths if isinstance(strengths, Mapping) else {}
+    latency = trace.get("latency")
+    latency = latency if isinstance(latency, Mapping) else {}
+    return {
+        "candidate_chunk_count": int(
+            token_usage.get("candidate_chunk_count") or 0
+        ),
+        "reranked_candidate_count": len(
+            trace.get("reranked_candidates") or []
+        ),
+        "selected_chunk_count": int(
+            token_usage.get("selected_chunk_count") or 0
+        ),
+        "discarded_chunk_count": int(
+            token_usage.get("discarded_chunk_count") or 0
+        ),
+        "candidate_tokens": int(token_usage.get("candidate_tokens") or 0),
+        "selected_evidence_tokens": int(
+            token_usage.get("selected_evidence_tokens") or 0
+        ),
+        "token_reduction_percent": float(
+            token_usage.get("token_reduction_percent") or 0.0
+        ),
+        "average_reranker_score": float(
+            quality_summary.get("average_reranker_score") or 0.0
+        ),
+        "strong_evidence_count": int(strengths.get("strong") or 0),
+        "medium_evidence_count": int(strengths.get("medium") or 0),
+        "weak_evidence_count": int(strengths.get("weak") or 0),
+        "reranker_latency_seconds": float(
+            latency.get("reranking_seconds") or 0.0
+        ),
+        "evidence_selection_latency_seconds": float(
+            latency.get("evidence_selection_seconds") or 0.0
+        ),
+    }
+
+
 def collect_batch_answers(
     *,
     pipeline: BatchQAPipeline,
@@ -525,6 +598,7 @@ def collect_batch_answers(
     embedding_model = str(getattr(config, "embedding_model_name", "") or "")
     phase2_export = retrieval_depth_attribute == "retrieval_top_k"
     phase3_export = hasattr(config, "retrieval_mode")
+    phase4_export = hasattr(config, "reranker_model_name")
     token_manager_value = getattr(pipeline, "token_manager", None)
     token_manager = (
         token_manager_value
@@ -543,6 +617,7 @@ def collect_batch_answers(
         *CSV_COLUMNS,
         *(PHASE2_CSV_COLUMNS if phase2_export else []),
         *(PHASE3_CSV_COLUMNS if phase3_export else []),
+        *(PHASE4_CSV_COLUMNS if phase4_export else []),
     ]
     rows: list[dict[str, Any]] = []
     responses: list[Mapping[str, Any] | None] = []
@@ -618,6 +693,8 @@ def collect_batch_answers(
                             token_manager,
                         )
                     )
+                if phase4_export:
+                    row.update(_phase4_row_values(response))
             except Exception as exc:
                 row["error"] = str(exc)
                 logger.exception(
