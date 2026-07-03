@@ -28,11 +28,12 @@ Build a secure, enterprise-grade Knowledge OS that allows CIAL employees to sear
 
 ## 4. Retrieval and Answering
 
-- The current completed Phase 1 and Phase 2 baseline is dense-only.
+- The completed Phase 1 and Phase 2 baselines are dense-only. Phase 3 hybrid
+  retrieval and Phase 4 reranking/evidence selection are implemented but await
+  full benchmark qualification.
 - Retrieve and inspect evidence before generation.
-- The target architecture should use hybrid vector and keyword/BM25 retrieval,
-  metadata filters, and reranking, but these are planned capabilities rather
-  than claims about the current implementation.
+- The implemented architecture uses hybrid vector and keyword/BM25 retrieval
+  plus local reranking. Retrieval-time metadata filters remain planned.
 - Improve retrieval quality before increasing model size or context length.
 - Do not pass entire documents to the LLM.
 - Keep prompts and context concise; track token usage and latency where possible.
@@ -262,10 +263,33 @@ This principle must remain true throughout the lifetime of the project.
   `outputs/batch_answers/03_Hybrid_Retrieval/run_<timestamp>/`.
 - Extend the existing `outputs/` hierarchy; do not add a top-level `artifacts/`
   directory.
-- Keep reranking clearly marked as unimplemented unless Phase 3 scope is
-  explicitly expanded.
+- Keep Phase 3 itself free of reranking so it remains the reproducible hybrid
+  comparison baseline; implement reranking only through the additive Phase 4
+  pipeline.
 
-## 20. Structured Logging and Failure Handling
+## 20. Phase 4 Implementation Contract
+
+- Apply a configurable local cross-encoder after Phase 3 RRF and before context
+  construction. Keep loading lazy and cache-first; permit one-time developer
+  staging while allowing enterprise deployments to prohibit downloads. Do not
+  average raw dense, BM25, RRF, and reranker scores.
+- Select the minimum strong evidence set using configurable maximum count,
+  reranker threshold, source diversity, redundancy reduction, and token budget.
+- Reuse Phase 3 token management, citations, evaluation interfaces, reporting
+  schema, and `RunManager` rather than creating competing implementations.
+- Record candidate, selected, and final-context tokens; reduction percentage;
+  discarded chunks/reasons; evidence quality; latency; citations; answer; and
+  artifact paths.
+- Provide deterministic mock reranking and dependency injection so automated
+  tests do not require real model weights or Ollama.
+- Write compatible run bundles below
+  `outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp>/`.
+- Label Phase 4 as implemented but not benchmark-qualified until the unchanged
+  frozen Phase 3 versus Phase 4 comparison is completed.
+- Defer visual document understanding, multimodal retrieval, and contradiction
+  detection to Phase 4.5; do not imply they are implemented.
+
+## 21. Structured Logging and Failure Handling
 
 - Use configurable structured logging for indexing, dense and BM25 retrieval,
   hybrid fusion, token budgeting, report generation, and evaluation.
@@ -274,7 +298,7 @@ This principle must remain true throughout the lifetime of the project.
   configuration, missing benchmarks, corrupt documents, and token overflow.
 - Isolate per-question failures in batch and evaluation workflows.
 
-## 21. Retrieval Extensibility and Cache Reuse
+## 22. Retrieval Extensibility and Cache Reuse
 
 - Depend on a small retriever contract rather than retrieval-mode conditionals
   spread across business logic.

@@ -106,9 +106,10 @@ hallucination metric. This is a heuristic benchmark, not semantic entailment;
 a future local evaluator can be added as a metric hook.
 
 The framework does not currently calculate semantic entailment, labeled
-retrieval recall, BM25/vector contribution, Reciprocal Rank Fusion quality, or
-reranker relevance. Those metrics must be added only when the corresponding
-retrieval stages exist.
+retrieval recall, BM25/vector contribution, calibrated Reciprocal Rank Fusion
+quality, or labeled reranker relevance. Phase 4 exports reranker score,
+selection, token, evidence-strength, and latency diagnostics, but those
+diagnostics are not ground-truth relevance labels.
 
 ## Benchmark
 
@@ -144,6 +145,35 @@ configuration after the sweep.
 
 `Phase3Runner` separately creates the isolated per-run artifact bundle. It is a
 run report, not a replacement for the aggregate evaluation dashboard.
+
+## Phase 4 Extension
+
+`Phase4RAGPipeline` retains the `answer(question)`, configuration, metrics,
+context-stage, citation, and safe-failure surfaces required by the existing
+runner. `MockReranker` permits deterministic unit and end-to-end evaluation
+without loading model weights or triggering the developer download path.
+`Phase4Runner` supports smoke, manual QA,
+benchmark, and export-only paths and writes compact scalar fields to CSV while
+retaining full/compact selection traces in `retrieval.json`.
+
+A Phase 3 Hybrid versus Phase 4 Reranked Hybrid qualification should use the
+same frozen benchmark, corpus, embedding model, generation model, and applicable
+retrieval settings. Compare:
+
+- answer and citation quality;
+- unsupported-question safe failure;
+- final context token count and candidate-to-context token reduction;
+- total, retrieval, reranking, selection, context, and generation latency;
+- selected and discarded chunk counts;
+- discard-reason distribution;
+- average selected-evidence reranker score; and
+- strong/medium/weak evidence distribution.
+
+The full qualification is optional and gated because local generation is
+expensive. Phase 4 is implemented and automated-test ready, but it is not
+benchmark-qualified until both comparable artifact sets are retained and
+reviewed. Visual document understanding, multimodal retrieval, and
+contradiction detection remain deferred to Phase 4.5.
 
 ## Operational considerations
 

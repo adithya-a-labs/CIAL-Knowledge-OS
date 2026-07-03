@@ -1,4 +1,4 @@
-# CIAL Knowledge OS: Current State and Phase 3 Baseline
+# CIAL Knowledge OS: Current State through Phase 4
 
 Last audited: 2026-07-03
 
@@ -36,18 +36,20 @@ Local documents
   -> selectable dense, BM25, or hybrid retrieval
   -> Reciprocal Rank Fusion in hybrid mode
   -> Phase 2 query variants and multi-query evidence collection
-  -> deduplication and optional neighbor expansion
+  -> Phase 4 local cross-encoder reranking
+  -> explainable evidence selection
   -> overlap merging and token-aware or character-compatible context construction
   -> grounded local Ollama generation
-  -> clickable citations, traces, run bundles, and offline evaluation
+  -> clickable citations, evidence quality, traces, run bundles, and offline evaluation
 ```
 
 Notebooks are the learning and orchestration layer. Reusable behavior belongs in
 `src/cial_knowledge_os/`, where ingestion, chunking, embeddings, vector storage,
 retrieval, generation, context construction, evaluation, exports, and
 visualization are split into focused modules. Configuration is centralized in
-`KnowledgeOSConfig`, `Phase2Config`, and `Phase3Config`; experiment sweeps add
-declarative `ExperimentConfig` and `ExperimentGrid` values.
+`KnowledgeOSConfig`, `Phase2Config`, `Phase3Config`, and `Phase4Config`;
+experiment sweeps add declarative `ExperimentConfig` and `ExperimentGrid`
+values.
 
 The current LLM adapter uses Ollama. The surrounding pipeline accepts replaceable
 local model objects, but adapters for other local runtimes such as vLLM and
@@ -134,6 +136,56 @@ baseline because the full 200-question local-model comparison has not been run
 in this checkout. The empirical exit gate remains a documented Phase 2 versus
 Phase 3 improvement or trade-off on the unchanged frozen benchmark.
 
+## Implemented Phase 4: Reranking and Evidence Selection
+
+`notebooks/04_Reranking_and_Evidence_Selection.ipynb` and
+`Phase4RAGPipeline` now implement:
+
+- a lazy SentenceTransformers cross-encoder with configurable model, CPU/GPU
+  device, batch size, and cache/download policy;
+- cache-first loading on every process, automatic one-time staging on a
+  developer cache miss, and strict no-network enterprise mode through
+  `reranker_local_files_only=True`;
+- a deterministic `MockReranker` with the same interface for unit and
+  end-to-end tests;
+- reranking after RRF, without directly averaging dense, BM25, RRF, and
+  cross-encoder scores from incompatible scales;
+- evidence selection using maximum count, reranker threshold, source-diversity
+  cap, lexical redundancy reduction, and evidence-token budget strategies;
+- an intentional smaller evidence budget before the existing final context
+  budget;
+- per-chunk evidence strength, retrieval provenance, citation availability,
+  metadata completeness, and source-diversity diagnostics;
+- candidate, selected, and final-context tokens; token-reduction percentage;
+  discard counts and reasons; and stage latency;
+- full and compact serializable traces showing retrieved, fused, reranked,
+  selected, context, answer, citations, and artifact paths;
+- `smoke`, `manual_qa`, `benchmark`, and `export_only` runner modes with a
+  notebook-safe manual-question limit;
+- additive Phase 4 CSV fields, manager-friendly XLSX, standalone offline HTML,
+  JSON, log, context, and SVG decision artifacts; and
+- dependency-injected pipeline/reporting interfaces suitable for future
+  automated benchmark execution without notebook execution.
+
+Phase 4 reuses the Phase 3 retrievers, RRF, token manager, context builder,
+citation engine, `RunManager`, batch collector, and evaluation interfaces.
+Earlier classes and configuration defaults are unchanged. Phase 4 disables
+neighbor expansion by default so evidence that did not pass reranking is not
+introduced after selection; callers can opt in explicitly.
+
+The default `reranker_local_files_only=False` is a developer-experience policy,
+not a cloud-inference dependency. Loading remains lazy and always tries the
+local Hugging Face cache first. Only a cache miss permits a model download,
+which is cached for subsequent offline runs. Enterprise deployments set the
+field to `True`; a missing model then produces an actionable error without any
+network attempt. Automated tests continue to inject `MockReranker`.
+
+The implementation and deterministic automated tests are complete. Phase 4 is
+**implemented but not benchmark-qualified** because the full unchanged
+200-question Phase 3 Hybrid versus Phase 4 Reranked Hybrid comparison has not
+been run with the approved local corpus and models. No benchmark improvement is
+claimed in this state document.
+
 ## Evaluation Framework
 
 The reusable evaluation framework is under `src/cial_knowledge_os/`:
@@ -174,9 +226,9 @@ unsupported categories. Metadata identifies it as `cisg_benchmark_v1`, version
 `1.0.0`, with status `frozen`.
 
 The benchmark dataset is immutable. Do not edit it to accommodate a new phase.
-Corrections or extensions require a new version, while Phase 3 comparisons must
-retain the existing version for a fair comparison with the frozen Phase 2
-baseline.
+Corrections or extensions require a new version. Phase 3 and Phase 4
+comparisons must retain the existing version so retrieval, answer, citation,
+unsupported-question, token, and latency results remain comparable.
 
 ## Current Output Structure
 
@@ -205,9 +257,9 @@ outputs/batch_answers/<phase>/
     `-- dashboard.html
 ```
 
-Some directories are created on demand and may be empty in a checkout. Phase 3
-must extend this `outputs/` hierarchy and must not introduce a new top-level
-`artifacts/` directory.
+Some directories are created on demand and may be empty in a checkout. Later
+phases extend this `outputs/` hierarchy and do not introduce a competing
+top-level `artifacts/` directory.
 
 ## Phase Isolation and Frozen Notebook Policy
 
@@ -219,6 +271,8 @@ must extend this `outputs/` hierarchy and must not introduce a new top-level
   baseline and should remain reproducible.
 - Add each new capability through a new phase notebook and reusable source
   modules.
+- `notebooks/04_Reranking_and_Evidence_Selection.ipynb` is the Phase 4
+  engineering and qualification notebook. It does not modify earlier notebooks.
 - Preserve existing notebook imports, configuration defaults, output schemas,
   and runnable behavior unless a documented compatibility migration is
   unavoidable.
@@ -229,26 +283,35 @@ must extend this `outputs/` hierarchy and must not introduce a new top-level
 
 The current implementation has:
 
-- no reranking stage;
+- no full-corpus Phase 3 or Phase 4 benchmark qualification;
+- no calibrated semantic relevance/entailment evaluator;
 - no retrieval-time authorization enforcement;
 - no OCR path for image-only PDFs beyond the configured local loaders;
-- no semantic entailment evaluator; and
-- no completed full-corpus Phase 3 benchmark qualification.
+- no visual document understanding;
+- no multimodal retrieval; and
+- no contradiction detection.
 
 The repository does generate a self-contained HTML evaluation dashboard. That is
 an aggregate evaluation report and remains separate from the implemented
-standalone per-run Phase 3 report.
+standalone per-run Phase 3 and Phase 4 reports.
 
-## Phase 3 Qualification Status
+## Phase 3 and Phase 4 Qualification Status
 
 Implemented capabilities are covered by deterministic offline tests. Remaining
 qualification work is to run dense and hybrid modes against the same frozen
 benchmark with the approved local corpus/models, retain both artifact sets, and
 document quality, safety, token, and latency trade-offs.
 
-Reranking remains absent from the current system. Unless Phase 3 scope is
-explicitly expanded, keep it as the next post-hybrid phase rather than silently
-mixing it into the Phase 3 comparison.
+Phase 4 unit, integration, serialization, compatibility, and artifact tests are
+implemented. Remaining qualification work is to run the unchanged frozen
+benchmark in Phase 3 Hybrid and Phase 4 Reranked Hybrid modes, retain both run
+bundles, and compare answer quality, citation quality, unsupported-question
+behavior, context tokens, token reduction, latency, selected/discarded chunks,
+average reranker score, and evidence-strength distribution.
+
+Visual document understanding, multimodal retrieval, and contradiction
+detection are reserved for Phase 4.5. They are deferred, not partially
+implemented by Phase 4.
 
 The implemented Phase 3 output contract is:
 
@@ -272,9 +335,35 @@ outputs/
 Exact naming and collision behavior must be defined by configuration and the
 `RunManager`, not repeated as ad hoc notebook logic.
 
+The additive Phase 4 output contract is:
+
+```text
+outputs/
+`-- batch_answers/
+    `-- 04_Reranking_and_Evidence_Selection/
+        `-- run_<timestamp>/
+            |-- results.csv
+            |-- results.xlsx
+            |-- report.html
+            |-- config.json
+            |-- summary.json
+            |-- retrieval.json
+            |-- metrics.json
+            |-- logs.txt
+            |-- figures/
+            `-- context/
+```
+
+`retrieval.json` is the source of truth for per-question candidate ranks,
+reranker scores, selected/discarded decisions and reasons, evidence quality,
+token use, latency, citations, answer, and artifact paths. CSV contains compact
+machine-readable summaries. XLSX retains clickable evidence links. HTML embeds
+decision visualizations and requires no CDN, external JavaScript, or network
+access.
+
 ## Backward Compatibility Policy
 
-Phase 3 may introduce a more efficient internal architecture, but callers,
+Later phases may introduce a more efficient internal architecture, but callers,
 notebooks, exports, and evaluation tooling must retain their existing contracts:
 
 > New architecture internally. Same contracts externally.
@@ -286,7 +375,7 @@ frozen Phase 2 baseline.
 ## Configuration Policy
 
 Operational choices must not be scattered as literals through notebooks or
-pipeline logic. In particular, Phase 3 must not hardcode:
+pipeline logic. In particular, Phase 3 and Phase 4 must not hardcode:
 
 - paths;
 - model names;
@@ -294,6 +383,11 @@ pipeline logic. In particular, Phase 3 must not hardcode:
 - retrieval modes;
 - token budgets; or
 - artifact filenames.
+
+Phase 4 additionally configures the reranker model/device/batch/local-only
+policy, candidate depth, selection strategies, maximum evidence count, score
+threshold, source cap, redundancy threshold, evidence token budget, evidence
+strength thresholds, run mode, trace mode, and large-run guard.
 
 Expose these through typed configuration or explicit function arguments, validate
 them at the boundary, serialize the effective configuration with every run, and

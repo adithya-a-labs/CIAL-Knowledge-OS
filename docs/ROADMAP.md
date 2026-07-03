@@ -20,9 +20,11 @@ citation-driven while evolving toward production-ready deployment on
 organization-controlled infrastructure.
 
 The current repository provides completed Phase 1 and Phase 2 experimental
-baselines and an implemented Phase 3 hybrid architecture awaiting full local
-benchmark qualification. Reranking, agentic workflows, enterprise access
-controls, and a production interface remain planned.
+baselines plus implemented Phase 3 hybrid retrieval and Phase 4
+reranking/evidence selection. Phase 3 and Phase 4 await full local benchmark
+qualification. Agentic workflows, enterprise access controls, multimodal
+retrieval, contradiction detection, and a production interface remain planned
+or deferred.
 
 ## Guiding Principles
 
@@ -61,7 +63,8 @@ controls, and a production interface remain planned.
 | Phase 1 | Basic Offline RAG | ✅ Completed |
 | Phase 2 | Query Transformations and Context Construction | ✅ Completed |
 | Phase 3 | Hybrid Retrieval | 🧪 Implemented / Qualification Pending |
-| Phase 4 | Reranking and Precision Optimization | 🔮 Planned |
+| Phase 4 | Reranking and Evidence Selection | 🧪 Implemented / Qualification Pending |
+| Phase 4.5 | Multimodal Understanding and Contradiction Research | Deferred |
 | Phase 5 | Agentic RAG and Multi-step Retrieval | 🔮 Planned |
 | Phase 6 | Production Hardening and Enterprise UX | 🔮 Planned |
 | Phase 7 | Enterprise Knowledge OS | 🔮 Long-term Target |
@@ -213,9 +216,9 @@ structured logs, reports, artifact bundle, and deterministic tests are present.
 The first, empirical exit criterion remains open until the approved local corpus
 and models complete the frozen 200-question dense-versus-hybrid comparison.
 
-### Phase 4 — Reranking and Precision Optimization
+### Phase 4 — Reranking and Evidence Selection
 
-**Status:** Planned.
+**Status:** Implemented; full frozen-benchmark qualification pending.
 
 **Objective**
 
@@ -225,31 +228,53 @@ evidence entering the context window.
 **Why this phase exists**
 
 Hybrid retrieval is designed to improve candidate recall, but fused candidates
-may still contain weak or redundant evidence. A local reranker can reorder a
-larger candidate pool before context construction.
+may still contain weak, redundant, or source-concentrated evidence. A local
+reranker can reorder the bounded candidate pool, while an explicit selector can
+keep only justified evidence before context construction.
 
 **Major capabilities**
 
-- a local cross-encoder or equivalent local reranker;
-- configurable candidate-pool and final top-k sizes;
-- relevance-score and latency inspection;
-- removal or demotion of irrelevant chunks; and
-- reranked versus non-reranked benchmark comparison.
+- lazy cache-first local cross-encoder loading with configured model, CPU/GPU,
+  batching, automatic developer staging, and strict enterprise offline mode;
+- deterministic mock reranking for model-independent tests;
+- configurable candidate pool, evidence count, score threshold, source
+  diversity, redundancy reduction, and evidence-token budget;
+- evidence-strength, metadata, citation, and retrieval-provenance diagnostics;
+- candidate-to-final-context token reduction and stage latency accounting;
+- full/compact serialized traces and decision diagnostics;
+- compatible CSV/XLSX/standalone HTML/JSON/log/context artifacts; and
+- smoke, manual QA, benchmark, and export-only execution modes.
 
 **Expected deliverables**
 
-- A new Phase 4 notebook and reusable reranking interface.
-- Local model configuration and hardware-aware batch settings.
-- Precision, citation, answer-quality, latency, and resource comparisons.
-- Reports that isolate the effect of reranking from hybrid retrieval.
+- `notebooks/04_Reranking_and_Evidence_Selection.ipynb`.
+- Reusable reranker, selector, quality, pipeline, trace, reporting, and runner
+  modules.
+- Automated unit, integration, compatibility, serialization, and artifact
+  tests that do not require the real reranker.
+- Config-driven run bundles below
+  `outputs/batch_answers/04_Reranking_and_Evidence_Selection/`.
+- A future qualified Phase 3 Hybrid versus Phase 4 Reranked Hybrid benchmark
+  report using the unchanged frozen dataset.
 
 **Exit criteria**
 
-- The reranker improves defined precision or downstream answer metrics at an
-  acceptable measured latency and resource cost.
-- Reranking can be disabled through configuration.
-- Phase 3 remains a reproducible comparison baseline after its benchmark
-  qualification is recorded and the phase is frozen.
+- Implemented: reranking can be disabled, mock reranking supports deterministic
+  tests, artifacts are complete, and Phase 3 compatibility is retained.
+- Open: the reranker improves defined precision or downstream answer metrics at
+  an acceptable measured latency and resource cost.
+- Open: the unchanged frozen benchmark records Phase 3 versus Phase 4 quality,
+  safety, citation, token, and latency trade-offs.
+
+### Phase 4.5 — Multimodal Understanding and Contradiction Research
+
+**Status:** Deferred; not implemented.
+
+Reserved scope is visual document understanding, multimodal retrieval, and
+contradiction detection. Phase 4 lexical redundancy reduction does not perform
+contradiction detection, and clickable PDF citations do not imply visual
+understanding. These capabilities require separate architecture, datasets,
+tests, and qualification.
 
 ### Phase 5 — Agentic RAG and Multi-step Retrieval
 
@@ -382,12 +407,12 @@ that makes answers explainable, reviewable, and operationally dependable.
 
 ## Target Long-Term Architecture
 
-The diagram shows the intended end-state flow. Only loading through dense
-retrieval, Phase 2 context construction, local Ollama generation, citations, and
-current evaluation/reporting are implemented today. Lexical retrieval,
-reranking, agent planning, production interfaces, and several enterprise
-controls remain planned. Hybrid lexical/vector retrieval and tokenizer-aware
-context construction are implemented; reranking and agent planning are not.
+The diagram shows the intended end-state flow. Loading, dense/BM25 hybrid
+retrieval, RRF, local reranking, evidence selection, token-aware context
+construction, local Ollama generation, citations, and current
+evaluation/reporting are implemented today. Agent planning, multimodal
+retrieval, contradiction detection, production interfaces, and several
+enterprise controls remain planned or deferred.
 
 ```text
 Enterprise Documents
@@ -403,6 +428,8 @@ Dense Index + Lexical Index
 Hybrid Retrieval
         ↓
 Reranking
+        ↓
+Evidence Selection
         ↓
 Context Builder
         ↓

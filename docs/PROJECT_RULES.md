@@ -282,8 +282,9 @@ Even though the current stage uses notebooks, code should be written so it can l
 
 Enterprise RAG should not rely only on vector search.
 
-This is a target-state preference. Hybrid retrieval is not implemented in the
-frozen Phase 1 or Phase 2 baselines.
+Hybrid retrieval remains absent from the frozen Phase 1 and Phase 2 baselines;
+it is implemented in Phase 3. Local reranking and evidence selection are
+implemented in Phase 4. Retrieval-time metadata filtering remains target scope.
 
 Prefer combining:
 
@@ -448,3 +449,24 @@ The reference notebooks should be treated as conceptual guides, not implementati
   names. Notebook cells must not create output folders.
 - Emit structured logs for every material stage and actionable errors for
   invalid, empty, missing, or corrupt inputs.
+
+## 26. Phase 4 Reranking and Evidence Selection
+
+- Rerank only the bounded post-RRF candidate pool with an approved local model.
+  Always check the local cache first; allow one-time developer download/cache
+  staging, and require strict local-only mode for disconnected enterprise
+  deployments. Never require a hosted inference API.
+- Preserve dense, BM25, RRF, and reranker scores separately. They are different
+  signals and must not be directly averaged.
+- Make every evidence keep/discard decision inspectable and record a primary
+  discard reason.
+- Prefer a small strong evidence set over filling the final context budget.
+- Measure candidate, selected, and final-context tokens plus stage latency.
+- Keep the reranker, selector, quality scorer, trace, pipeline, and reporting
+  interfaces independently testable. Use deterministic mock rerankers in tests.
+- Extend Phase 3 response/export contracts and reuse `RunManager`; do not change
+  earlier notebook or configuration defaults.
+- Mark benchmark qualification as pending until comparable frozen-benchmark
+  Phase 3 and Phase 4 artifacts have been reviewed.
+- Reserve visual document understanding, multimodal retrieval, and
+  contradiction detection for deferred Phase 4.5 scope.

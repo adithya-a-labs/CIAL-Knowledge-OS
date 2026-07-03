@@ -3,10 +3,11 @@
 
 An enterprise-grade, fully offline, notebook-first RAG platform for enterprise
 documentation. The current repository provides completed dense-retrieval Phase
-1 and query/context-construction Phase 2 baselines plus an implemented Phase 3
-hybrid-retrieval architecture awaiting full local benchmark qualification.
-Agentic workflows, access control, and production applications remain target
-capabilities, not current implementation claims.
+1 and query/context-construction Phase 2 baselines plus implemented Phase 3
+hybrid retrieval and Phase 4 reranking/evidence-selection architectures. Phase
+3 and Phase 4 still await full local benchmark qualification. Agentic workflows,
+access control, multimodal retrieval, contradiction detection, and production
+applications remain target capabilities, not current implementation claims.
 
 ## Vision
 
@@ -42,6 +43,12 @@ The Phase 3 pipeline adds local BM25, Reciprocal Rank Fusion, tokenizer-aware
 context limits, clickable PDF citations, structured logging, and isolated
 CSV/XLSX/HTML/JSON run bundles. Phase 1 and Phase 2 remain unchanged baselines.
 
+Phase 4 adds a configurable local cross-encoder after RRF, deterministic mock
+reranking for tests, explainable evidence selection, evidence-quality scoring,
+candidate-to-context token reduction, and richer standalone run diagnostics.
+Implementation and automated-test readiness are complete; full benchmark
+qualification is pending.
+
 ## Target Production Stack
 
 ### Frontend
@@ -71,13 +78,13 @@ CSV/XLSX/HTML/JSON run bundles. Phase 1 and Phase 2 remain unchanged baselines.
 
 Notebook-first RAG experimentation with reusable implementation modules under
 `src/cial_knowledge_os`. Phase 1 and Phase 2 notebooks are frozen baselines.
-Phase 3 is implemented in reusable modules and
-`notebooks/03_Hybrid_Retrieval.ipynb`. Its full frozen-benchmark quality gate
-must be run with the configured local corpus, embedding model, and Ollama model
-before the phase is frozen as a completed baseline.
+Phase 3 and Phase 4 are implemented in reusable modules and their phase
+notebooks. Their full frozen-benchmark quality gates must be run with the
+configured local corpus, embedding model, reranker, and Ollama model before
+either is described as benchmark-qualified.
 
 See `docs/CURRENT_STATE.md` for the audited architecture, limitations, output
-contracts, frozen notebook policy, and Phase 3 roadmap.
+contracts, frozen notebook policy, and qualification roadmap.
 
 ## Local Setup
 
@@ -95,9 +102,13 @@ The official hash-verified `cl100k_base` tiktoken vocabulary is packaged with
 the Python module, so token counting does not make a network request.
 
 The embedding model must already exist in the local Hugging Face cache, and the
-configured Ollama model must already exist in the local Ollama store. The pipeline
-uses `BAAI/bge-m3` and `gemma3:12b` by default. No model or document is sent to a
-hosted service.
+configured Ollama model must already exist in the local Ollama store. The Phase
+4 reranker is different by design: developer mode checks the local cache first
+and automatically downloads/caches a missing reranker once. Enterprise
+deployments set `reranker_local_files_only=True` to prohibit network access and
+require the approved cache to be staged in advance. The pipeline uses
+`BAAI/bge-m3`, `cross-encoder/ms-marco-MiniLM-L-6-v2`, and `gemma3:12b` by
+default. Documents and prompts are never sent to a hosted inference service.
 
 Place non-sensitive text fixtures in `data/sample/`, temporary text input in
 `data/raw/`, and approved local PDFs in `data/pdf/`. PDF ingestion prefers Docling
@@ -167,6 +178,53 @@ result = Phase3Runner(pipeline=pipeline, config=config).run(
 print(result.paths.report_html)
 ```
 
+Phase 4 extends that pipeline without changing earlier classes:
+
+```python
+from cial_knowledge_os import Phase4Config, Phase4RAGPipeline, Phase4Runner
+
+config = Phase4Config(
+    project_root=PROJECT_ROOT,
+    reranker_model_name="cross-encoder/ms-marco-MiniLM-L-6-v2",
+    reranker_local_files_only=False,  # cache first; download once if missing
+    reranker_batch_size=16,
+    reranker_candidate_top_k=30,
+    evidence_max_chunks=5,
+    evidence_score_threshold=0.20,
+    evidence_token_budget=2400,
+    max_context_tokens=4096,
+)
+pipeline = Phase4RAGPipeline(config)
+# Complete load(), chunk(), embed(), and index() before answering.
+result = Phase4Runner(pipeline=pipeline, config=config).run(
+    questions=["What exact control applies?"],
+    run_mode="smoke",
+)
+print(result.paths.report_html)
+```
+
+Reranking occurs after RRF because dense, BM25, and RRF scores are not
+calibrated for direct averaging. The selector can enforce maximum evidence
+count, reranker threshold, source diversity, redundancy reduction, and a
+smaller evidence-token budget. Phase 4 bundles use
+`outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp>/`
+with the established Phase 3 artifact names.
+
+`CrossEncoderReranker` remains lazy: no model is loaded during pipeline
+construction. On the first `answer()` call it always attempts
+`local_files_only=True` first. If the model is cached, execution remains
+offline. If the cache misses and `reranker_local_files_only=False`, the model is
+downloaded and cached; later processes use that cache without code changes or
+internet access. Strict offline deployments use:
+
+```python
+config = Phase4Config(reranker_local_files_only=True)
+```
+
+In strict mode a missing model fails with the configured model name, staging
+instructions, and a reminder that `MockReranker` is available for automated
+tests.
+
 The default token manager uses the configured local tiktoken encoding
 (`cl100k_base` by default); it does not load or download a model. Injecting a
 compatible encoder allows a future model-specific tokenizer without changing
@@ -221,6 +279,6 @@ These rules prioritize on-prem deployment, open-source local models, token effic
 ## Documentation
 
 - [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md) describes the audited
-  implementation state, limitations, and immediate Phase 3 boundary.
+  implementation state, limitations, and qualification boundaries.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) describes the long-term phase-by-phase
   architectural direction without treating planned capabilities as implemented.
