@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import fmean
@@ -185,11 +186,17 @@ class Phase3Runner:
         questions_path: str | Path | None = None,
         benchmark: Benchmark | None = None,
         top_k: int | None = None,
+        run_metadata: Mapping[str, Any] | None = None,
     ) -> Phase3RunResult:
         """Execute questions and generate the complete configured artifact set."""
 
         if benchmark is not None and questions is None and questions_path is None:
             questions = [item.question for item in benchmark.questions]
+        metadata = {
+            str(key).strip(): value
+            for key, value in (run_metadata or {}).items()
+            if str(key).strip()
+        }
         paths = self.run_manager.create()
         log_handlers = configure_logging(
             level=self.config.log_level,
@@ -211,7 +218,8 @@ class Phase3Runner:
             run_overrides={
                 "retrieval_top_k": (
                     top_k if top_k is not None else self.config.retrieval_top_k
-                )
+                ),
+                **metadata,
             },
         )
         logger.info(
@@ -220,6 +228,7 @@ class Phase3Runner:
                 "event": "run",
                 "retrieval_mode": self.config.retrieval_mode,
                 "run_path": str(paths.root),
+                **metadata,
             },
         )
         collection = collect_batch_answers(
@@ -229,12 +238,22 @@ class Phase3Runner:
             top_k=top_k,
         )
         rows = [dict(row) for row in collection.rows]
+        for row in rows:
+            row.update(metadata)
+        result_columns = (
+            *collection.columns,
+            *(
+                key
+                for key in metadata
+                if key not in collection.columns
+            ),
+        )
         responses = [
             dict(response) if response is not None else None
             for response in collection.responses
         ]
-        write_results_csv(paths.results_csv, rows, collection.columns)
-        write_results_xlsx(paths.results_xlsx, rows, collection.columns)
+        write_results_csv(paths.results_csv, rows, result_columns)
+        write_results_xlsx(paths.results_xlsx, rows, result_columns)
         write_latency_svg(
             paths.figures / self.config.artifact_names.latency_figure,
             rows,
@@ -269,6 +288,7 @@ class Phase3Runner:
                     "token_usage": response_value.get("token_usage") or {},
                     "citations": response_value.get("citations") or [],
                     "context_artifact": context_path.name,
+                    "run_metadata": metadata,
                 }
             )
 
@@ -278,6 +298,8 @@ class Phase3Runner:
             retrieval_mode=self.config.retrieval_mode,
             benchmark=benchmark,
         )
+        summary.update(metadata)
+        metrics.update(metadata)
         self.run_manager.write_json(paths.summary_json, summary)
         self.run_manager.write_json(paths.metrics_json, metrics)
         self.run_manager.write_json(paths.retrieval_json, retrieval_records)

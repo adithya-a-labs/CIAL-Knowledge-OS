@@ -262,16 +262,22 @@ def write_standalone_html(
             f"<b>{latency:.3f}s</b></div>"
         )
 
-    cards = "".join(
-        _metric_card(label, value)
-        for label, value in (
+    card_values = [
             ("Questions", summary.get("question_count", len(rows))),
             ("Successful", summary.get("successful_questions", 0)),
             ("Answered", summary.get("answered_questions", 0)),
             ("Safe failures", summary.get("insufficient_evidence_questions", 0)),
             ("Average latency", summary.get("average_latency_seconds", 0)),
             ("Retrieval mode", summary.get("retrieval_mode", "")),
-        )
+    ]
+    card_values.extend(
+        (key.replace("_", " ").title(), summary[key])
+        for key in ("run_type", "run_label")
+        if key in summary
+    )
+    cards = "".join(
+        _metric_card(label, value)
+        for label, value in card_values
     )
     embedded_data = json.dumps(
         {"summary": summary, "metrics": metrics},

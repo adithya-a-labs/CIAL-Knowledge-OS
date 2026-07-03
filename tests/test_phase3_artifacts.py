@@ -169,6 +169,51 @@ class Phase3ArtifactTests(unittest.TestCase):
                 paths.logs.read_text(encoding="utf-8"),
             )
 
+    def test_optional_run_metadata_is_exported_without_changing_default_schema(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "manual.pdf").write_bytes(b"%PDF-test")
+            config = Phase3Config(project_root=root)
+            result = Phase3Runner(
+                pipeline=_ArtifactPipeline(config),
+                config=config,
+            ).run(
+                questions=["What is the control?"],
+                run_metadata={
+                    "run_type": "manual_qa",
+                    "run_label": "interactive_manual_qa",
+                },
+            )
+
+            csv_text = result.paths.results_csv.read_text(encoding="utf-8-sig")
+            header = csv_text.splitlines()[0].split(",")
+            self.assertEqual(header[-2:], ["run_type", "run_label"])
+            self.assertIn("interactive_manual_qa", csv_text)
+
+            config_payload = json.loads(
+                result.paths.config_json.read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                config_payload["run_overrides"]["run_type"],
+                "manual_qa",
+            )
+            summary = json.loads(
+                result.paths.summary_json.read_text(encoding="utf-8")
+            )
+            self.assertEqual(summary["run_label"], "interactive_manual_qa")
+            retrieval = json.loads(
+                result.paths.retrieval_json.read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                retrieval[0]["run_metadata"]["run_type"],
+                "manual_qa",
+            )
+            report = result.paths.report_html.read_text(encoding="utf-8")
+            self.assertIn("Run Label", report)
+            self.assertIn("interactive_manual_qa", report)
+
 
 if __name__ == "__main__":
     unittest.main()
