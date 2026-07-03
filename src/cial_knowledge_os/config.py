@@ -247,3 +247,113 @@ class Phase3Config(Phase2Config):
                 "log_level must be CRITICAL, ERROR, WARNING, INFO, or DEBUG."
             )
         self.log_level = normalized_level
+
+
+@dataclass(slots=True)
+class Phase4Config(Phase3Config):
+    """Configure local reranking, evidence selection, and Phase 4 artifacts.
+
+    Inputs are inherited Phase 3 retrieval/context settings plus local reranker
+    model, hardware, score, diversity, redundancy, and evidence-budget choices.
+    The resolved object is consumed by :class:`Phase4RAGPipeline` and
+    :class:`Phase4Runner`; effective values are persisted in every run bundle.
+
+    Phase 4 deliberately keeps all Phase 1--3 fields valid. Its defaults use a
+    new collection/output namespace, allow one-time developer model staging,
+    and disable neighbor expansion so evidence that bypassed reranking is not
+    silently introduced after selection. Set ``reranker_local_files_only=True``
+    for strict enterprise offline operation. Earlier configuration classes and
+    their defaults are unchanged.
+    """
+
+    qdrant_collection_name: str = "cial_phase4"
+    phase_output_name: str = "04_Reranking_and_Evidence_Selection"
+    enable_neighbor_expansion: bool = False
+
+    reranker_enabled: bool = True
+    reranker_model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    reranker_device: str = "auto"
+    reranker_batch_size: int = 16
+    # Developer mode stages a missing model once, then uses the HF cache.
+    # Enterprise deployments set this to True to prohibit all network access.
+    reranker_local_files_only: bool = False
+    reranker_candidate_top_k: int = 30
+
+    evidence_selection_strategies: tuple[str, ...] = (
+        "top_k",
+        "reranker_score_threshold",
+        "source_diversity",
+        "redundancy_reduction",
+        "token_budget",
+    )
+    evidence_max_chunks: int = 5
+    evidence_score_threshold: float = 0.20
+    evidence_token_budget: int = 2_400
+    evidence_max_chunks_per_source: int = 2
+    evidence_redundancy_threshold: float = 0.85
+    evidence_strong_threshold: float = 0.65
+    evidence_medium_threshold: float = 0.35
+
+    phase4_run_mode: Literal[
+        "smoke",
+        "manual_qa",
+        "benchmark",
+        "export_only",
+    ] = "manual_qa"
+    phase4_trace_mode: Literal["compact", "full"] = "full"
+    max_inline_manual_questions: int = 25
+    allow_large_run: bool = False
+
+    def __post_init__(self) -> None:
+        super(Phase4Config, self).__post_init__()
+        if not self.reranker_model_name.strip():
+            raise ValueError("reranker_model_name must not be blank.")
+        self.reranker_model_name = self.reranker_model_name.strip()
+        if not self.reranker_device.strip():
+            raise ValueError("reranker_device must not be blank.")
+        self.reranker_device = self.reranker_device.strip()
+        if self.reranker_batch_size <= 0:
+            raise ValueError("reranker_batch_size must be greater than zero.")
+        if self.reranker_candidate_top_k <= 0:
+            raise ValueError("reranker_candidate_top_k must be greater than zero.")
+        if self.evidence_max_chunks <= 0:
+            raise ValueError("evidence_max_chunks must be greater than zero.")
+        if self.evidence_token_budget <= 0:
+            raise ValueError("evidence_token_budget must be greater than zero.")
+        if self.max_context_tokens is not None:
+            if self.evidence_token_budget > self.max_context_tokens:
+                raise ValueError(
+                    "evidence_token_budget must not exceed max_context_tokens."
+                )
+        if self.evidence_max_chunks_per_source <= 0:
+            raise ValueError(
+                "evidence_max_chunks_per_source must be greater than zero."
+            )
+        if not 0.0 <= self.evidence_redundancy_threshold <= 1.0:
+            raise ValueError(
+                "evidence_redundancy_threshold must be between zero and one."
+            )
+        if self.evidence_medium_threshold > self.evidence_strong_threshold:
+            raise ValueError(
+                "evidence_medium_threshold must not exceed "
+                "evidence_strong_threshold."
+            )
+        allowed_strategies = {
+            "top_k",
+            "reranker_score_threshold",
+            "source_diversity",
+            "redundancy_reduction",
+            "token_budget",
+        }
+        unknown = set(self.evidence_selection_strategies) - allowed_strategies
+        if unknown:
+            raise ValueError(
+                "Unknown evidence selection strategies: "
+                + ", ".join(sorted(unknown))
+            )
+        if not self.evidence_selection_strategies:
+            raise ValueError("evidence_selection_strategies must not be empty.")
+        if self.max_inline_manual_questions <= 0:
+            raise ValueError(
+                "max_inline_manual_questions must be greater than zero."
+            )

@@ -4,6 +4,7 @@ from .batch_qa import (
     CSV_COLUMNS,
     PHASE2_CSV_COLUMNS,
     PHASE3_CSV_COLUMNS,
+    PHASE4_CSV_COLUMNS,
     BatchAnswerCollection,
     collect_batch_answers,
     export_batch_answers,
@@ -17,7 +18,13 @@ from .citations import (
     render_citations,
 )
 from .citation_links import CitationLinkBuilder
-from .config import KnowledgeOSConfig, Phase2Config, Phase3Config, RunArtifactNames
+from .config import (
+    KnowledgeOSConfig,
+    Phase2Config,
+    Phase3Config,
+    Phase4Config,
+    RunArtifactNames,
+)
 from .context_builder import (
     INSUFFICIENT_EVIDENCE_RESPONSE,
     ContextBuilder,
@@ -60,6 +67,12 @@ from .phase3_reporting import (
     write_standalone_html,
 )
 from .phase3_runner import Phase3Runner, Phase3RunResult
+from .evidence_quality import EvidenceQualityReport, EvidenceQualityScorer
+from .evidence_selector import EvidenceSelectionResult, EvidenceSelector
+from .phase4_pipeline import Phase4RAGPipeline
+from .phase4_reporting import write_phase4_figures, write_phase4_html
+from .phase4_runner import Phase4Runner, Phase4RunResult
+from .phase4_trace import Phase4Trace, build_phase4_trace, phase4_diagnostics
 from .query_transformations import (
     QueryTransformer,
     QueryVariant,
@@ -84,6 +97,12 @@ from .retrievers import (
     HybridRetriever,
     Retriever,
     default_bm25_tokenize,
+)
+from .reranker import (
+    CrossEncoderReranker,
+    MockReranker,
+    RerankResult,
+    Reranker,
 )
 from .run_manager import RunManager, RunPaths
 from .token_budget import (
@@ -152,21 +171,31 @@ __all__ = [
     "CSV_COLUMNS",
     "PHASE2_CSV_COLUMNS",
     "PHASE3_CSV_COLUMNS",
+    "PHASE4_CSV_COLUMNS",
     "BatchAnswerCollection",
     "BM25Retriever",
     "CitationLinkBuilder",
     "DenseRetriever",
+    "CrossEncoderReranker",
     "DEFAULT_TIKTOKEN_ENCODING",
     "HybridRetriever",
     "KnowledgeOSConfig",
     "Phase2Config",
     "Phase3Config",
+    "Phase4Config",
     "Phase2RAGPipeline",
     "Phase3RAGPipeline",
     "Phase3Runner",
     "Phase3RunResult",
+    "Phase4RAGPipeline",
+    "Phase4Runner",
+    "Phase4RunResult",
+    "Phase4Trace",
     "ReciprocalRankFusion",
     "Retriever",
+    "Reranker",
+    "RerankResult",
+    "MockReranker",
     "RunArtifactNames",
     "RunManager",
     "RunPaths",
@@ -176,6 +205,10 @@ __all__ = [
     "TiktokenTokenizer",
     "ContextBuilder",
     "ContextBuildResult",
+    "EvidenceQualityReport",
+    "EvidenceQualityScorer",
+    "EvidenceSelectionResult",
+    "EvidenceSelector",
     "ExperimentConfig",
     "ExperimentGrid",
     "ExperimentRunner",
@@ -190,6 +223,7 @@ __all__ = [
     "aggregate_experiment",
     "build_grounded_prompt",
     "build_question_trace",
+    "build_phase4_trace",
     "build_citations",
     "build_recommendations",
     "chunk_documents",
@@ -249,6 +283,7 @@ __all__ = [
     "plot_score_distribution",
     "plot_source_distribution",
     "plot_timing_breakdown",
+    "phase4_diagnostics",
     "print_benchmark_table",
     "print_retrieval_results",
     "query_variants_table",
@@ -274,4 +309,6 @@ __all__ = [
     "write_results_xlsx",
     "write_latency_svg",
     "write_standalone_html",
+    "write_phase4_figures",
+    "write_phase4_html",
 ]
