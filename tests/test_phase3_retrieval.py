@@ -216,6 +216,22 @@ class TokenBudgetAndPipelineTests(unittest.TestCase):
         )
         self.assertTrue(response["citations"][0]["pdf_link"].startswith("file:///"))
         self.assertIn("References:", response["answer"])
+        trace = response["question_trace"]
+        self.assertEqual(trace["question"], "What is AGL-47?")
+        self.assertEqual(len(trace["dense_results"]), 1)
+        self.assertEqual(len(trace["bm25_results"]), 1)
+        self.assertEqual(len(trace["fused_results"]), 1)
+        self.assertEqual(trace["overlap"]["both_count"], 1)
+        self.assertEqual(
+            trace["deduplication"]["key"],
+            "source + page + chunk_id",
+        )
+        self.assertEqual(trace["token_usage"]["chunks_included"], 1)
+        self.assertTrue(trace["decision_summary"])
+        self.assertEqual(
+            set(trace["citations"][0]["retrieval_sources"]),
+            {"dense", "bm25"},
+        )
 
     def test_phase3_context_budget_uses_tiktoken_by_default(self) -> None:
         evidence = _result(

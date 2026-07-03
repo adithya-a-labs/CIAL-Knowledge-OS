@@ -124,6 +124,9 @@ former tokenizer-independent estimate.
 - backward-compatible CSV plus formatted XLSX and standalone HTML reports;
 - configuration, summary, retrieval, metrics, logs, figures, and per-question
   context artifacts; and
+- per-question execution traces from query variants through dense/BM25
+  candidates, RRF, post-processing, token budgeting, generation, citations, and
+  artifact export, with notebook and standalone HTML diagnostics; and
 - additive integration with the existing batch and evaluation contracts.
 
 The implementation and offline tests are complete. Phase 3 is not yet a frozen

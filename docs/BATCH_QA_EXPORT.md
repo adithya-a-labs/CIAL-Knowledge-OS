@@ -169,6 +169,15 @@ original order. Phase 3 appends:
 | `token_encoding` | Configured tiktoken encoding or injected tokenizer name. |
 | `pdf_links` | JSON array of clickable evidence links. |
 | `retrieval_sources` | JSON array of contributing retriever names. |
+| `dense_result_count` | Raw dense candidates collected across query variants. |
+| `bm25_result_count` | Raw BM25 candidates collected across query variants. |
+| `fused_result_count` | RRF candidates collected across query variants. |
+| `final_context_chunk_count` | Evidence sections retained in final context. |
+| `context_tokens_used` | Exact configured-tokenizer context usage. |
+| `token_utilization` | Percentage of the configured token budget used. |
+| `generation_latency_seconds` | Local generation latency for the question. |
+| `citation_count` | Structured citations attached to the answer. |
+| `unique_source_count` | Unique documents represented in final context. |
 
 In hybrid rows the legacy `retrieval_scores` column contains fused RRF scores,
 not cosine similarities. Retriever-specific raw scores and ranks remain in the
@@ -179,3 +188,10 @@ full response and `retrieval.json` trace.
 formats the established columns and makes the first PDF citation clickable.
 The HTML report embeds all styles and data and requires no server or external
 assets.
+
+`retrieval.json` contains the full per-question execution trace: query variants,
+raw dense and BM25 candidates, RRF ranks, overlap, deduplication and neighbor
+statistics, the context funnel, exact token usage, generation and artifact
+latencies, citations, source diversity, artifact paths, and decision-focused
+recommendations. The standalone HTML renders the same trace in collapsible
+offline sections; CSV and XLSX retain only compact summary fields.
