@@ -66,7 +66,11 @@ Rules:
 "{no_evidence_response}"
 6. Cite supported claims inline using exact reference IDs such as [1].
 7. Do not invent, alter, or renumber reference IDs.
-8. Do not add a separate reference list.
+8. Answer concisely.
+9. Prefer 5–8 bullets unless the question requires a longer explanation.
+10. Do not include long background explanations.
+11. Do not restate the context.
+12. Do not add filler, introductions, or conclusions.
 
 CONTEXT
 {context}
