@@ -160,8 +160,13 @@ Phase 3 improvement or trade-off on the unchanged frozen benchmark.
 - a Phase 4-specific detailed answer style that retains Phase 3 grounding and
   citations while adding operational implications, supported actions,
   risks/gaps, caveats, and optional decision notes from selected evidence only;
-- configurable `answer_detail_level`, `min_answer_words`,
-  `prefer_structured_answers`, and `include_decision_notes` generation policy;
+- configurable `answer_detail_level`, `min_answer_words`, optional
+  `max_answer_words`, `prefer_structured_answers`, and
+  `include_decision_notes` generation policy;
+- Phase 4-only generation retries and cooldown for retryable local Ollama
+  runner, stream, transport, HTTP 500, and memory-allocation failures;
+- per-question CSV/JSONL checkpoints and indexed question-hash resume support,
+  including duplicate-text safety and final failure-row preservation;
 - an intentional smaller evidence budget before the existing final context
   budget;
 - per-chunk evidence strength, retrieval provenance, citation availability,
@@ -182,6 +187,12 @@ citation engine, `RunManager`, batch collector, and evaluation interfaces.
 Earlier classes and configuration defaults are unchanged. Phase 4 disables
 neighbor expansion by default so evidence that did not pass reranking is not
 introduced after selection; callers can opt in explicitly.
+
+Long terminal runs persist `partial_results.csv`, `partial_results.jsonl`,
+`partial_retrieval.jsonl`, and `checkpoint.json` after every attempt. Resume
+uses the same run directory and question order, skips successful occurrences,
+and retries failed or interrupted occurrences. Standard final artifacts are
+regenerated even when some generation attempts remain failed.
 
 Phase 4 evidence reduction is not an answer-length optimization. Detailed
 synthesis is generated from the smaller, higher-precision selected context.
@@ -343,6 +354,10 @@ outputs/
             |-- retrieval.json
             |-- metrics.json
             |-- logs.txt
+            |-- partial_results.csv
+            |-- partial_results.jsonl
+            |-- partial_retrieval.jsonl
+            |-- checkpoint.json
             |-- figures/
             `-- context/
 ```
@@ -404,6 +419,9 @@ policy, candidate depth, selection strategies, minimum/maximum evidence count,
 reranker threshold, adaptive fallback, weak-evidence answer policy, source cap,
 redundancy threshold, evidence token budget and target range, evidence strength
 thresholds, run mode, trace mode, and large-run guard.
+Phase 4 generation reliability also configures retry count, retry cooldown, and
+an optional answer-word upper bound. These controls apply only to Phase 4;
+earlier phase defaults and generation behavior remain unchanged.
 
 Discard reasons are normalized as `threshold_failed`, `redundancy`,
 `source_diversity_limit`, `token_budget`, `empty_text`, and

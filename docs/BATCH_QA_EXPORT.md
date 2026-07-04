@@ -238,6 +238,47 @@ unchanged. Terminal output and structured logs record the loaded count, counts
 entering Phase 4/Phase 3 and batch execution, and the rows written to
 `results.csv`.
 
+### Long-run reliability and resume
+
+Phase 4 retries only the local generation call when Ollama reports runner,
+stream, transport, HTTP 500, or allocation failures. Retrieval, RRF, reranking,
+and evidence selection are not repeated. `generation_retries=2` means up to
+three total generation attempts; `retry_cooldown_seconds=20` controls the pause
+between retryable failures. Exhausted attempts produce a final row with
+`answer_status=generation_failed` and the original error type/message.
+
+Each attempted question immediately updates:
+
+```text
+partial_results.csv
+partial_results.jsonl
+partial_retrieval.jsonl
+checkpoint.json
+```
+
+`checkpoint.json` contains the run path/id, indexed normalized-question hashes,
+completed and failed occurrences, last completed index, configuration snapshot,
+and update timestamp. Identity combines original index and question hash, so
+duplicate text is not incorrectly skipped.
+
+```powershell
+# Long run with bounded answer generation
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py `
+  --questions-file data/manual_qa/phase4_questions.txt `
+  --max-answer-words 450 `
+  --generation-retries 2 `
+  --retry-cooldown-seconds 20
+
+# Resume after interruption using the same question input/order
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py `
+  --questions-file data/manual_qa/phase4_questions.txt `
+  --resume outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp>
+```
+
+Resume reconstructs final artifacts from prior successful checkpoints and new
+attempts. Previously failed occurrences remain eligible for another attempt.
+The question file and `--max-questions` setting must match the original run.
+
 Additional starter inputs are maintained in
 `data/manual_qa/airport_operations_questions.txt`. Treat these lists as
 reviewable evaluation data: update the text files rather than editing Python.

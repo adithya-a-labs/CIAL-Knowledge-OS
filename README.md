@@ -197,8 +197,11 @@ config = Phase4Config(
     weak_evidence_answer_allowed=True,
     answer_detail_level="detailed",
     min_answer_words=250,
+    max_answer_words=None,
     prefer_structured_answers=True,
     include_decision_notes=True,
+    generation_retries=2,
+    retry_cooldown_seconds=20,
     evidence_token_budget=2400,
     selected_evidence_target_min_tokens=800,
     selected_evidence_target_max_tokens=1500,
@@ -242,6 +245,41 @@ accepted compatibility flag but is no longer required. The 25-question guard
 is restricted to the interactive notebook workflow, where it protects the
 kernel from rendering a large trace set. Smoke mode remains capped at three
 questions, and benchmark behavior is unchanged.
+
+For long local-model runs, Phase 4 retries retryable Ollama generation failures
+without repeating retrieval or reranking. The defaults allow two retries after
+the initial attempt with a 20-second cooldown. Every question attempt updates
+`partial_results.csv`, `partial_results.jsonl`,
+`partial_retrieval.jsonl`, and `checkpoint.json` inside the run folder.
+Successful occurrences are keyed by original index plus normalized-question
+hash, so duplicate question text resumes safely.
+
+Recommended 440-question run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py `
+  --questions-file data/manual_qa/phase4_questions.txt `
+  --max-answer-words 450 `
+  --generation-retries 2 `
+  --retry-cooldown-seconds 20
+```
+
+Resume the same question file and options against the interrupted run folder:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py `
+  --questions-file data/manual_qa/phase4_questions.txt `
+  --resume outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp> `
+  --max-answer-words 450 `
+  --generation-retries 2 `
+  --retry-cooldown-seconds 20
+```
+
+Completed questions are skipped; failed or interrupted occurrences are retried.
+If retries remain exhausted, the final CSV retains a `generation_failed` row
+with the original exception type/message while all standard reports are still
+generated. `--max-answer-words` adds a grounded prompt upper bound; omitting it
+preserves the existing detailed answer behavior.
 
 Reranking occurs after RRF because dense, BM25, and RRF scores are not
 calibrated for direct averaging. The selector can enforce maximum evidence
