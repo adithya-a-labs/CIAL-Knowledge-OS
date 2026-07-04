@@ -74,7 +74,7 @@ from .phase3_reporting import (
 from .phase3_runner import Phase3Runner, Phase3RunResult
 from .evidence_quality import EvidenceQualityReport, EvidenceQualityScorer
 from .evidence_selector import EvidenceSelectionResult, EvidenceSelector
-from .phase4_pipeline import Phase4RAGPipeline
+from .phase4_pipeline import Phase4RAGPipeline, UNSUPPORTED_QUERY_RESPONSE
 from .phase4_checkpoint import (
     Phase4CheckpointManager,
     QuestionIdentity,
@@ -226,6 +226,7 @@ __all__ = [
     "ExperimentSweepResult",
     "GenerationFailedError",
     "INSUFFICIENT_EVIDENCE_RESPONSE",
+    "UNSUPPORTED_QUERY_RESPONSE",
     "QueryTransformer",
     "QuestionIdentity",
     "QueryVariant",

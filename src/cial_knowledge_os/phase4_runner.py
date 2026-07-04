@@ -118,6 +118,8 @@ class Phase4Runner(Phase3Runner):
         diagnostic_flags: Counter[str] = Counter()
         fallback_questions = 0
         weak_evidence_questions = 0
+        extractive_fallback_count = 0
+        fallback_blocked_count = 0
         for trace in traces:
             quality = trace.get("evidence_quality")
             quality = quality if isinstance(quality, Mapping) else {}
@@ -133,6 +135,12 @@ class Phase4Runner(Phase3Runner):
             )
             fallback_questions += bool(token_usage.get("fallback_used"))
             weak_evidence_questions += bool(token_usage.get("weak_evidence"))
+            extractive_fallback_count += bool(
+                token_usage.get("extractive_fallback_used")
+            )
+            fallback_blocked_count += bool(
+                token_usage.get("fallback_blocked")
+            )
             diagnostic_flags.update(
                 str(item.get("signal") or "unspecified")
                 for item in (trace.get("decision_summary") or [])
@@ -140,6 +148,13 @@ class Phase4Runner(Phase3Runner):
             )
         reductions = numbers("token_reduction_percent")
         reranker_scores = numbers("average_reranker_score")
+        statuses = Counter(
+            str(row.get("answer_status") or "")
+            .strip()
+            .casefold()
+            .replace(" ", "_")
+            for row in rows
+        )
         return {
             "average_token_reduction_percent": (
                 round(fmean(reductions), 6) if reductions else 0.0
@@ -170,6 +185,12 @@ class Phase4Runner(Phase3Runner):
             ),
             "fallback_question_count": fallback_questions,
             "weak_evidence_question_count": weak_evidence_questions,
+            "unsupported_query_count": statuses["unsupported_query"],
+            "insufficient_evidence_count": statuses[
+                "insufficient_evidence"
+            ],
+            "extractive_fallback_count": extractive_fallback_count,
+            "fallback_blocked_count": fallback_blocked_count,
             "discard_reason_distribution": dict(
                 sorted(discard_reasons.items())
             ),

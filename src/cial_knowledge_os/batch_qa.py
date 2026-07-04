@@ -95,6 +95,9 @@ PHASE4_CSV_COLUMNS = [
     "threshold_pass_count",
     "fallback_used",
     "evidence_confidence",
+    "extractive_fallback_used",
+    "fallback_blocked",
+    "unsupported_query_detected",
 ]
 
 _OUTPUT_SUBDIRECTORIES = (
@@ -398,11 +401,16 @@ def _phase2_row_values(
             if "no reliable answer could be generated" in answer_text.casefold()
             else "answered"
         )
-    answer_status = (
-        "Insufficient Evidence"
-        if answer_status_value.casefold().replace(" ", "_")
-        == "insufficient_evidence"
-        else "Answered"
+    normalized_status = answer_status_value.casefold().replace(" ", "_")
+    answer_status = {
+        "answered": "Answered",
+        "insufficient_evidence": "Insufficient Evidence",
+        "unsupported_query": "Unsupported Query",
+        "current_data_required": "Unsupported Query",
+        "generation_failed": "Generation Failed",
+    }.get(
+        normalized_status,
+        answer_status_value,
     )
 
     trace_steps.extend(
@@ -585,6 +593,13 @@ def _phase4_row_values(response: Mapping[str, Any]) -> dict[str, Any]:
         "fallback_used": bool(token_usage.get("fallback_used")),
         "evidence_confidence": str(
             token_usage.get("evidence_confidence") or ""
+        ),
+        "extractive_fallback_used": bool(
+            token_usage.get("extractive_fallback_used")
+        ),
+        "fallback_blocked": bool(token_usage.get("fallback_blocked")),
+        "unsupported_query_detected": bool(
+            token_usage.get("unsupported_query_detected")
         ),
     }
 

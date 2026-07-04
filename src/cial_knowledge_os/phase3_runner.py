@@ -113,12 +113,24 @@ class Phase3Runner:
         safe_failures = sum(
             row.get("answer_status") == "Insufficient Evidence" for row in rows
         )
+        unsupported = sum(
+            row.get("answer_status") == "Unsupported Query" for row in rows
+        )
+        generation_failed = sum(
+            str(row.get("answer_status") or "")
+            .casefold()
+            .replace(" ", "_")
+            == "generation_failed"
+            for row in rows
+        )
         summary: dict[str, Any] = {
             "question_count": len(rows),
             "successful_questions": len(successes),
             "failed_questions": len(rows) - len(successes),
             "answered_questions": answered,
             "insufficient_evidence_questions": safe_failures,
+            "unsupported_query_questions": unsupported,
+            "generation_failed_questions": generation_failed,
             "average_latency_seconds": round(fmean(latencies), 6)
             if latencies
             else 0.0,

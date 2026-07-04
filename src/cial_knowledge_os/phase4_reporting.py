@@ -840,6 +840,16 @@ def write_phase4_html(
             if inline_citation_count == 0
             else ""
         )
+        answer_status = str(
+            row.get("answer_status")
+            or trace.get("answer_status")
+            or "Unknown"
+        )
+        status_key = re.sub(
+            r"[^a-z0-9]+",
+            "-",
+            answer_status.casefold(),
+        ).strip("-")
         citation_details = (
             '<details class="citation-details">'
             f"<summary>Citation details ({len(citations)})</summary>"
@@ -850,6 +860,8 @@ def write_phase4_html(
         answer_sections.append(
             f'<article class="answer-card"><p class="eyebrow">Question {index}</p>'
             f"<h3>{html.escape(question)}</h3>"
+            f'<p class="answer-status status-{html.escape(status_key, quote=True)}">'
+            f"{html.escape(answer_status)}</p>"
             f'<div class="answer-content">{answer_html}</div>'
             f"{fallback_chips}{citation_details}</article>"
         )
@@ -934,6 +946,7 @@ h1{{margin:0 0 8px;font-size:32px}}h2{{margin-top:0}}section,.answer-card{{backg
 .grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px}}svg{{width:100%;height:auto;border:1px solid var(--line);border-radius:10px;background:#fff}}
 .table-wrap{{overflow:auto}}table{{width:100%;border-collapse:collapse}}th,td{{padding:9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}}th{{background:#eef3fb;position:sticky;top:0}}
 .eyebrow{{text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}}.muted{{color:var(--muted)}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:#0f172a;color:#dbeafe;padding:14px;border-radius:9px}}
+.answer-status{{display:inline-flex;margin:0 0 12px;padding:4px 9px;border-radius:999px;background:#e5e7eb;color:#374151;font-size:12px;font-weight:750;text-transform:uppercase;letter-spacing:.04em}}.status-answered{{background:#dcfce7;color:#166534}}.status-insufficient-evidence{{background:#fef3c7;color:#92400e}}.status-unsupported-query{{background:#fee2e2;color:#991b1b}}.status-generation-failed{{background:#f3e8ff;color:#6b21a8}}
 .inline-citation,.citation-chip{{display:inline-flex;align-items:center;border:1px solid #93b4e8;border-radius:999px;background:#eaf2ff;color:#174ea6;font-size:.78em;font-weight:700;line-height:1.35;padding:1px 6px;text-decoration:none;vertical-align:.08em;white-space:nowrap}}.inline-citation:hover,.citation-chip:hover{{background:#dbeafe;border-color:#2563eb}}.no-citation-link{{color:#475467;border-color:#cbd5e1;background:#f8fafc;cursor:help}}.citation-chips{{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:8px 0 12px}}.citation-chips-label{{color:var(--muted);font-size:12px;font-weight:650}}.citation-list{{display:grid;gap:8px}}.citation-card{{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:12px;border-left:4px solid var(--accent);padding:10px 12px;background:#f8fafc}}.citation-reference{{font-weight:750;color:var(--accent)}}.citation-details{{margin-top:12px}}a{{color:#1d4ed8}}details{{border:1px solid var(--line);border-radius:9px;padding:10px;margin:10px 0}}summary{{cursor:pointer;font-weight:650}}
 .citation-popover{{--popover-bg:#fff;--popover-ink:#172033;--popover-muted:#667085;--popover-line:#cbd5e1;position:fixed;z-index:1000;width:min(420px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:auto;padding:14px;border:1px solid var(--popover-line);border-radius:12px;background:var(--popover-bg);color:var(--popover-ink);box-shadow:0 16px 40px #0f172a3d;pointer-events:none;overflow-wrap:anywhere;white-space:normal}}.citation-popover[hidden]{{display:none}}.citation-popover-source{{font-weight:750;margin:0 0 8px}}.citation-popover-grid{{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 10px;margin:0 0 10px;font:12px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace}}.citation-popover-grid dt{{color:var(--popover-muted)}}.citation-popover-grid dd{{margin:0}}.citation-popover-snippet{{margin:0;padding:10px;border-radius:8px;background:#f1f5f9;white-space:pre-wrap;font:13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}}.citation-popover-snippet.missing{{color:var(--popover-muted);font-style:italic}}.citation-popover-snippet mark{{border-radius:2px;background:#fde68a;color:#713f12;padding:0 1px}}.citation-popover-action{{margin:9px 0 0;color:#1d4ed8;font-size:12px;font-weight:700}}
 .answer-content{{white-space:normal;overflow:visible;max-height:none}}.answer-content ul,.answer-content ol{{padding-left:24px}}code{{background:#eef2ff;padding:2px 5px;border-radius:4px}}@media(max-width:700px){{main{{padding:12px}}.grid{{grid-template-columns:1fr}}}}
@@ -950,6 +963,10 @@ h1{{margin:0 0 8px;font-size:32px}}h2{{margin-top:0}}section,.answer-card{{backg
 ("Discarded chunks", metrics.get("discarded_chunk_count", 0)),
 ("Fallback questions", metrics.get("fallback_question_count", 0)),
 ("Weak-evidence questions", metrics.get("weak_evidence_question_count", 0)),
+("Unsupported queries", metrics.get("unsupported_query_count", 0)),
+("Insufficient evidence", metrics.get("insufficient_evidence_count", 0)),
+("Extractive fallbacks", metrics.get("extractive_fallback_count", 0)),
+("Blocked fallbacks", metrics.get("fallback_blocked_count", 0)),
 ])}</div><h3>Decision diagnostics</h3><ul>{''.join(diagnostics) or '<li>No diagnostics available.</li>'}</ul></section>
 <section><h2>Answers</h2><p>Full generated answers are rendered below without preview truncation. Evidence selection reduces irrelevant context, not answer depth.</p>{''.join(answer_sections)}</section>
 <section><h2>Citations</h2><p>Structured, clickable citation evidence is included with each answer card above.</p></section>
