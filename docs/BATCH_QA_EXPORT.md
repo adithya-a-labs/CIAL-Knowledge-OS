@@ -343,6 +343,13 @@ context/debug sections. Its charts are inline SVG; no CDN or external
 JavaScript is required.
 
 Answer cards render the complete generated Markdown without preview truncation.
+Recognized numeric markers such as `[1]` and structured
+`[source | Page N | Chunk ID]` markers become inline PDF-page links with
+source/page/chunk/score hover details. When the model omits inline markers, the
+answer receives compact citation chips. The complete reference list remains
+available in a collapsible citation-details section. Unsafe or unavailable
+links are rendered as non-clickable labels; CSV/XLSX citation fields are not
+changed.
 Phase 4 uses the Phase 3 grounding and citation contract but requests detailed,
 structured decision support from selected evidence only. The evidence selector
 reduces irrelevant context; it does not intentionally shorten answers.

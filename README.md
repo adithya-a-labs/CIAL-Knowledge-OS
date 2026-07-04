@@ -291,6 +291,10 @@ marks fallback chunks as weak/low-confidence. Normal QA targets roughly
 Phase 4 bundles use
 `outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp>/`
 with the established Phase 3 artifact names.
+The standalone Phase 4 HTML report turns recognized `[1]` and
+`[source | Page N | Chunk ID]` answer markers into inline PDF-page citation
+badges. Answers without markers receive compact citation chips, and the full
+reference list remains collapsible. CSV/XLSX citation columns are unchanged.
 
 `CrossEncoderReranker` remains lazy: no model is loaded during pipeline
 construction. On the first `answer()` call it always attempts

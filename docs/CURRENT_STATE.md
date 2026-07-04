@@ -178,7 +178,10 @@ Phase 3 improvement or trade-off on the unchanged frozen benchmark.
 - `smoke`, `manual_qa`, `benchmark`, and `export_only` runner modes with a
   notebook-safe manual-question limit;
 - additive Phase 4 CSV fields, manager-friendly XLSX, standalone offline HTML,
-  JSON, log, context, and SVG decision artifacts; and
+  JSON, log, context, and SVG decision artifacts;
+- safe inline HTML citation badges for numeric and source/page/chunk answer
+  markers, with compact fallback chips and collapsible citation details while
+  preserving CSV/XLSX citation columns; and
 - dependency-injected pipeline/reporting interfaces suitable for future
   automated benchmark execution without notebook execution.
 

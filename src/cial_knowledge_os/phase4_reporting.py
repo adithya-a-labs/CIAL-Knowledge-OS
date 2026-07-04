@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import html
+import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from .phase3_reporting import render_safe_markdown
+
+
+_REFERENCE_TAIL_PATTERN = re.compile(r"(?im)^\s*references?\s*:\s*$")
+_BRACKETED_CITATION_PATTERN = re.compile(r"\[([^\[\]\r\n]+)\]")
 
 
 def _number(value: Any, digits: int = 2) -> str:
@@ -177,24 +183,234 @@ def _table(
     return f"<div class=\"table-wrap\"><table><thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table></div>"
 
 
+def _safe_citation_href(value: Any) -> str | None:
+    """Return a safe local/HTTP PDF link suitable for an HTML ``href``."""
+
+    if value is None or value == "":
+        return None
+    link = str(value).strip()
+    if not link or any(ord(character) < 32 for character in link):
+        return None
+    try:
+        scheme = urlsplit(link).scheme.casefold()
+    except ValueError:
+        return None
+    # Phase 3/4 produces file:// links for offline use and localhost HTTP(S)
+    # links when explicitly configured. Reject active or unknown schemes so
+    # citation metadata cannot introduce executable links into the report.
+    if scheme not in {"file", "http", "https"}:
+        return None
+    return link
+
+
+def _citation_title(citation: Mapping[str, Any]) -> str:
+    """Build hover text containing all available citation provenance."""
+
+    source = (
+        citation.get("source_file")
+        or citation.get("source")
+        or "Unknown source"
+    )
+    parts = [str(source)]
+    page = citation.get("page_number")
+    if page is not None and page != "":
+        parts.append(f"Page {page}")
+    chunk = citation.get("chunk_id")
+    if chunk is not None and chunk != "":
+        parts.append(f"Chunk {chunk}")
+    score = citation.get("score")
+    if score is not None and score != "":
+        try:
+            score = f"{float(score):.4f}"
+        except (TypeError, ValueError):
+            score = str(score)
+        parts.append(f"Score {score}")
+    return " | ".join(parts)
+
+
+def _source_key(value: Any) -> str:
+    source = Path(str(value or "")).name.casefold()
+    return source.removesuffix(".pdf")
+
+
+def _structured_citation(
+    marker: str,
+    citations: Sequence[Mapping[str, Any]],
+) -> Mapping[str, Any] | None:
+    """Resolve a source/page/chunk marker to one structured citation."""
+
+    parts = [part.strip() for part in marker.split("|") if part.strip()]
+    if len(parts) < 2:
+        return None
+    source_label = re.sub(
+        r"(?i)^source\s*:?\s*",
+        "",
+        parts[0],
+    ).strip()
+    page_match = re.search(r"(?i)\bpage\s*:?\s*(.+)", marker)
+    chunk_match = re.search(r"(?i)\bchunk\s*:?\s*(.+)", marker)
+    page = (
+        page_match.group(1).split("|", maxsplit=1)[0].strip()
+        if page_match
+        else ""
+    )
+    chunk = (
+        chunk_match.group(1).split("|", maxsplit=1)[0].strip()
+        if chunk_match
+        else ""
+    )
+    if not page and not chunk:
+        return None
+
+    source_key = _source_key(source_label)
+    matches: list[Mapping[str, Any]] = []
+    for citation in citations:
+        citation_source = _source_key(
+            citation.get("source_file") or citation.get("source")
+        )
+        source_matches = (
+            not source_key
+            or (
+                bool(citation_source)
+                and (
+                    source_key == citation_source
+                    or source_key in citation_source
+                    or citation_source in source_key
+                )
+            )
+        )
+        citation_page = str(citation.get("page_number") or "").strip()
+        citation_chunk = str(citation.get("chunk_id") or "").strip()
+        page_matches = not page or page.casefold() == citation_page.casefold()
+        chunk_matches = (
+            not chunk
+            or chunk.casefold() == citation_chunk.casefold()
+            or citation_chunk.casefold().endswith(chunk.casefold())
+        )
+        if source_matches and page_matches and chunk_matches:
+            matches.append(citation)
+    return matches[0] if len(matches) == 1 else None
+
+
+def _marker_citation(
+    marker: str,
+    citations: Sequence[Mapping[str, Any]],
+) -> Mapping[str, Any] | None:
+    cleaned = marker.strip()
+    if cleaned.isdigit():
+        for citation in citations:
+            if str(citation.get("reference_id") or "") == cleaned:
+                return citation
+        return None
+    return _structured_citation(cleaned, citations)
+
+
+def _citation_badge(
+    citation: Mapping[str, Any],
+    *,
+    label: str,
+    css_class: str = "inline-citation",
+) -> str:
+    title = html.escape(_citation_title(citation), quote=True)
+    escaped_label = html.escape(label)
+    href = _safe_citation_href(citation.get("pdf_link"))
+    if href:
+        return (
+            f'<a class="{css_class}" '
+            f'href="{html.escape(href, quote=True)}" title="{title}">'
+            f"{escaped_label}</a>"
+        )
+    return (
+        f'<span class="{css_class} no-citation-link" title="{title}">'
+        f"{escaped_label}</span>"
+    )
+
+
+def _render_answer_with_inline_citations(
+    answer: str,
+    citations: Sequence[Mapping[str, Any]],
+) -> tuple[str, int]:
+    """Safely render an answer and replace recognized markers with links.
+
+    Inputs are generated Markdown and structured Phase 4 citations. The output
+    contains escaped, dependency-free HTML plus the number of inline markers
+    resolved. Trusted placeholder tokens are substituted only after the shared
+    safe Markdown renderer has escaped model output, preserving Phase 3
+    grounding and HTML-safety behavior.
+    """
+
+    cleaned = str(answer)
+    if citations:
+        tail = _REFERENCE_TAIL_PATTERN.search(cleaned)
+        if tail:
+            cleaned = cleaned[: tail.start()].rstrip()
+
+    prefix = "CIALINLINECITATIONTOKEN"
+    while prefix in cleaned:
+        prefix += "X"
+    replacements: dict[str, str] = {}
+    pieces: list[str] = []
+    cursor = 0
+    for match in _BRACKETED_CITATION_PATTERN.finditer(cleaned):
+        citation = _marker_citation(match.group(1), citations)
+        if citation is None:
+            continue
+        token = f"{prefix}{len(replacements)}END"
+        pieces.append(cleaned[cursor : match.start()])
+        pieces.append(token)
+        cursor = match.end()
+        replacements[token] = _citation_badge(
+            citation,
+            label=match.group(0),
+        )
+    pieces.append(cleaned[cursor:])
+    rendered = render_safe_markdown("".join(pieces))
+    for token, badge in replacements.items():
+        rendered = rendered.replace(token, badge)
+    return rendered, len(replacements)
+
+
+def _fallback_citation_chips(
+    citations: Sequence[Mapping[str, Any]],
+) -> str:
+    if not citations:
+        return ""
+    chips = "".join(
+        _citation_badge(
+            citation,
+            label=f"[{citation.get('reference_id', '?')}]",
+            css_class="citation-chip",
+        )
+        for citation in citations
+    )
+    return (
+        '<div class="citation-chips" aria-label="Answer citations">'
+        f'<span class="citation-chips-label">Sources:</span>{chips}</div>'
+    )
+
+
 def _citations(citations: Sequence[Mapping[str, Any]]) -> str:
     if not citations:
         return '<p class="muted">No citations were produced.</p>'
     cards = []
     for citation in citations:
+        reference_id = citation.get("reference_id", "?")
         label = (
             f"{citation.get('source_file') or citation.get('source') or 'Unknown'}"
             f" · Page {citation.get('page_number') or 'N/A'}"
             f" · Chunk {citation.get('chunk_id') or 'N/A'}"
         )
-        link = citation.get("pdf_link")
+        link = _safe_citation_href(citation.get("pdf_link"))
         action = (
-            f'<a href="{html.escape(str(link), quote=True)}">Open PDF</a>'
+            f'<a href="{html.escape(link, quote=True)}">Open PDF</a>'
             if link
             else '<span class="muted">No PDF link</span>'
         )
         cards.append(
-            f'<div class="citation-card"><strong>{html.escape(label)}</strong>{action}</div>'
+            '<div class="citation-card">'
+            f'<span class="citation-reference">[{html.escape(str(reference_id))}]</span>'
+            f'<strong title="{html.escape(_citation_title(citation), quote=True)}">'
+            f"{html.escape(label)}</strong>{action}</div>"
         )
     return '<div class="citation-list">' + "".join(cards) + "</div>"
 
@@ -231,11 +447,40 @@ def write_phase4_html(
     for index, row in enumerate(rows, start=1):
         trace = traces[index - 1] if index <= len(traces) else {}
         question = str(row.get("question") or trace.get("question") or "")
+        citation_value = trace.get("citations")
+        citations = (
+            [
+                citation
+                for citation in citation_value
+                if isinstance(citation, Mapping)
+            ]
+            if isinstance(citation_value, Sequence)
+            and not isinstance(citation_value, (str, bytes))
+            else []
+        )
+        answer_html, inline_citation_count = (
+            _render_answer_with_inline_citations(
+                str(row.get("answer") or trace.get("answer") or ""),
+                citations,
+            )
+        )
+        fallback_chips = (
+            _fallback_citation_chips(citations)
+            if inline_citation_count == 0
+            else ""
+        )
+        citation_details = (
+            '<details class="citation-details">'
+            f"<summary>Citation details ({len(citations)})</summary>"
+            f"{_citations(citations)}</details>"
+            if citations
+            else _citations(citations)
+        )
         answer_sections.append(
             f'<article class="answer-card"><p class="eyebrow">Question {index}</p>'
             f"<h3>{html.escape(question)}</h3>"
-            f'<div class="answer-content">{render_safe_markdown(str(row.get("answer") or trace.get("answer") or ""))}</div>'
-            f"<h4>Citations</h4>{_citations(trace.get('citations') or [])}</article>"
+            f'<div class="answer-content">{answer_html}</div>'
+            f"{fallback_chips}{citation_details}</article>"
         )
         reranking_sections.append(
             f"<h3>{index}. {html.escape(question)}</h3>"
@@ -318,7 +563,7 @@ h1{{margin:0 0 8px;font-size:32px}}h2{{margin-top:0}}section,.answer-card{{backg
 .grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px}}svg{{width:100%;height:auto;border:1px solid var(--line);border-radius:10px;background:#fff}}
 .table-wrap{{overflow:auto}}table{{width:100%;border-collapse:collapse}}th,td{{padding:9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}}th{{background:#eef3fb;position:sticky;top:0}}
 .eyebrow{{text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}}.muted{{color:var(--muted)}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:#0f172a;color:#dbeafe;padding:14px;border-radius:9px}}
-.citation-list{{display:grid;gap:8px}}.citation-card{{display:flex;justify-content:space-between;gap:12px;border-left:4px solid var(--accent);padding:10px 12px;background:#f8fafc}}a{{color:#1d4ed8}}details{{border:1px solid var(--line);border-radius:9px;padding:10px;margin:10px 0}}summary{{cursor:pointer;font-weight:650}}
+.inline-citation,.citation-chip{{display:inline-flex;align-items:center;border:1px solid #93b4e8;border-radius:999px;background:#eaf2ff;color:#174ea6;font-size:.78em;font-weight:700;line-height:1.35;padding:1px 6px;text-decoration:none;vertical-align:.08em;white-space:nowrap}}.inline-citation:hover,.citation-chip:hover{{background:#dbeafe;border-color:#2563eb}}.no-citation-link{{color:#475467;border-color:#cbd5e1;background:#f8fafc;cursor:help}}.citation-chips{{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:8px 0 12px}}.citation-chips-label{{color:var(--muted);font-size:12px;font-weight:650}}.citation-list{{display:grid;gap:8px}}.citation-card{{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:12px;border-left:4px solid var(--accent);padding:10px 12px;background:#f8fafc}}.citation-reference{{font-weight:750;color:var(--accent)}}.citation-details{{margin-top:12px}}a{{color:#1d4ed8}}details{{border:1px solid var(--line);border-radius:9px;padding:10px;margin:10px 0}}summary{{cursor:pointer;font-weight:650}}
 .answer-content{{white-space:normal;overflow:visible;max-height:none}}.answer-content ul,.answer-content ol{{padding-left:24px}}code{{background:#eef2ff;padding:2px 5px;border-radius:4px}}@media(max-width:700px){{main{{padding:12px}}.grid{{grid-template-columns:1fr}}}}
 </style></head><body><main>
 <header><p class="eyebrow" style="color:#bfdbfe">CIAL Knowledge OS</p><h1>Phase 4 · Reranking & Evidence Selection</h1><p>Offline execution report: Hybrid Retrieval → RRF → Reranking → Evidence Selection → Context → Answer</p></header>
