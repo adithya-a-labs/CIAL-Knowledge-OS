@@ -154,9 +154,12 @@ Phase 3 improvement or trade-off on the unchanged frozen benchmark.
   cap, lexical redundancy reduction, and evidence-token budget strategies;
 - a default three-chunk evidence floor, eight-chunk ceiling, adaptive ranked
   fallback, and an 800--1500 selected-token target for normal QA;
-- explicit weak/mixed/strong evidence confidence: weak evidence can produce a
-  caution-labeled grounded answer, while zero evidence is reserved for an empty
-  or invalid candidate pool;
+- explicit weak/mixed/strong evidence confidence plus an evidence-sufficiency
+  gate that blocks extractive fallback for weak, all-fallback, or
+  below-minimum-score evidence;
+- deterministic current/live/external-data detection, with an
+  `unsupported_query` result when indexed evidence does not directly support
+  the request;
 - a Phase 4-specific detailed answer style that retains Phase 3 grounding and
   citations while selecting question-relevant section families for findings,
   implications, controls, procedures, comparisons, risks/gaps, caveats, and
@@ -197,6 +200,14 @@ Long terminal runs persist `partial_results.csv`, `partial_results.jsonl`,
 uses the same run directory and question order, skips successful occurrences,
 and retries failed or interrupted occurrences. Standard final artifacts are
 regenerated even when some generation attempts remain failed.
+
+Phase 4 distinguishes four answer outcomes. `answered` means generation
+succeeded or a generator refusal was replaced by a sufficient-evidence
+extractive fallback. `insufficient_evidence` means the indexed evidence cannot
+support an answer or safe fallback. `unsupported_query` means the question
+appears to require current/live/external data absent from the indexed evidence.
+`generation_failed` means the local generator exhausted retries before a
+response artifact could be completed.
 
 Phase 4 evidence reduction is not an answer-length optimization. Detailed
 synthesis is generated from the smaller, higher-precision selected context.
@@ -429,7 +440,8 @@ Phase 4 additionally configures the reranker model/device/batch/local-only
 policy, candidate depth, selection strategies, minimum/maximum evidence count,
 reranker threshold, adaptive fallback, weak-evidence answer policy, source cap,
 redundancy threshold, evidence token budget and target range, evidence strength
-thresholds, run mode, trace mode, and large-run guard.
+thresholds, minimum extractive-fallback score, weak-fallback override,
+unsupported-query detection, run mode, trace mode, and large-run guard.
 Phase 4 generation reliability also configures retry count, retry cooldown, and
 an optional answer-word upper bound. These controls apply only to Phase 4;
 earlier phase defaults and generation behavior remain unchanged.

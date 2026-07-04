@@ -256,6 +256,22 @@ three total generation attempts; `retry_cooldown_seconds=20` controls the pause
 between retryable failures. Exhausted attempts produce a final row with
 `answer_status=generation_failed` and the original error type/message.
 
+Phase 4 keeps answer outcome separate from export success:
+
+- `Answered` is a grounded generated answer or a sufficient-evidence
+  extractive fallback after generator refusal.
+- `Insufficient Evidence` means evidence was absent, weak, irrelevant, or
+  below the configured fallback score gate.
+- `Unsupported Query` means the request appears to require live/current/
+  external data that the indexed documents do not directly support.
+- `generation_failed` means local generation exhausted retries and the
+  question row failed.
+
+CSV and XLSX retain these values in `answer_status`; the standalone HTML
+report renders a distinct status badge. Aggregate metrics include
+`unsupported_query_count`, `insufficient_evidence_count`,
+`extractive_fallback_count`, and `fallback_blocked_count`.
+
 Each attempted question immediately updates:
 
 ```text

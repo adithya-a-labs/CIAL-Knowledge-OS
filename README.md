@@ -195,6 +195,9 @@ config = Phase4Config(
     fallback_to_top_n_if_empty=True,
     fallback_top_n=3,
     weak_evidence_answer_allowed=True,
+    min_fallback_reranker_score=0.35,
+    allow_extractive_fallback_for_weak_evidence=False,
+    unsupported_query_detection_enabled=True,
     answer_detail_level="detailed",
     min_answer_words=250,
     max_answer_words=None,
@@ -308,6 +311,25 @@ smaller evidence-token budget. Thresholding is advisory: if it would starve a
 non-empty candidate pool, Phase 4 retains the configured evidence floor and
 marks fallback chunks as weak/low-confidence. Normal QA targets roughly
 800--1500 selected-evidence tokens rather than maximizing token reduction.
+Selected chunks do not automatically make a question answerable. Extractive
+fallback is limited to generator refusal with strong or mixed evidence whose
+top and average reranker scores pass `min_fallback_reranker_score`; all-weak or
+all-selection-fallback evidence is blocked by default. Questions that appear
+to require live/current/external data, such as weather, share prices, IPL
+results, cafeteria menus, or live network topology, return
+`unsupported_query` unless indexed evidence directly supports the request.
+
+Phase 4 answer statuses have distinct meanings:
+
+- `answered`: a grounded generated answer, or a labeled extractive fallback
+  backed by sufficient evidence.
+- `insufficient_evidence`: indexed evidence is absent, weak, irrelevant, or
+  otherwise below the fallback gate.
+- `unsupported_query`: the request appears to need live/current/external data
+  not directly supported by the indexed documents.
+- `generation_failed`: local generation exhausted its retries and no response
+  artifact could be completed.
+
 Phase 4 bundles use
 `outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp>/`
 with the established Phase 3 artifact names.
