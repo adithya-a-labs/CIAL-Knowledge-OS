@@ -111,7 +111,7 @@ class CorpusArchitectureTests(unittest.TestCase):
             self.assertEqual(paths, [canonical])
             self.assertEqual(caught, [])
 
-    def test_missing_or_empty_canonical_root_falls_back_with_warning(self) -> None:
+    def test_missing_or_empty_canonical_root_does_not_use_legacy_pdfs(self) -> None:
         for create_empty_root in (False, True):
             with self.subTest(create_empty_root=create_empty_root):
                 with tempfile.TemporaryDirectory() as directory:
@@ -122,18 +122,10 @@ class CorpusArchitectureTests(unittest.TestCase):
                     legacy.parent.mkdir(parents=True)
                     legacy.write_bytes(b"%PDF-test")
 
-                    with warnings.catch_warnings(record=True) as caught:
-                        warnings.simplefilter("always")
-                        corpus_root, paths = discover_knowledge_documents(config)
+                    corpus_root, paths = discover_knowledge_documents(config)
 
-                    self.assertEqual(corpus_root, config.legacy_pdf_root)
-                    self.assertEqual(paths, [legacy])
-                    self.assertTrue(
-                        any(
-                            item.category is DeprecationWarning
-                            for item in caught
-                        )
-                    )
+                    self.assertEqual(corpus_root, config.knowledge_root)
+                    self.assertEqual(paths, [])
 
     def test_recognized_but_unimplemented_types_are_skipped_safely(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
