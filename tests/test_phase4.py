@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import io
 import tempfile
@@ -61,6 +62,22 @@ class _RefusingLLM:
     def invoke(self, prompt: str) -> str:
         self.prompt = prompt
         return INSUFFICIENT_EVIDENCE_RESPONSE
+
+
+class _FlakyLLM:
+    def __init__(self, failures: int) -> None:
+        self.failures = failures
+        self.calls = 0
+
+    def invoke(self, prompt: str) -> str:
+        self.prompt = prompt
+        self.calls += 1
+        if self.calls <= self.failures:
+            raise RuntimeError(
+                "model runner has unexpectedly stopped: std::bad_alloc "
+                "(status code: 500)"
+            )
+        return "**Recovered grounded answer** [1]."
 
 
 class _FakeCrossEncoder:
@@ -547,6 +564,14 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
         self.assertIn("Aim for at least 250 words", pipeline.llm.prompt)
         self.assertNotIn("Answer concisely.", pipeline.llm.prompt)
 
+    def test_max_answer_words_is_added_to_phase4_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            pipeline = self._pipeline(Path(directory))
+            pipeline.config.max_answer_words = 450
+            pipeline.answer("What control is required?")
+
+        self.assertIn("Do not exceed 450 words", pipeline.llm.prompt)
+
     def test_phase3_prompt_style_remains_unchanged(self) -> None:
         prompt = build_grounded_prompt("Question?", "[1] Evidence.")
 
@@ -614,6 +639,57 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
             "All selected evidence is below the reranker threshold",
             pipeline.llm.prompt,
         )
+
+    def test_generation_retry_succeeds_without_repeating_retrieval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            pipeline = self._pipeline(Path(directory))
+            pipeline.config.generation_retries = 2
+            pipeline.config.retry_cooldown_seconds = 0
+            pipeline.llm = _FlakyLLM(failures=1)
+            response = pipeline.answer("What control is required?")
+
+        self.assertEqual(response["answer_status"], "answered")
+        self.assertEqual(pipeline.llm.calls, 2)
+        self.assertEqual(pipeline.metrics["generation_attempts"], 2.0)
+        self.assertEqual(pipeline.metrics["generation_retry_count"], 1.0)
+        self.assertIn("Recovered grounded answer", response["answer"])
+
+    def test_exhausted_generation_is_exported_as_failed_row(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pipeline = self._pipeline(root)
+            pipeline.config.generation_retries = 1
+            pipeline.config.retry_cooldown_seconds = 0
+            pipeline.llm = _FlakyLLM(failures=99)
+            result = Phase4Runner(
+                pipeline=_ReadyPipeline(pipeline),
+                config=pipeline.config,
+            ).run(
+                questions=["What control is required?"],
+                run_mode="smoke",
+            )
+
+            with result.paths.results_csv.open(
+                encoding="utf-8-sig",
+                newline="",
+            ) as handle:
+                row = next(csv.DictReader(handle))
+            checkpoint = json.loads(
+                (result.paths.root / "checkpoint.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            report_exists = result.paths.report_html.is_file()
+            metrics_exists = result.paths.metrics_json.is_file()
+
+        self.assertEqual(row["answer_status"], "generation_failed")
+        self.assertEqual(row["status"], "failed")
+        self.assertIn("RuntimeError", row["error"])
+        self.assertIn("std::bad_alloc", row["error"])
+        self.assertEqual(len(checkpoint["failed_questions"]), 1)
+        self.assertEqual(checkpoint["status"], "completed_with_failures")
+        self.assertTrue(report_exists)
+        self.assertTrue(metrics_exists)
 
     def test_generator_safe_failure_with_usable_evidence_becomes_grounded_fallback(
         self,
@@ -763,8 +839,11 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
         self.assertTrue(phase4.weak_evidence_answer_allowed)
         self.assertEqual(phase4.answer_detail_level, "detailed")
         self.assertEqual(phase4.min_answer_words, 250)
+        self.assertIsNone(phase4.max_answer_words)
         self.assertTrue(phase4.prefer_structured_answers)
         self.assertTrue(phase4.include_decision_notes)
+        self.assertEqual(phase4.generation_retries, 2)
+        self.assertEqual(phase4.retry_cooldown_seconds, 20.0)
 
 
 if __name__ == "__main__":

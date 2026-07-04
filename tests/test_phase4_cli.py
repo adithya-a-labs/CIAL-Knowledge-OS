@@ -27,8 +27,10 @@ class _FastPhase4Pipeline:
         self.config = config
         self.metrics: dict[str, float] = {}
         self.is_ready_for_answering = True
+        self.calls = 0
 
     def answer(self, question: str) -> dict[str, Any]:
+        self.calls += 1
         token_usage = {
             "budget": self.config.max_context_tokens,
             "used": 0,
@@ -115,6 +117,19 @@ class _FastPhase4Pipeline:
         }
 
 
+class _InterruptingPhase4Pipeline(_FastPhase4Pipeline):
+    def __init__(self, config: Any, *, interrupt_at: int) -> None:
+        super().__init__(config)
+        self.interrupt_at = interrupt_at
+        self.attempts = 0
+
+    def answer(self, question: str) -> dict[str, Any]:
+        self.attempts += 1
+        if self.attempts == self.interrupt_at:
+            raise KeyboardInterrupt("simulated process interruption")
+        return super().answer(question)
+
+
 class Phase4TerminalQuestionCountTests(unittest.TestCase):
     def test_cli_config_is_unbounded_without_large_run_flag(self) -> None:
         args = phase4_cli.build_parser().parse_args([])
@@ -122,6 +137,23 @@ class Phase4TerminalQuestionCountTests(unittest.TestCase):
 
         self.assertFalse(args.large_run)
         self.assertTrue(config.allow_large_run)
+
+    def test_reliability_cli_flags_update_config(self) -> None:
+        args = phase4_cli.build_parser().parse_args(
+            [
+                "--generation-retries",
+                "1",
+                "--retry-cooldown-seconds",
+                "0",
+                "--max-answer-words",
+                "450",
+            ]
+        )
+        config = phase4_cli.build_config(args)
+
+        self.assertEqual(config.generation_retries, 1)
+        self.assertEqual(config.retry_cooldown_seconds, 0.0)
+        self.assertEqual(config.max_answer_words, 450)
 
     def test_max_questions_is_the_only_manual_cli_slice(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -206,6 +238,92 @@ class Phase4TerminalQuestionCountTests(unittest.TestCase):
                 self.assertEqual(csv_count, question_count)
                 self.assertEqual(summary["question_count"], question_count)
                 self.assertEqual(metrics["question_count"], question_count)
+
+    def test_checkpoint_and_resume_skip_completed_duplicate_occurrences(
+        self,
+    ) -> None:
+        questions = [
+            "Duplicate question?",
+            "Duplicate question?",
+            "Third question?",
+            "Fourth question?",
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            args = phase4_cli.build_parser().parse_args([])
+            config = phase4_cli.build_config(args)
+            config.output_root = (
+                Path(directory) / "outputs" / "batch_answers"
+            ).resolve()
+            interrupted_pipeline = _InterruptingPhase4Pipeline(
+                config,
+                interrupt_at=2,
+            )
+            interrupted_runner = Phase4Runner(
+                pipeline=interrupted_pipeline,
+                config=config,
+            )
+            with self.assertRaises(KeyboardInterrupt):
+                interrupted_runner.run(
+                    questions=questions,
+                    run_mode="manual_qa",
+                )
+            run_path = interrupted_runner.run_manager.require_paths().root
+            checkpoint_path = run_path / "checkpoint.json"
+            checkpoint = json.loads(
+                checkpoint_path.read_text(encoding="utf-8")
+            )
+
+            self.assertEqual(len(checkpoint["completed_questions"]), 1)
+            self.assertEqual(len(checkpoint["failed_questions"]), 1)
+            self.assertEqual(
+                checkpoint["question_manifest"][0]["question_hash"],
+                checkpoint["question_manifest"][1]["question_hash"],
+            )
+            self.assertNotEqual(
+                checkpoint["question_manifest"][0]["key"],
+                checkpoint["question_manifest"][1]["key"],
+            )
+            with (run_path / "partial_results.jsonl").open(
+                encoding="utf-8"
+            ) as handle:
+                self.assertEqual(sum(1 for _ in handle), 2)
+            with (run_path / "partial_retrieval.jsonl").open(
+                encoding="utf-8"
+            ) as handle:
+                self.assertEqual(sum(1 for _ in handle), 2)
+            with (run_path / "partial_results.csv").open(
+                encoding="utf-8-sig",
+                newline="",
+            ) as handle:
+                self.assertEqual(sum(1 for _ in csv.DictReader(handle)), 2)
+
+            resumed_pipeline = _FastPhase4Pipeline(config)
+            resumed_result = Phase4Runner(
+                pipeline=resumed_pipeline,
+                config=config,
+            ).run(
+                questions=questions,
+                run_mode="manual_qa",
+                resume_run=run_path,
+            )
+            final_checkpoint = json.loads(
+                checkpoint_path.read_text(encoding="utf-8")
+            )
+            with resumed_result.paths.results_csv.open(
+                encoding="utf-8-sig",
+                newline="",
+            ) as handle:
+                rows = list(csv.DictReader(handle))
+
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(resumed_pipeline.calls, 3)
+        self.assertEqual(
+            [row["question"] for row in rows[:2]],
+            ["Duplicate question?", "Duplicate question?"],
+        )
+        self.assertEqual(len(final_checkpoint["completed_questions"]), 4)
+        self.assertEqual(final_checkpoint["failed_questions"], [])
+        self.assertEqual(final_checkpoint["status"], "completed")
 
 
 if __name__ == "__main__":
