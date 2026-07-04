@@ -338,35 +338,6 @@ class Phase4StartupExperienceTests(unittest.TestCase):
         )
         return path
 
-    def test_verbose_dry_run_reports_resolved_settings_without_execution(
-        self,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            questions_path = self._question_file(directory)
-            output = io.StringIO()
-            with mock.patch.object(phase4_cli, "execute") as execute:
-                with redirect_stdout(output):
-                    status = phase4_cli.main(
-                        [
-                            "--questions-file",
-                            str(questions_path),
-                            "--output-dir",
-                            str(Path(directory) / "results"),
-                            "--verbose",
-                            "--dry-run",
-                        ]
-                    )
-
-        self.assertEqual(status, 0)
-        execute.assert_not_called()
-        rendered = output.getvalue()
-        self.assertIn("Resolved configuration:", rendered)
-        self.assertIn("Execution settings:", rendered)
-        self.assertIn("Question preview:", rendered)
-        self.assertIn('"checkpoint"', rendered)
-        self.assertIn('"reranker"', rendered)
-        self.assertIn('"llm"', rendered)
-
     def test_dynamic_question_source_reporting_uses_actual_path(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             questions_path = self._question_file(directory, count=4)
@@ -381,30 +352,89 @@ class Phase4StartupExperienceTests(unittest.TestCase):
 
         self.assertEqual(
             output.getvalue(),
-            f"Loaded 4 questions from:\n{questions_path.resolve()}\n",
+            f"Loaded 4 questions from {questions_path.resolve()}\n",
         )
 
-    def test_manual_mode_has_no_implicit_question_filename(self) -> None:
-        args = phase4_cli.build_parser().parse_args([])
-        config = phase4_cli.build_config(args)
+    def test_no_argument_run_uses_user_configuration_question_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            questions_path = self._question_file(directory, count=2)
+            with mock.patch.object(
+                phase4_cli,
+                "QUESTIONS_FILE",
+                questions_path,
+            ):
+                args = phase4_cli.build_parser().parse_args([])
+                config = phase4_cli.build_config(args)
+                questions, benchmark, source = phase4_cli.select_inputs(
+                    args,
+                    config,
+                )
 
-        with self.assertRaisesRegex(ValueError, "requires --questions-file"):
-            phase4_cli.select_inputs(args, config)
-        script = SCRIPT_PATH.read_text(encoding="utf-8")
-        self.assertNotIn("DEFAULT_QUESTIONS_FILE", script)
+        self.assertEqual(questions, ["Question 0?", "Question 1?"])
+        self.assertIsNone(benchmark)
+        self.assertEqual(source, str(questions_path.resolve()))
+        self.assertEqual(config.phase4_run_mode, phase4_cli.RUN_MODE)
+        self.assertEqual(
+            config.generation_retries,
+            phase4_cli.GENERATION_RETRIES,
+        )
+        self.assertEqual(
+            config.retry_cooldown_seconds,
+            phase4_cli.RETRY_COOLDOWN_SECONDS,
+        )
+        self.assertEqual(
+            config.max_answer_words,
+            phase4_cli.MAX_ANSWER_WORDS,
+        )
+        self.assertEqual(config.reranker_device, phase4_cli.RERANKER_DEVICE)
+        self.assertEqual(
+            config.reranker_batch_size,
+            phase4_cli.RERANKER_BATCH_SIZE,
+        )
+        self.assertEqual(
+            config.reranker_local_files_only,
+            phase4_cli.LOCAL_FILES_ONLY,
+        )
 
-    def test_startup_and_execution_steps_are_timestamped(self) -> None:
-        class FakeReranker:
-            load_source = "cache"
+    def test_cli_arguments_override_user_configuration_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            questions_path = self._question_file(directory)
+            args = phase4_cli.build_parser().parse_args(
+                [
+                    "--questions-file",
+                    str(questions_path),
+                    "--mode",
+                    "smoke",
+                    "--generation-retries",
+                    "5",
+                    "--retry-cooldown-seconds",
+                    "1.5",
+                    "--max-answer-words",
+                    "300",
+                    "--reranker-device",
+                    "cpu",
+                    "--reranker-batch-size",
+                    "8",
+                    "--local-files-only",
+                ]
+            )
+            config = phase4_cli.build_config(args)
+            _, _, source = phase4_cli.select_inputs(args, config)
 
-            def load(self) -> object:
-                return object()
+        self.assertEqual(source, str(questions_path.resolve()))
+        self.assertEqual(config.phase4_run_mode, "smoke")
+        self.assertEqual(config.generation_retries, 5)
+        self.assertEqual(config.retry_cooldown_seconds, 1.5)
+        self.assertEqual(config.max_answer_words, 300)
+        self.assertEqual(config.reranker_device, "cpu")
+        self.assertEqual(config.reranker_batch_size, 8)
+        self.assertTrue(config.reranker_local_files_only)
 
+    def test_custom_user_configuration_runs_the_simple_main_flow(self) -> None:
         class FakePipeline:
             def __init__(self, config: Any) -> None:
                 self.config = config
-                self.reranker = FakeReranker()
-                self.llm = None
+                self.closed = False
 
             def load(self) -> list[object]:
                 return [object()]
@@ -419,134 +449,97 @@ class Phase4StartupExperienceTests(unittest.TestCase):
                 return object()
 
             def close(self) -> None:
-                pass
+                self.closed = True
 
         class FakeRunner:
+            last_run: dict[str, Any] = {}
+
             def __init__(self, **_: Any) -> None:
                 pass
 
-            def run(self, **_: Any) -> Any:
-                return type("Result", (), {"summary": {"question_count": 1}})()
-
-        args = phase4_cli.build_parser().parse_args(
-            ["--questions-file", "input.txt"]
-        )
-        config = phase4_cli.build_config(args)
-        output = io.StringIO()
-        with (
-            mock.patch(
-                "cial_knowledge_os.phase4_pipeline.Phase4RAGPipeline",
-                FakePipeline,
-            ),
-            mock.patch(
-                "cial_knowledge_os.phase4_runner.Phase4Runner",
-                FakeRunner,
-            ),
-            mock.patch(
-                "cial_knowledge_os.llm.create_local_llm",
-                return_value=object(),
-            ),
-            redirect_stdout(output),
-        ):
-            phase4_cli.execute(
-                args,
-                config=config,
-                questions=["Question?"],
-                source_label=str(Path("input.txt").resolve()),
-                reporter=phase4_cli.StartupReporter(),
-            )
-
-        rendered = output.getvalue()
-        for message in (
-            "Initializing pipeline",
-            "Loading documents",
-            "Building/loading indexes",
-            "Loading reranker",
-            "Checking LLM availability",
-            "Starting execution",
-        ):
-            self.assertRegex(rendered, rf"\[\s*\d+\.\d+s\] {message}")
-        self.assertIn(f"Configured LLM:\n{config.ollama_model_name}", rendered)
-        self.assertIn(
-            f"Configured reranker:\n{config.reranker_model_name}",
-            rendered,
-        )
-
-    def test_reporter_and_cli_prints_request_flush(self) -> None:
-        reporter = phase4_cli.StartupReporter(verbose=True)
-        with mock.patch("builtins.print") as print_mock:
-            reporter.step("step")
-            reporter.detail("detail")
-            phase4_cli._print("plain")
-
-        self.assertEqual(print_mock.call_count, 3)
-        for call in print_mock.call_args_list:
-            self.assertTrue(call.kwargs["flush"])
-
-    def test_health_check_reports_pass_and_does_not_run_qa(self) -> None:
-        class AvailableReranker:
-            load_source = "local path"
-
-            def __init__(self, *_: Any, **__: Any) -> None:
-                pass
-
-            def load(self) -> object:
-                return object()
+            def run(self, **kwargs: Any) -> Any:
+                FakeRunner.last_run = kwargs
+                root = Path("fake-run")
+                return type(
+                    "Result",
+                    (),
+                    {"paths": type("Paths", (), {"root": root})()},
+                )()
 
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "src").mkdir()
-            (root / "data" / "sample").mkdir(parents=True)
-            (root / "data" / "sample" / "document.txt").write_text(
-                "content",
-                encoding="utf-8",
-            )
-            (root / "data" / "qdrant").mkdir(parents=True)
-            questions_path = self._question_file(directory)
-            args = phase4_cli.build_parser().parse_args(
-                [
-                    "--project-root",
-                    str(root),
-                    "--questions-file",
-                    str(questions_path),
-                    "--health-check",
-                ]
-            )
-            config = phase4_cli.build_config(args)
-            questions, _, source = phase4_cli.select_inputs(args, config)
+            questions_path = self._question_file(directory, count=2)
+            resume_path = Path(directory) / "existing-run"
             output = io.StringIO()
             with (
-                mock.patch(
-                    "cial_knowledge_os.reranker.CrossEncoderReranker",
-                    AvailableReranker,
+                mock.patch.object(phase4_cli, "QUESTIONS_FILE", questions_path),
+                mock.patch.object(
+                    phase4_cli,
+                    "RESUME_RUN_FOLDER",
+                    resume_path,
                 ),
                 mock.patch(
-                    "cial_knowledge_os.llm.create_local_llm",
-                    return_value=object(),
+                    "cial_knowledge_os.phase4_pipeline.Phase4RAGPipeline",
+                    FakePipeline,
                 ),
+                mock.patch(
+                    "cial_knowledge_os.phase4_runner.Phase4Runner",
+                    FakeRunner,
+                ),
+                mock.patch.object(phase4_cli, "print_artifact_paths"),
                 redirect_stdout(output),
             ):
-                healthy = phase4_cli.run_health_check(
-                    args,
-                    config,
-                    questions=questions,
-                    source=source,
-                    input_error=None,
-                )
+                status = phase4_cli.main([])
 
-        self.assertTrue(healthy)
+        self.assertEqual(status, 0)
+        self.assertEqual(
+            FakeRunner.last_run["questions"],
+            ["Question 0?", "Question 1?"],
+        )
+        self.assertEqual(
+            FakeRunner.last_run["resume_run"],
+            resume_path.resolve(),
+        )
         rendered = output.getvalue()
-        for check in (
-            "Project structure",
-            "Question source",
-            "Document directories",
-            "Vector database",
-            "Reranker",
-            "LLM",
-            "Output directory",
+        for message in (
+            "Starting Phase 4 batch run",
+            f"Loaded 2 questions from {questions_path.resolve()}",
+            "Initializing pipeline",
+            "Indexing complete",
+            "Starting QA",
+            f"Exported run: {Path('fake-run')}",
         ):
-            self.assertIn(f"PASS {check}", rendered)
-        self.assertIn("QA execution was not started", rendered)
+            self.assertIn(message, rendered)
+
+    def test_missing_or_empty_configured_file_has_actionable_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / "missing.txt"
+            with self.assertRaisesRegex(
+                FileNotFoundError,
+                r"Expected path: .*missing\.txt",
+            ) as missing_error:
+                phase4_cli.load_questions(missing)
+            self.assertIn(
+                "one question per line",
+                str(missing_error.exception),
+            )
+            self.assertIn(
+                "'question' column",
+                str(missing_error.exception),
+            )
+
+            empty = Path(directory) / "empty.txt"
+            empty.write_text(
+                "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "Questions file is empty"):
+                phase4_cli.load_questions(empty)
+
+    def test_script_prints_always_flush(self) -> None:
+        with mock.patch("builtins.print") as print_mock:
+            phase4_cli._print("progress")
+
+        print_mock.assert_called_once_with("progress", flush=True)
 
 
 if __name__ == "__main__":
