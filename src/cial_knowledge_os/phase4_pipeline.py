@@ -8,10 +8,11 @@ from typing import Any
 
 from sentence_transformers import SentenceTransformer
 
+from .citations import build_citations, render_answer_with_citations
 from .config import Phase4Config
-from .context_builder import compress_context
+from .context_builder import INSUFFICIENT_EVIDENCE_RESPONSE, compress_context
 from .evidence_quality import EvidenceQualityScorer
-from .evidence_selector import EvidenceSelector
+from .evidence_selector import EvidenceSelectionResult, EvidenceSelector
 from .llm import LocalLLM
 from .phase3_pipeline import Phase3RAGPipeline
 from .phase4_trace import build_phase4_trace
@@ -68,6 +69,7 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
         self.last_reranked_candidates: list[dict[str, Any]] = []
         self.last_selected_chunks: list[dict[str, Any]] = []
         self.last_discarded_chunks: list[dict[str, Any]] = []
+        self.last_selection_result: EvidenceSelectionResult | None = None
         self._phase4_component_key: tuple[Any, ...] | None = None
         super().__init__(
             config=phase4_config,
@@ -83,9 +85,14 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
         key = (
             id(self.token_manager),
             self.config.evidence_selection_strategies,
-            self.config.evidence_max_chunks,
-            self.config.evidence_score_threshold,
+            self.config.min_selected_evidence,
+            self.config.max_selected_evidence,
+            self.config.reranker_score_threshold,
+            self.config.fallback_to_top_n_if_empty,
+            self.config.fallback_top_n,
             self.config.evidence_token_budget,
+            self.config.selected_evidence_target_min_tokens,
+            self.config.selected_evidence_target_max_tokens,
             self.config.evidence_max_chunks_per_source,
             self.config.evidence_redundancy_threshold,
             self.config.evidence_strong_threshold,
@@ -98,11 +105,22 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
             or EvidenceSelector(
                 self.token_manager,
                 strategies=self.config.evidence_selection_strategies,
-                max_chunks=self.config.evidence_max_chunks,
-                score_threshold=self.config.evidence_score_threshold,
+                min_selected_evidence=self.config.min_selected_evidence,
+                max_selected_evidence=self.config.max_selected_evidence,
+                score_threshold=self.config.reranker_score_threshold,
                 token_budget=self.config.evidence_token_budget,
                 max_chunks_per_source=self.config.evidence_max_chunks_per_source,
                 redundancy_threshold=self.config.evidence_redundancy_threshold,
+                fallback_to_top_n_if_empty=(
+                    self.config.fallback_to_top_n_if_empty
+                ),
+                fallback_top_n=self.config.fallback_top_n,
+                target_min_tokens=(
+                    self.config.selected_evidence_target_min_tokens
+                ),
+                target_max_tokens=(
+                    self.config.selected_evidence_target_max_tokens
+                ),
             )
         )
         self.evidence_quality_scorer = (
@@ -177,6 +195,7 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
         selection = self.evidence_selector.select(
             self.last_reranked_candidates
         )
+        self.last_selection_result = selection
         self.metrics["evidence_selection_latency"] = selection.latency_seconds
         self.last_selected_chunks = [dict(item) for item in selection.selected]
         self.last_discarded_chunks = [dict(item) for item in selection.discarded]
@@ -198,6 +217,44 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
         """
 
         response = super().answer(question)
+        selection_result = self.last_selection_result
+        weak_evidence = bool(
+            selection_result and selection_result.weak_evidence
+        )
+        mixed_confidence = bool(
+            self.last_selected_chunks
+            and any(item.get("weak_evidence") for item in self.last_selected_chunks)
+            and not weak_evidence
+        )
+        evidence_confidence = (
+            "none"
+            if not self.last_selected_chunks
+            else "weak"
+            if weak_evidence
+            else "mixed"
+            if mixed_confidence
+            else "strong"
+        )
+        if (
+            weak_evidence
+            and self.config.weak_evidence_answer_allowed
+            and response.get("answer_status") == "answered"
+        ):
+            response["answer"] = (
+                "**Caution — low-confidence evidence:** The reranker found "
+                "usable context, but all selected chunks were below the "
+                "configured score threshold. Verify the cited sources before "
+                "acting.\n\n"
+                + str(response.get("answer") or "")
+            )
+        elif (
+            weak_evidence
+            and not self.config.weak_evidence_answer_allowed
+        ):
+            response["raw_answer"] = INSUFFICIENT_EVIDENCE_RESPONSE
+            response["answer"] = INSUFFICIENT_EVIDENCE_RESPONSE
+            response["answer_status"] = "insufficient_evidence"
+            response["citations"] = []
         phase3_trace_value = response.get("question_trace")
         phase3_trace = (
             dict(phase3_trace_value)
@@ -209,6 +266,40 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
             if isinstance(response.get("context_stages"), Mapping)
             else []
         )
+        if (
+            final_chunks
+            and (
+                not weak_evidence
+                or self.config.weak_evidence_answer_allowed
+            )
+            and response.get("answer_status") != "answered"
+        ):
+            # A reranker score is a confidence signal, not proof that the
+            # retrieved text is unusable. Preserve answerability with a clearly
+            # labeled extractive fallback instead of converting non-empty
+            # evidence into "no evidence."
+            cautious_citations = build_citations(
+                final_chunks,
+                link_resolver=self.citation_link_builder,
+            )
+            excerpts = []
+            for index, item in enumerate(final_chunks[:3], start=1):
+                text = " ".join(str(item.get("text") or "").split())
+                excerpts.append(f"- [{index}] {text[:500]}")
+            cautious_raw_answer = (
+                "**Caution — evidence review required:** The selected passages "
+                "are usable, but the local generator did not produce a "
+                "confident synthesis. Review these grounded excerpts before "
+                "acting.\n\n"
+                + "\n".join(excerpts)
+            )
+            response["raw_answer"] = cautious_raw_answer
+            response["answer"] = render_answer_with_citations(
+                cautious_raw_answer,
+                cautious_citations,
+            )
+            response["answer_status"] = "answered"
+            response["citations"] = cautious_citations
         quality = self.evidence_quality_scorer.score(self.last_selected_chunks)
         # Compare serialized context blocks rather than raw text alone. Phase 3
         # context includes citation headers, and omitting that overhead would
@@ -253,6 +344,21 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
             "discarded_chunk_count": len(self.last_discarded_chunks),
             "chunks_discarded": len(self.last_discarded_chunks),
             "discard_reason_distribution": dict(sorted(discard_reasons.items())),
+            "usable_candidate_count": (
+                selection_result.usable_candidate_count
+                if selection_result is not None
+                else len(self.last_candidate_pool)
+            ),
+            "threshold_pass_count": (
+                selection_result.threshold_pass_count
+                if selection_result is not None
+                else 0
+            ),
+            "fallback_used": bool(
+                selection_result and selection_result.fallback_used
+            ),
+            "weak_evidence": weak_evidence,
+            "evidence_confidence": evidence_confidence,
         }
         latency = {
             "retrieval_seconds": float(
@@ -291,7 +397,8 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
             token_usage=token_efficiency,
             latency=latency,
             citations=response.get("citations") or [],
-            answer=str(response.get("raw_answer") or response.get("answer") or ""),
+            answer=str(response.get("answer") or response.get("raw_answer") or ""),
+            answer_status=str(response.get("answer_status") or ""),
             trace_mode=self.config.phase4_trace_mode,
             medium_score_threshold=self.config.evidence_medium_threshold,
         )
@@ -328,6 +435,8 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
                 ],
                 "evidence_quality": evidence_quality,
                 "token_efficiency": token_efficiency,
+                "evidence_confidence": evidence_confidence,
+                "weak_evidence": weak_evidence,
                 "reranker_load_source": reranker_load_source,
                 "phase3_question_trace": phase3_trace,
                 "question_trace": trace_payload,

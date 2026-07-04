@@ -65,6 +65,9 @@ def phase4_diagnostics(
     latency: Mapping[str, Any],
     unique_source_count: int,
     selected_chunk_count: int,
+    candidate_chunk_count: int = 0,
+    selected_evidence_tokens: int = 0,
+    answer_status: str = "",
 ) -> list[dict[str, str]]:
     """Build deterministic operational recommendations from Phase 4 metrics.
 
@@ -75,7 +78,28 @@ def phase4_diagnostics(
     """
 
     diagnostics: list[dict[str, str]] = []
-    if token_reduction_percent >= 40:
+    normalized_status = answer_status.casefold().replace(" ", "_")
+    if candidate_chunk_count > 0 and selected_chunk_count == 0:
+        diagnostics.append(
+            {
+                "signal": "evidence_starvation",
+                "recommendation": (
+                    "Candidates existed but selection retained zero chunks. "
+                    "Inspect invalid text, token limits, and fallback settings."
+                ),
+            }
+        )
+    if token_reduction_percent > 90:
+        diagnostics.append(
+            {
+                "signal": "excessive_token_reduction",
+                "recommendation": (
+                    "Token reduction exceeds 90%. Verify that evidence "
+                    "selection is not harming answerability."
+                ),
+            }
+        )
+    elif token_reduction_percent >= 40:
         diagnostics.append(
             {
                 "signal": "token_reduction",
@@ -92,6 +116,30 @@ def phase4_diagnostics(
                 ),
             }
         )
+    if (
+        normalized_status == "answered"
+        and 0 < selected_evidence_tokens < 500
+    ):
+        diagnostics.append(
+            {
+                "signal": "low_selected_evidence_tokens",
+                "recommendation": (
+                    "An answered question used fewer than 500 selected evidence "
+                    "tokens. Inspect whether context is too narrow."
+                ),
+            }
+        )
+    if candidate_chunk_count > 0 and average_reranker_score == 0:
+        diagnostics.append(
+            {
+                "signal": "zero_average_reranker_score",
+                "recommendation": (
+                    "Candidates existed but the selected-evidence average "
+                    "reranker score is zero. Check score propagation and "
+                    "fallback selection."
+                ),
+            }
+        )
     if selected_chunk_count and average_reranker_score < medium_score_threshold:
         diagnostics.append(
             {
@@ -105,7 +153,7 @@ def phase4_diagnostics(
     reasons = Counter(
         str(item.get("discard_reason") or "unspecified") for item in discarded
     )
-    if reasons.get("redundant", 0) >= 2:
+    if reasons.get("redundancy", 0) >= 2:
         diagnostics.append(
             {
                 "signal": "redundancy",
@@ -211,6 +259,7 @@ def build_phase4_trace(
     latency: Mapping[str, Any],
     citations: Sequence[Mapping[str, Any]],
     answer: str,
+    answer_status: str,
     trace_mode: str,
     medium_score_threshold: float,
 ) -> Phase4Trace:
@@ -244,6 +293,11 @@ def build_phase4_trace(
             quality_summary.get("unique_source_count") or 0
         ),
         selected_chunk_count=len(selected_chunks),
+        candidate_chunk_count=len(candidate_pool),
+        selected_evidence_tokens=int(
+            token_usage.get("selected_evidence_tokens") or 0
+        ),
+        answer_status=answer_status,
     )
     payload = {
         "schema_version": "phase4-trace-v1",
@@ -296,6 +350,7 @@ def build_phase4_trace(
         "latency": latency,
         "citations": list(citations),
         "answer": answer,
+        "answer_status": answer_status,
         "decision_summary": diagnostics,
         "phase3_trace": phase3_trace,
         "artifacts": {},

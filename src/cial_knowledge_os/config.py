@@ -286,9 +286,19 @@ class Phase4Config(Phase3Config):
         "redundancy_reduction",
         "token_budget",
     )
-    evidence_max_chunks: int = 5
-    evidence_score_threshold: float = 0.20
+    # Legacy names remain valid; the Phase 4 selector resolves them into the
+    # clearer min/max and reranker-specific fields below.
+    evidence_max_chunks: int = 8
+    evidence_score_threshold: float = -4.0
+    min_selected_evidence: int = 3
+    max_selected_evidence: int | None = None
+    reranker_score_threshold: float | None = None
+    fallback_to_top_n_if_empty: bool = True
+    fallback_top_n: int = 3
+    weak_evidence_answer_allowed: bool = True
     evidence_token_budget: int = 2_400
+    selected_evidence_target_min_tokens: int = 800
+    selected_evidence_target_max_tokens: int = 1_500
     evidence_max_chunks_per_source: int = 2
     evidence_redundancy_threshold: float = 0.85
     evidence_strong_threshold: float = 0.65
@@ -316,10 +326,56 @@ class Phase4Config(Phase3Config):
             raise ValueError("reranker_batch_size must be greater than zero.")
         if self.reranker_candidate_top_k <= 0:
             raise ValueError("reranker_candidate_top_k must be greater than zero.")
-        if self.evidence_max_chunks <= 0:
-            raise ValueError("evidence_max_chunks must be greater than zero.")
+        if self.max_selected_evidence is None:
+            self.max_selected_evidence = self.evidence_max_chunks
+        else:
+            self.evidence_max_chunks = self.max_selected_evidence
+        if self.reranker_score_threshold is None:
+            self.reranker_score_threshold = self.evidence_score_threshold
+        else:
+            self.evidence_score_threshold = self.reranker_score_threshold
+        if self.max_selected_evidence <= 0:
+            raise ValueError("max_selected_evidence must be greater than zero.")
+        if self.min_selected_evidence <= 0:
+            raise ValueError("min_selected_evidence must be greater than zero.")
+        if self.min_selected_evidence > self.max_selected_evidence:
+            self.min_selected_evidence = self.max_selected_evidence
+        if self.fallback_top_n <= 0:
+            raise ValueError("fallback_top_n must be greater than zero.")
+        if self.fallback_top_n > self.max_selected_evidence:
+            self.fallback_top_n = self.max_selected_evidence
         if self.evidence_token_budget <= 0:
             raise ValueError("evidence_token_budget must be greater than zero.")
+        if self.selected_evidence_target_min_tokens <= 0:
+            raise ValueError(
+                "selected_evidence_target_min_tokens must be greater than zero."
+            )
+        if self.selected_evidence_target_max_tokens <= 0:
+            raise ValueError(
+                "selected_evidence_target_max_tokens must be greater than zero."
+            )
+        if (
+            self.selected_evidence_target_min_tokens
+            > self.selected_evidence_target_max_tokens
+        ):
+            raise ValueError(
+                "selected_evidence_target_min_tokens must not exceed "
+                "selected_evidence_target_max_tokens."
+            )
+        if (
+            self.selected_evidence_target_max_tokens
+            > self.evidence_token_budget
+        ):
+            self.selected_evidence_target_max_tokens = (
+                self.evidence_token_budget
+            )
+        if (
+            self.selected_evidence_target_min_tokens
+            > self.selected_evidence_target_max_tokens
+        ):
+            self.selected_evidence_target_min_tokens = (
+                self.selected_evidence_target_max_tokens
+            )
         if self.max_context_tokens is not None:
             if self.evidence_token_budget > self.max_context_tokens:
                 raise ValueError(
