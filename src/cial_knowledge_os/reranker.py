@@ -8,6 +8,21 @@ from time import perf_counter
 from typing import Any, Protocol, runtime_checkable
 
 
+def _print_status(message: str, *, ascii_fallback: str | None = None) -> None:
+    """Print a model-loading status without turning display errors into failures.
+
+    ``message`` is the preferred notebook/UTF-8 output and ``ascii_fallback`` is
+    used only when the active Windows console cannot encode it. This helper has
+    no effect on model loading or reranking outputs; it prevents an optional
+    status glyph from making an otherwise successful offline cache load fail.
+    """
+
+    try:
+        print(message)
+    except UnicodeEncodeError:
+        print(ascii_fallback or message.encode("ascii", errors="replace").decode())
+
+
 def _chunk_id(candidate: Mapping[str, Any], position: int) -> str:
     metadata = candidate.get("metadata")
     metadata = metadata if isinstance(metadata, Mapping) else {}
@@ -126,9 +141,13 @@ class CrossEncoderReranker:
                 **model_kwargs,
             )
             self.load_source = "cache"
-            print(
+            _print_status(
                 f'✓ Reranker model "{self.model_name}" loaded from local '
-                "Hugging Face cache."
+                "Hugging Face cache.",
+                ascii_fallback=(
+                    f'[OK] Reranker model "{self.model_name}" loaded from local '
+                    "Hugging Face cache."
+                ),
             )
             return self._model
         except Exception as cache_exc:
@@ -170,7 +189,10 @@ class CrossEncoderReranker:
                 "tests that must not access model files or the network."
             ) from download_exc
         self.load_source = "download"
-        print("✓ Reranker downloaded and cached successfully.")
+        _print_status(
+            "✓ Reranker downloaded and cached successfully.",
+            ascii_fallback="[OK] Reranker downloaded and cached successfully.",
+        )
         return self._model
 
     def rerank(
