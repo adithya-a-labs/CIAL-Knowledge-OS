@@ -204,33 +204,34 @@ same `RunManager`. It appends these machine-readable columns:
 Large Phase 4 runs should use `scripts/run_phase4_batch.py` from a terminal
 rather than relying on a long-lived Jupyter kernel. The script performs the
 same load, chunk, embed, index, and `Phase4Runner` sequence as the notebook,
-loads version-controlled CSV/TXT question inputs, and does not render traces
-inline. The default manual and smoke input is
-`data/manual_qa/phase4_questions.txt`; TXT files contain one question per line,
-and CSV files must contain a `question` column.
+loads configured CSV/TXT question inputs, and does not render traces inline.
+Manual and smoke modes require an explicit `--questions-file`; TXT files
+contain one question per line, and CSV files must contain a `question` column.
 
 ```powershell
-# Default manual QA file
-.\.venv\Scripts\python.exe scripts\run_phase4_batch.py
-
-# Custom version-controlled question file
-.\.venv\Scripts\python.exe scripts\run_phase4_batch.py --questions-file data/manual_qa/cybersecurity_questions.txt
+# Manual QA
+python scripts/run_phase4_batch.py --questions-file <path-to-question-file>
 
 # Small execution check
-.\.venv\Scripts\python.exe scripts\run_phase4_batch.py --mode smoke --questions-file data/manual_qa/smoke_questions.txt
+python scripts/run_phase4_batch.py --mode smoke --questions-file <path-to-question-file>
 
-# Configured benchmark dataset
-.\.venv\Scripts\python.exe scripts\run_phase4_batch.py --mode benchmark
+# Benchmark input override
+python scripts/run_phase4_batch.py --mode benchmark --questions-file <path-to-benchmark-csv>
 ```
 
 `--mode` supports `smoke`, `manual_qa`, and `benchmark`. Additional controls
 include `--max-questions`, `--reranker-batch-size`, and
-`--local-files-only`. The existing runner remains responsible for CSV, XLSX,
+`--local-files-only`. `--verbose` prints the resolved configuration, question
+source/count, output directory, reranker and LLM settings, resume settings, and
+timings. `--dry-run` validates and previews the run without constructing the
+pipeline. `--health-check` checks configured paths, dependencies, and output
+permissions, reports `PASS`/`WARN`/`FAIL`, and exits without QA. The existing
+runner remains responsible for CSV, XLSX,
 standalone HTML, configuration, summary, metrics, retrieval traces, logs,
 per-question context, and supported SVG/HTML visualization exports.
 
 The terminal runner is unbounded for manual QA: all questions loaded from the
-default or an explicit file are processed unless `--max-questions` is supplied.
+explicit file are processed unless `--max-questions` is supplied.
 The legacy `--large-run` flag remains accepted for command compatibility but is
 not required. The notebook retains its separate 25-question safety limit and
 warning, smoke mode retains its three-question limit, and benchmark mode is
@@ -263,27 +264,25 @@ duplicate text is not incorrectly skipped.
 
 ```powershell
 # Long run with bounded answer generation
-.\.venv\Scripts\python.exe scripts\run_phase4_batch.py `
-  --questions-file data/manual_qa/phase4_questions.txt `
-  --max-answer-words 450 `
-  --generation-retries 2 `
-  --retry-cooldown-seconds 20
+python scripts/run_phase4_batch.py `
+  --questions-file <path-to-question-file> `
+  --max-answer-words <word-limit> `
+  --generation-retries <retry-count> `
+  --retry-cooldown-seconds <seconds>
 
 # Resume after interruption using the same question input/order
-.\.venv\Scripts\python.exe scripts\run_phase4_batch.py `
-  --questions-file data/manual_qa/phase4_questions.txt `
-  --resume outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp>
+python scripts/run_phase4_batch.py `
+  --questions-file <path-to-question-file> `
+  --resume <path-to-run-folder>
 ```
 
 Resume reconstructs final artifacts from prior successful checkpoints and new
 attempts. Previously failed occurrences remain eligible for another attempt.
 The question file and `--max-questions` setting must match the original run.
 
-Additional starter inputs are maintained in
-`data/manual_qa/airport_operations_questions.txt`. Treat these lists as
-reviewable evaluation data: update the text files rather than editing Python.
-If the default file is unavailable, `--questions-file` can select any supported
-CSV or TXT input without changing the output contract.
+Treat question lists as reviewable evaluation data: update the input files
+rather than editing Python. `--questions-file` can select any supported CSV or
+TXT input without changing the output contract.
 
 | Column | Meaning |
 |---|---|

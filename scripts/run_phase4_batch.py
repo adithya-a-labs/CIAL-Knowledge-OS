@@ -1,19 +1,16 @@
-"""Run Phase 4 batch QA from a terminal and export the full artifact bundle.
-
-This entry point mirrors the Phase 4 notebook's configuration and pipeline
-initialization, but deliberately performs no inline trace rendering. Keeping
-long-running generation outside Jupyter avoids tying model and vector-store
-lifetimes to a notebook kernel while reusing ``Phase4Runner`` as the single
-source of truth for exports and visualizations.
-"""
+"""Run Phase 4 batch QA with transparent, configuration-driven startup."""
 
 from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
+import tempfile
+from dataclasses import asdict, fields
 from pathlib import Path
-from typing import Sequence
+from time import perf_counter
+from typing import Any, Sequence
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -21,27 +18,44 @@ SOURCE_ROOT = PROJECT_ROOT / "src"
 if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
 
-from cial_knowledge_os import (  # noqa: E402
-    Benchmark,
-    Phase4Config,
-    Phase4RAGPipeline,
-    Phase4RunResult,
-    Phase4Runner,
-    load_benchmark,
-)
+
+class StartupReporter:
+    """Write timestamped, immediately visible CLI status messages."""
+
+    def __init__(self, *, verbose: bool = False) -> None:
+        self.started = perf_counter()
+        self.verbose = verbose
+
+    @property
+    def elapsed(self) -> float:
+        return perf_counter() - self.started
+
+    def step(self, message: str) -> None:
+        print(f"[{self.elapsed:8.2f}s] {message}", flush=True)
+
+    def detail(self, message: str) -> None:
+        if self.verbose:
+            print(message, flush=True)
 
 
-DEFAULT_QUESTIONS_FILE = PROJECT_ROOT / "data" / "manual_qa" / "phase4_questions.txt"
+def _enable_immediate_output() -> None:
+    """Request line-buffered, write-through output when the stream supports it."""
+
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(line_buffering=True, write_through=True)
+            except (OSError, ValueError):
+                pass
+
+
+def _print(message: str = "") -> None:
+    print(message, flush=True)
 
 
 def positive_integer(value: str) -> int:
-    """Parse a strictly positive CLI integer and return it to argparse.
-
-    The input is one command-line token. The output is an integer greater than
-    zero; invalid values become an ``ArgumentTypeError`` with actionable text.
-    This keeps batch-size and question-limit validation consistent before any
-    local models or corpus data are loaded.
-    """
+    """Parse a strictly positive CLI integer."""
 
     try:
         parsed = int(value)
@@ -53,7 +67,7 @@ def positive_integer(value: str) -> int:
 
 
 def non_negative_integer(value: str) -> int:
-    """Parse a non-negative CLI integer for retry configuration."""
+    """Parse a non-negative CLI integer."""
 
     try:
         parsed = int(value)
@@ -65,7 +79,7 @@ def non_negative_integer(value: str) -> int:
 
 
 def non_negative_number(value: str) -> float:
-    """Parse a non-negative CLI number for cooldown configuration."""
+    """Parse a non-negative CLI number."""
 
     try:
         parsed = float(value)
@@ -76,21 +90,23 @@ def non_negative_number(value: str) -> float:
     return parsed
 
 
-def load_questions(path: str | Path) -> list[str]:
-    """Load non-empty questions from a CSV or line-oriented TXT file.
+def resolve_path(path: str | Path, *, project_root: Path = PROJECT_ROOT) -> Path:
+    """Resolve a user/configuration path relative to the effective project root."""
 
-    ``path`` may point to a UTF-8/UTF-8-BOM CSV containing a ``question``
-    column, or to a UTF-8 TXT file with one question per line. The returned list
-    preserves file order and strips surrounding whitespace. Empty inputs,
-    unsupported extensions, and malformed CSV schemas fail before pipeline
-    initialization. This function only prepares Phase 4 runner inputs and does
-    not alter notebook or Phase 1--3 behavior.
-    """
+    resolved = Path(path).expanduser()
+    if not resolved.is_absolute():
+        resolved = project_root / resolved
+    return resolved.resolve()
 
-    source = Path(path).expanduser()
-    if not source.is_absolute():
-        source = PROJECT_ROOT / source
-    source = source.resolve()
+
+def load_questions(
+    path: str | Path,
+    *,
+    project_root: Path = PROJECT_ROOT,
+) -> list[str]:
+    """Load non-empty questions from CSV or line-oriented TXT input."""
+
+    source = resolve_path(path, project_root=project_root)
     if not source.is_file():
         raise FileNotFoundError(f"Questions file not found: {source}")
 
@@ -119,13 +135,7 @@ def load_questions(path: str | Path) -> list[str]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Create and return the terminal interface for Phase 4 batch execution.
-
-    Inputs are parsed from the supported flags; the output is a configured
-    ``ArgumentParser``. Defaults match the Phase 4 notebook, while explicit
-    flags only override execution mode, question source, run sizing, and
-    reranker deployment settings.
-    """
+    """Create the Phase 4 terminal argument parser."""
 
     parser = argparse.ArgumentParser(
         description=(
@@ -133,16 +143,32 @@ def build_parser() -> argparse.ArgumentParser:
         )
     )
     parser.add_argument(
+        "--config-file",
+        type=Path,
+        help="Optional JSON object containing Phase4Config field values.",
+    )
+    parser.add_argument(
         "--mode",
         choices=("smoke", "manual_qa", "benchmark"),
-        default="manual_qa",
-        help="Execution mode recorded in the run artifacts (default: manual_qa).",
+        help="Execution mode; defaults to the resolved Phase4Config value.",
     )
     parser.add_argument(
         "--questions-file",
         type=Path,
-        help="Optional .csv with a question column or .txt with one question per line.",
+        help="A .csv with a question column or .txt with one question per line.",
     )
+    parser.add_argument("--project-root", type=Path)
+    parser.add_argument("--sample-documents-dir", type=Path)
+    parser.add_argument("--raw-documents-dir", type=Path)
+    parser.add_argument("--pdf-documents-dir", type=Path)
+    parser.add_argument("--vector-db-dir", type=Path)
+    parser.add_argument("--vector-collection")
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--benchmark-file", type=Path)
+    parser.add_argument("--benchmark-metadata-file", type=Path)
+    parser.add_argument("--embedding-model")
+    parser.add_argument("--llm-model")
+    parser.add_argument("--reranker-model")
     parser.add_argument(
         "--large-run",
         action="store_true",
@@ -154,24 +180,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-questions",
         type=positive_integer,
-        help="Run at most the first N questions after loading the selected source.",
+        help="Run at most the first N questions from the selected source.",
     )
     parser.add_argument(
         "--reranker-device",
         choices=("cpu", "cuda", "auto"),
-        default="auto",
-        help="Cross-encoder execution device (default: auto).",
+        help="Cross-encoder execution device.",
     )
     parser.add_argument(
         "--reranker-batch-size",
         type=positive_integer,
-        default=16,
-        help="Cross-encoder scoring batch size (default: 16).",
+        help="Cross-encoder scoring batch size.",
     )
     parser.add_argument(
         "--local-files-only",
-        action="store_true",
-        help="Disable reranker downloads and require an existing Hugging Face cache.",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Require the configured reranker to exist in the local cache.",
     )
     parser.add_argument(
         "--resume",
@@ -181,124 +206,136 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--generation-retries",
         type=non_negative_integer,
-        default=2,
-        help="Generation retries after the initial attempt (default: 2).",
+        help="Generation retries after the initial attempt.",
     )
     parser.add_argument(
         "--retry-cooldown-seconds",
         type=non_negative_number,
-        default=20.0,
-        help="Cooldown between retryable generation attempts (default: 20).",
+        help="Cooldown between retryable generation attempts.",
     )
     parser.add_argument(
         "--max-answer-words",
         type=positive_integer,
         help="Optional upper word target for each generated answer.",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print resolved configuration and detailed startup settings.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate and preview the run without initializing the pipeline.",
+    )
+    parser.add_argument(
+        "--health-check",
+        action="store_true",
+        help="Check configured local dependencies and exit without running QA.",
+    )
     return parser
 
 
-def build_config(args: argparse.Namespace) -> Phase4Config:
-    """Build the effective Phase 4 configuration from parsed CLI arguments.
+def _load_config_values(path: Path | None) -> dict[str, Any]:
+    if path is None:
+        return {}
+    config_path = path.expanduser().resolve()
+    if not config_path.is_file():
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    value = json.loads(config_path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError("Configuration file must contain a JSON object.")
+    return dict(value)
 
-    ``args`` must come from :func:`build_parser`. The returned ``Phase4Config``
-    mirrors the notebook's hybrid retrieval, reranking, selection, token, and
-    trace settings. Only the documented CLI overrides differ. Its standard
-    Phase 4 output root preserves all existing export paths and remains
-    backward compatible with ``Phase4Runner``.
-    """
 
-    return Phase4Config(
-        project_root=PROJECT_ROOT,
-        retrieval_mode="hybrid",
-        dense_top_k=10,
-        bm25_top_k=10,
-        retrieval_top_k=10,
-        rrf_k=60,
-        max_context_tokens=4096,
-        reranker_candidate_top_k=30,
-        reranker_device=args.reranker_device,
-        reranker_batch_size=args.reranker_batch_size,
-        reranker_local_files_only=args.local_files_only,
-        min_selected_evidence=3,
-        max_selected_evidence=8,
-        reranker_score_threshold=-4.0,
-        fallback_to_top_n_if_empty=True,
-        fallback_top_n=3,
-        weak_evidence_answer_allowed=True,
-        answer_detail_level="detailed",
-        min_answer_words=250,
-        max_answer_words=args.max_answer_words,
-        prefer_structured_answers=True,
-        include_decision_notes=True,
-        generation_retries=args.generation_retries,
-        retry_cooldown_seconds=args.retry_cooldown_seconds,
-        evidence_token_budget=2400,
-        selected_evidence_target_min_tokens=800,
-        selected_evidence_target_max_tokens=1500,
-        evidence_max_chunks_per_source=2,
-        evidence_redundancy_threshold=0.85,
-        phase4_trace_mode="full",
-        phase4_run_mode=args.mode,
-        # The 25-question guard protects interactive notebook rendering. This
-        # process is the non-interactive batch surface, so every loaded question
-        # proceeds unless --max-questions explicitly sliced the input above.
-        allow_large_run=True,
+def build_config(args: argparse.Namespace) -> Any:
+    """Build Phase4Config from optional JSON plus explicit CLI overrides."""
+
+    from cial_knowledge_os.config import Phase4Config, RunArtifactNames
+
+    values = _load_config_values(args.config_file)
+    valid_fields = {item.name for item in fields(Phase4Config) if item.init}
+    unknown = sorted(set(values) - valid_fields)
+    if unknown:
+        raise ValueError(
+            "Unknown Phase4Config field(s): " + ", ".join(unknown)
+        )
+    if isinstance(values.get("artifact_names"), dict):
+        values["artifact_names"] = RunArtifactNames(**values["artifact_names"])
+    if isinstance(values.get("evidence_selection_strategies"), list):
+        values["evidence_selection_strategies"] = tuple(
+            values["evidence_selection_strategies"]
+        )
+
+    values["project_root"] = args.project_root or values.get(
+        "project_root",
+        PROJECT_ROOT,
     )
+    overrides = {
+        "sample_data_dir": args.sample_documents_dir,
+        "raw_data_dir": args.raw_documents_dir,
+        "pdf_data_dir": args.pdf_documents_dir,
+        "qdrant_dir": args.vector_db_dir,
+        "qdrant_collection_name": args.vector_collection,
+        "output_root": args.output_dir,
+        "benchmark_csv_path": args.benchmark_file,
+        "benchmark_metadata_path": args.benchmark_metadata_file,
+        "embedding_model_name": args.embedding_model,
+        "ollama_model_name": args.llm_model,
+        "reranker_model_name": args.reranker_model,
+        "reranker_device": args.reranker_device,
+        "reranker_batch_size": args.reranker_batch_size,
+        "reranker_local_files_only": args.local_files_only,
+        "generation_retries": args.generation_retries,
+        "retry_cooldown_seconds": args.retry_cooldown_seconds,
+        "max_answer_words": args.max_answer_words,
+        "phase4_run_mode": args.mode,
+    }
+    values.update({key: value for key, value in overrides.items() if value is not None})
+    # The terminal surface remains intentionally unbounded. Notebook callers
+    # retain the existing interactive guard through their own config instance.
+    values["allow_large_run"] = True
+    return Phase4Config(**values)
 
 
 def select_inputs(
     args: argparse.Namespace,
-    config: Phase4Config,
-) -> tuple[list[str] | None, Benchmark | None, str]:
-    """Resolve CLI question inputs and optional benchmark expectations.
+    config: Any,
+) -> tuple[list[str], Any | None, str]:
+    """Resolve questions from the actual CLI argument or benchmark config."""
 
-    Inputs are parsed arguments and the effective config. Outputs are a
-    question list, an optional ``Benchmark``, and a human-readable source
-    description. CSV benchmark mode preserves expected answers and metadata;
-    TXT benchmark mode can execute and export but cannot calculate qualification
-    metrics because the format carries questions only.
-    """
+    from cial_knowledge_os.benchmark_loader import Benchmark, load_benchmark
 
     benchmark: Benchmark | None = None
-    source_label = str(DEFAULT_QUESTIONS_FILE)
+    mode = args.mode or config.phase4_run_mode
 
     if args.questions_file is not None:
-        source = args.questions_file.expanduser()
-        if not source.is_absolute():
-            source = PROJECT_ROOT / source
-        source = source.resolve()
-        source_label = str(source)
-        if args.mode == "benchmark" and source.suffix.casefold() == ".csv":
+        source = resolve_path(
+            args.questions_file,
+            project_root=config.project_root,
+        )
+        if mode == "benchmark" and source.suffix.casefold() == ".csv":
             benchmark = load_benchmark(source)
             questions = [item.question for item in benchmark.questions]
         else:
-            questions = load_questions(source)
-    elif args.mode == "benchmark":
+            questions = load_questions(
+                source,
+                project_root=config.project_root,
+            )
+    elif mode == "benchmark":
+        source = config.benchmark_csv_path
         metadata_path = (
             config.benchmark_metadata_path
             if config.benchmark_metadata_path.is_file()
             else None
         )
-        benchmark = load_benchmark(
-            config.benchmark_csv_path,
-            metadata_path=metadata_path,
-        )
+        benchmark = load_benchmark(source, metadata_path=metadata_path)
         questions = [item.question for item in benchmark.questions]
-        source_label = str(config.benchmark_csv_path)
     else:
-        try:
-            # Manual inputs are data, not application code. Keeping the default
-            # list in a text file makes QA changes reviewable and reusable
-            # without editing the terminal runner.
-            questions = load_questions(DEFAULT_QUESTIONS_FILE)
-        except (FileNotFoundError, ValueError) as exc:
-            raise RuntimeError(
-                "The default Phase 4 questions file is missing or empty. "
-                f"Expected path: {DEFAULT_QUESTIONS_FILE}. "
-                "Create a UTF-8 text file with one question per line, or pass "
-                "--questions-file <path> to use a different CSV/TXT file."
-            ) from exc
+        raise ValueError(
+            f"{mode} mode requires --questions-file <path>. "
+            "No question filename is assumed."
+        )
 
     if args.max_questions is not None:
         questions = questions[: args.max_questions]
@@ -308,69 +345,359 @@ def select_inputs(
                 metadata=dict(benchmark.metadata),
                 source_path=benchmark.source_path,
             )
-
     if not questions:
         raise ValueError("No questions remain after applying --max-questions.")
-    return questions, benchmark, source_label
+    return questions, benchmark, str(Path(source).resolve())
 
 
-def execute(args: argparse.Namespace) -> Phase4RunResult:
-    """Initialize the notebook-equivalent pipeline and run terminal batch QA.
+def _json_ready(value: Any) -> Any:
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _json_ready(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_ready(item) for item in value]
+    return value
 
-    Parsed CLI arguments are the input. The returned ``Phase4RunResult`` points
-    to the complete CSV/XLSX/HTML/JSON/log/context/figure bundle. Corpus loading,
-    chunking, embedding, and indexing intentionally match the notebook order;
-    no trace is rendered inline, and prior notebook/API behavior is unchanged.
-    """
 
-    config = build_config(args)
-    questions, benchmark, source_label = select_inputs(args, config)
+def resolved_config(config: Any) -> dict[str, Any]:
+    return _json_ready(asdict(config))
+
+
+def pipeline_summary(
+    args: argparse.Namespace,
+    config: Any,
+    *,
+    question_source: str,
+    question_count: int,
+) -> dict[str, Any]:
+    """Return a compact, generic description of the effective run."""
+
+    return {
+        "mode": args.mode or config.phase4_run_mode,
+        "question_source": question_source,
+        "question_count": question_count,
+        "documents": {
+            "sample": str(config.sample_data_dir),
+            "raw": str(config.raw_data_dir),
+            "pdf": str(config.pdf_data_dir),
+        },
+        "output_directory": str(config.output_root),
+        "retrieval": {
+            "mode": config.retrieval_mode,
+            "dense_top_k": config.dense_top_k,
+            "bm25_top_k": config.bm25_top_k,
+            "retrieval_top_k": config.retrieval_top_k,
+        },
+        "vector_database": {
+            "directory": str(config.qdrant_dir),
+            "collection": config.qdrant_collection_name,
+        },
+        "embedding": {
+            "model": config.embedding_model_name,
+            "device": config.embedding_device,
+        },
+        "reranker": {
+            "enabled": config.reranker_enabled,
+            "model": config.reranker_model_name,
+            "device": config.reranker_device,
+            "batch_size": config.reranker_batch_size,
+            "local_files_only": config.reranker_local_files_only,
+        },
+        "llm": {
+            "model": config.ollama_model_name,
+            "generation_retries": config.generation_retries,
+            "retry_cooldown_seconds": config.retry_cooldown_seconds,
+            "max_answer_words": config.max_answer_words,
+        },
+        "checkpoint": {
+            "resume": str(args.resume.resolve()) if args.resume else None,
+            "enabled": True,
+        },
+    }
+
+
+def report_question_source(questions: Sequence[str], source: str) -> None:
+    _print(f"Loaded {len(questions)} questions from:")
+    _print(source)
+
+
+def print_dry_run(
+    args: argparse.Namespace,
+    config: Any,
+    questions: Sequence[str],
+    source: str,
+) -> None:
+    """Print validated inputs without constructing any pipeline dependency."""
+
+    _print("Dry run: validation completed; no pipeline components were initialized.")
+    _print(f"Output directory:\n{config.output_root}")
+    _print("Question preview:")
+    for index, question in enumerate(questions[:3], start=1):
+        _print(f"  {index}. {question}")
+    _print("Pipeline configuration:")
+    _print(
+        json.dumps(
+            pipeline_summary(
+                args,
+                config,
+                question_source=source,
+                question_count=len(questions),
+            ),
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+def _permission_probe(directory: Path) -> tuple[bool, str]:
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=directory, delete=True):
+            pass
+    except OSError as exc:
+        return False, str(exc)
+    return True, f"Writable: {directory}"
+
+
+def _health_line(status: str, name: str, message: str) -> None:
+    _print(f"{status:<4} {name}: {message}")
+
+
+def run_health_check(
+    args: argparse.Namespace,
+    config: Any,
+    *,
+    questions: Sequence[str] | None,
+    source: str | None,
+    input_error: Exception | None,
+) -> bool:
+    """Probe configured resources without executing QA."""
+
+    failures = 0
+
+    configured_source_root = config.project_root / "src"
+    if config.project_root.is_dir() and configured_source_root.is_dir():
+        _health_line("PASS", "Project structure", str(config.project_root))
+    else:
+        failures += 1
+        _health_line(
+            "FAIL",
+            "Project structure",
+            "Project/source directory is missing; verify --project-root.",
+        )
+
+    if input_error is None and questions is not None and source is not None:
+        _health_line(
+            "PASS",
+            "Question source",
+            f"{len(questions)} readable questions in {source}",
+        )
+    else:
+        failures += 1
+        _health_line(
+            "FAIL",
+            "Question source",
+            f"{input_error} Supply a readable --questions-file or configured benchmark.",
+        )
+
+    document_dirs = (
+        config.sample_data_dir,
+        config.raw_data_dir,
+        config.pdf_data_dir,
+    )
+    document_files = [
+        path
+        for directory in document_dirs
+        if directory.is_dir()
+        for pattern in ("*.txt", "*.pdf")
+        for path in directory.rglob(pattern)
+    ]
+    if document_files:
+        _health_line(
+            "PASS",
+            "Document directories",
+            f"{len(document_files)} supported files across configured directories.",
+        )
+    else:
+        failures += 1
+        _health_line(
+            "FAIL",
+            "Document directories",
+            "No .txt or .pdf documents found; verify configured document directories.",
+        )
+
+    vector_parent = (
+        config.qdrant_dir
+        if config.qdrant_dir.exists()
+        else config.qdrant_dir.parent
+    )
+    if config.qdrant_collection_name.strip() and vector_parent.is_dir():
+        _health_line(
+            "PASS",
+            "Vector database",
+            f"Directory {config.qdrant_dir}; collection {config.qdrant_collection_name}",
+        )
+    else:
+        failures += 1
+        _health_line(
+            "FAIL",
+            "Vector database",
+            "Configured directory parent or collection name is invalid.",
+        )
+
+    if config.reranker_enabled:
+        started = perf_counter()
+        try:
+            from cial_knowledge_os.reranker import CrossEncoderReranker
+
+            reranker = CrossEncoderReranker(
+                config.reranker_model_name,
+                device=config.reranker_device,
+                batch_size=config.reranker_batch_size,
+                local_files_only=config.reranker_local_files_only,
+            )
+            reranker.load()
+        except Exception as exc:
+            failures += 1
+            _health_line(
+                "FAIL",
+                "Reranker",
+                f"{exc} Verify the configured model, cache/download policy, and device.",
+            )
+        else:
+            _health_line(
+                "PASS",
+                "Reranker",
+                f"{config.reranker_model_name} via {reranker.load_source} "
+                f"on {config.reranker_device} ({perf_counter() - started:.2f}s)",
+            )
+    else:
+        _health_line("WARN", "Reranker", "Disabled by configuration.")
+
+    try:
+        from cial_knowledge_os.llm import create_local_llm
+
+        create_local_llm(config)
+    except Exception as exc:
+        failures += 1
+        _health_line(
+            "FAIL",
+            "LLM",
+            f"{exc} Start the configured local service and install the configured model.",
+        )
+    else:
+        _health_line("PASS", "LLM", config.ollama_model_name)
+
+    writable, message = _permission_probe(config.output_root)
+    if writable:
+        _health_line("PASS", "Output directory", message)
+    else:
+        failures += 1
+        _health_line(
+            "FAIL",
+            "Output directory",
+            f"{message} Choose a writable --output-dir.",
+        )
+
+    _print(
+        f"Health check complete: {failures} failure(s). "
+        "QA execution was not started."
+    )
+    return failures == 0
+
+
+def _load_reranker(pipeline: Any, config: Any) -> tuple[str, float]:
+    if not config.reranker_enabled:
+        return "disabled", 0.0
+    started = perf_counter()
+    load = getattr(pipeline.reranker, "load", None)
+    if not callable(load):
+        load = getattr(pipeline.reranker, "_load_model", None)
+    if not callable(load):
+        return "deferred", perf_counter() - started
+    load()
+    source = str(getattr(pipeline.reranker, "load_source", None) or "unknown")
+    return source, perf_counter() - started
+
+
+def execute(
+    args: argparse.Namespace,
+    *,
+    config: Any | None = None,
+    questions: list[str] | None = None,
+    benchmark: Any | None = None,
+    source_label: str | None = None,
+    reporter: StartupReporter | None = None,
+) -> Any:
+    """Initialize the existing Phase 4 pipeline and run terminal batch QA."""
+
+    reporter = reporter or StartupReporter(verbose=args.verbose)
+    if config is None:
+        config = build_config(args)
+    if questions is None or source_label is None:
+        questions, benchmark, source_label = select_inputs(args, config)
+    mode = args.mode or config.phase4_run_mode
     effective_large_run = bool(
         args.large_run
         or (
-            args.mode == "manual_qa"
+            mode == "manual_qa"
             and len(questions) > config.max_inline_manual_questions
         )
     )
 
-    print("Initializing Phase 4 local pipeline...")
-    print(f"Loaded question count: {len(questions)}")
-    print(f"Question count entering Phase4Runner: {len(questions)}")
-    print(
-        {
-            "mode": args.mode,
-            "question_count": len(questions),
-            "question_source": source_label,
-            "large_run": effective_large_run,
-            "reranker_device": config.reranker_device,
-            "reranker_batch_size": config.reranker_batch_size,
-            "local_files_only": config.reranker_local_files_only,
-            "generation_retries": config.generation_retries,
-            "generation_attempts": config.generation_retries + 1,
-            "retry_cooldown_seconds": config.retry_cooldown_seconds,
-            "max_answer_words": config.max_answer_words,
-            "resume": str(args.resume.resolve()) if args.resume else None,
-        }
-    )
+    reporter.step("Initializing pipeline")
+    from cial_knowledge_os.phase4_pipeline import Phase4RAGPipeline
+    from cial_knowledge_os.phase4_runner import Phase4Runner
 
     pipeline = Phase4RAGPipeline(config)
     try:
+        reporter.step("Loading documents")
         documents = pipeline.load()
+
+        reporter.step("Building/loading indexes")
         chunks = pipeline.chunk()
         vectors = pipeline.embed()
         pipeline.index()
-        print(
-            {
-                "documents": len(documents),
-                "chunks": len(chunks),
-                "vectors": len(vectors),
-            }
+        reporter.detail(
+            json.dumps(
+                {
+                    "documents": len(documents),
+                    "chunks": len(chunks),
+                    "vectors": len(vectors),
+                },
+                sort_keys=True,
+            )
         )
 
+        reporter.step("Loading reranker")
+        load_source, load_duration = _load_reranker(pipeline, config)
+        _print(f"Configured reranker:\n{config.reranker_model_name}")
+        _print(f"Load source: {load_source}")
+        _print(f"Device: {config.reranker_device}")
+        _print(f"Load duration: {load_duration:.2f}s")
+
+        reporter.step("Checking LLM availability")
+        _print(f"Configured LLM:\n{config.ollama_model_name}")
+        _print("Checking availability...")
+        from cial_knowledge_os.llm import create_local_llm
+
+        try:
+            pipeline.llm = create_local_llm(config)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Configured LLM '{config.ollama_model_name}' is unavailable. "
+                "Start the configured local LLM service, make the configured "
+                "model available there, or select another model with "
+                "--llm-model/configuration."
+            ) from exc
+        _print("Availability: available")
+
+        reporter.step("Starting execution")
         result = Phase4Runner(pipeline=pipeline, config=config).run(
             questions=questions,
             benchmark=benchmark,
-            run_mode=args.mode,
+            run_mode=mode,
             run_metadata={
                 "run_label": "terminal_phase4_batch",
                 "question_source": source_label,
@@ -378,25 +705,17 @@ def execute(args: argparse.Namespace) -> Phase4RunResult:
             },
             resume_run=args.resume,
         )
-        print(
+        reporter.detail(
             "Question count returned by Phase4Runner: "
             f"{result.summary.get('question_count', 0)}"
         )
         return result
     finally:
-        # A terminal process should release embedded Qdrant deterministically;
-        # relying on interpreter shutdown can leave a noisy destructor warning
-        # or delay the next process from acquiring the local storage lock.
         pipeline.close()
 
 
-def print_artifact_paths(result: Phase4RunResult) -> None:
-    """Print every primary artifact path produced by a completed Phase 4 run.
-
-    The input is a completed run result. Output is terminal-only status text;
-    files are not modified. Figure SVGs are enumerated from the existing runner
-    directory so newly supported visualizations appear automatically.
-    """
+def print_artifact_paths(result: Any) -> None:
+    """Print every primary artifact path produced by a completed run."""
 
     paths = result.paths
     artifacts = (
@@ -416,29 +735,92 @@ def print_artifact_paths(result: Phase4RunResult) -> None:
         ("partial_results.jsonl", paths.root / "partial_results.jsonl"),
         ("partial_retrieval.jsonl", paths.root / "partial_retrieval.jsonl"),
     )
-    print("\nPhase 4 batch run complete. Artifacts:")
+    _print("\nPhase 4 batch run complete. Artifacts:")
     for label, path in artifacts:
-        print(f"  {label}: {path}")
+        _print(f"  {label}: {path}")
     for figure in sorted(paths.figures.iterdir()):
         if figure.is_file() and figure.suffix.casefold() in {".svg", ".html"}:
-            print(f"  visualization: {figure}")
+            _print(f"  visualization: {figure}")
     with paths.results_csv.open(encoding="utf-8-sig", newline="") as handle:
         written_rows = sum(1 for _ in csv.DictReader(handle))
-    print(f"  results.csv question rows: {written_rows}")
+    _print(f"  results.csv question rows: {written_rows}")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Parse optional CLI arguments, execute Phase 4, and return a status code.
+    """Run the CLI or one of its non-executing validation modes."""
 
-    ``argv`` supports direct automated testing; ``None`` reads the real command
-    line. Successful execution returns ``0`` after printing artifact paths.
-    Runtime errors are intentionally allowed to surface with their actionable
-    model, corpus, Ollama, or file diagnostics.
-    """
-
+    _enable_immediate_output()
+    reporter = StartupReporter()
+    reporter.step("Phase 4 CLI starting")
+    reporter.step("Parsing arguments")
     args = build_parser().parse_args(argv)
-    result = execute(args)
+    reporter.verbose = args.verbose
+
+    reporter.step("Loading configuration")
+    config = build_config(args)
+    if args.verbose:
+        _print("Resolved configuration:")
+        _print(json.dumps(resolved_config(config), indent=2, sort_keys=True))
+
+    reporter.step("Resolving input source")
+    questions: list[str] | None = None
+    benchmark: Any | None = None
+    source_label: str | None = None
+    input_error: Exception | None = None
+    try:
+        questions, benchmark, source_label = select_inputs(args, config)
+    except (FileNotFoundError, ValueError) as exc:
+        input_error = exc
+        if not args.health_check:
+            raise
+    if questions is not None and source_label is not None:
+        report_question_source(questions, source_label)
+
+    reporter.step(f"Output directory: {config.output_root}")
+
+    if args.health_check:
+        return (
+            0
+            if run_health_check(
+                args,
+                config,
+                questions=questions,
+                source=source_label,
+                input_error=input_error,
+            )
+            else 1
+        )
+
+    assert questions is not None and source_label is not None
+    if args.verbose:
+        _print("Execution settings:")
+        _print(
+            json.dumps(
+                pipeline_summary(
+                    args,
+                    config,
+                    question_source=source_label,
+                    question_count=len(questions),
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    if args.dry_run:
+        print_dry_run(args, config, questions, source_label)
+        reporter.step("Dry run complete")
+        return 0
+
+    result = execute(
+        args,
+        config=config,
+        questions=questions,
+        benchmark=benchmark,
+        source_label=source_label,
+        reporter=reporter,
+    )
     print_artifact_paths(result)
+    reporter.step("Execution complete")
     return 0
 
 

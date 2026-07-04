@@ -185,7 +185,7 @@ from cial_knowledge_os import Phase4Config, Phase4RAGPipeline, Phase4Runner
 
 config = Phase4Config(
     project_root=PROJECT_ROOT,
-    reranker_model_name="cross-encoder/ms-marco-MiniLM-L-6-v2",
+    reranker_model_name="<reranker-model>",
     reranker_local_files_only=False,  # cache first; download once if missing
     reranker_batch_size=16,
     reranker_candidate_top_k=30,
@@ -220,24 +220,28 @@ For batch runs, use the terminal entry point so model execution is not tied to
 a Jupyter kernel:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\run_phase4_batch.py
-.\.venv\Scripts\python.exe scripts\run_phase4_batch.py --questions-file data/manual_qa/cybersecurity_questions.txt
-.\.venv\Scripts\python.exe scripts\run_phase4_batch.py --mode smoke --questions-file data/manual_qa/smoke_questions.txt
-.\.venv\Scripts\python.exe scripts\run_phase4_batch.py --mode benchmark
+python scripts/run_phase4_batch.py `
+  --questions-file <path-to-question-file>
+python scripts/run_phase4_batch.py `
+  --mode smoke `
+  --questions-file <path-to-question-file>
+python scripts/run_phase4_batch.py `
+  --mode benchmark `
+  --questions-file <path-to-benchmark-csv>
 ```
 
-The default manual and smoke input is the version-controlled
-`data/manual_qa/phase4_questions.txt`. Question lists are UTF-8 text files with
-one question per line; CSV files with a `question` column remain supported via
-`--questions-file`. Starter lists are provided for smoke checks, cybersecurity,
-and airport operations under `data/manual_qa/`. The benchmark mode continues to
-use the configured benchmark dataset when no override is supplied.
+Manual and smoke runs require `--questions-file`; the CLI never assumes a
+question filename. Question lists are UTF-8 text files with one question per
+line, or CSV files with a `question` column. Benchmark mode can use either an
+explicit `--questions-file` or the path resolved by `Phase4Config`.
 
 The script mirrors the notebook's Phase 4 initialization, renders no inline
-traces, and prints the paths to the complete run bundle and existing SVG/HTML
-visualizations. Use `--max-questions`, `--reranker-device`,
-`--reranker-batch-size`, and `--local-files-only` as needed. Runs remain under
-`outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp>/`.
+traces, and prints timestamped, flushed progress before each expensive startup
+stage. Use `--verbose` for the resolved configuration and execution settings.
+`--dry-run` validates and previews questions without loading documents, indexes,
+the reranker, or the LLM. `--health-check` verifies configured paths, local
+dependencies, and output permissions without running QA. Paths and model names
+can be supplied through `--config-file` or their corresponding CLI overrides.
 
 Terminal manual-QA runs process every loaded question by default. Only an
 explicit `--max-questions N` truncates terminal input; `--large-run` remains an
@@ -254,25 +258,25 @@ the initial attempt with a 20-second cooldown. Every question attempt updates
 Successful occurrences are keyed by original index plus normalized-question
 hash, so duplicate question text resumes safely.
 
-Recommended 440-question run:
+Example long run:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\run_phase4_batch.py `
-  --questions-file data/manual_qa/phase4_questions.txt `
-  --max-answer-words 450 `
-  --generation-retries 2 `
-  --retry-cooldown-seconds 20
+python scripts/run_phase4_batch.py `
+  --questions-file <path-to-question-file> `
+  --max-answer-words <word-limit> `
+  --generation-retries <retry-count> `
+  --retry-cooldown-seconds <seconds>
 ```
 
 Resume the same question file and options against the interrupted run folder:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\run_phase4_batch.py `
-  --questions-file data/manual_qa/phase4_questions.txt `
-  --resume outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp> `
-  --max-answer-words 450 `
-  --generation-retries 2 `
-  --retry-cooldown-seconds 20
+python scripts/run_phase4_batch.py `
+  --questions-file <path-to-question-file> `
+  --resume <path-to-run-folder> `
+  --max-answer-words <word-limit> `
+  --generation-retries <retry-count> `
+  --retry-cooldown-seconds <seconds>
 ```
 
 Completed questions are skipped; failed or interrupted occurrences are retried.

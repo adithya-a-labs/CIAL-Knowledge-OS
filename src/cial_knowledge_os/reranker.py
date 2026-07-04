@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from time import perf_counter
 from typing import Any, Protocol, runtime_checkable
 
@@ -18,9 +19,12 @@ def _print_status(message: str, *, ascii_fallback: str | None = None) -> None:
     """
 
     try:
-        print(message)
+        print(message, flush=True)
     except UnicodeEncodeError:
-        print(ascii_fallback or message.encode("ascii", errors="replace").decode())
+        print(
+            ascii_fallback or message.encode("ascii", errors="replace").decode(),
+            flush=True,
+        )
 
 
 def _chunk_id(candidate: Mapping[str, Any], position: int) -> str:
@@ -140,13 +144,19 @@ class CrossEncoderReranker:
                 local_files_only=True,
                 **model_kwargs,
             )
-            self.load_source = "cache"
+            is_local_path = Path(self.model_name).expanduser().exists()
+            self.load_source = "local path" if is_local_path else "cache"
+            location = (
+                "path"
+                if is_local_path
+                else "Hugging Face cache"
+            )
             _print_status(
                 f'✓ Reranker model "{self.model_name}" loaded from local '
-                "Hugging Face cache.",
+                f"{location}.",
                 ascii_fallback=(
                     f'[OK] Reranker model "{self.model_name}" loaded from local '
-                    "Hugging Face cache."
+                    f"{location}."
                 ),
             )
             return self._model
@@ -155,7 +165,8 @@ class CrossEncoderReranker:
                 print(
                     f'Reranker model "{self.model_name}" was not found in the '
                     "local Hugging Face cache. Download skipped because "
-                    "enterprise offline mode is enabled."
+                    "enterprise offline mode is enabled.",
+                    flush=True,
                 )
                 raise RuntimeError(
                     f'Configured reranker model: "{self.model_name}". '
@@ -171,7 +182,7 @@ class CrossEncoderReranker:
         # Developer mode permits one explicit download on a cache miss. Hugging
         # Face persists the files, so subsequent processes take the cache-first
         # path above and remain offline without code changes.
-        print(f'Downloading reranker model "{self.model_name}"...')
+        print(f'Downloading reranker model "{self.model_name}"...', flush=True)
         try:
             self._model = CrossEncoder(
                 self.model_name,
@@ -194,6 +205,16 @@ class CrossEncoderReranker:
             ascii_fallback="[OK] Reranker downloaded and cached successfully.",
         )
         return self._model
+
+    def load(self) -> Any:
+        """Load the configured model now and return the reusable model object.
+
+        Reranking remains lazy for existing API and notebook callers. Terminal
+        surfaces can call this additive method to expose model load source and
+        duration before question execution begins.
+        """
+
+        return self._load_model()
 
     def rerank(
         self,
