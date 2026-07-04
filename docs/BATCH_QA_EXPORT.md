@@ -366,6 +366,16 @@ versus Discarded, Discard Reasons, comparison-status, and collapsible
 context/debug sections. Its charts are inline SVG; no CDN or external
 JavaScript is required.
 
+The report includes an accessible Light/Dark/System theme control in its
+header. System mode is the default and follows `prefers-color-scheme`; an
+explicit choice is stored in browser `localStorage` and restored when the
+double-click-openable report is reopened. Both palettes cover answer cards,
+metrics, tables, citations and hover previews, status badges, debug details,
+trace/code blocks, and inline SVG containers. Theme CSS and JavaScript remain
+embedded in `report.html`, so no server, CDN, remote font, or network access is
+required. If JavaScript is disabled, the report retains a complete readable
+light theme.
+
 Answer cards render the complete generated Markdown without preview truncation.
 Recognized numeric markers such as `[1]` and structured
 `[source | Page N | Chunk ID]` markers become inline PDF-page links with
