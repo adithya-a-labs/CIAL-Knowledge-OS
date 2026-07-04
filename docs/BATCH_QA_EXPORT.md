@@ -205,33 +205,41 @@ Large Phase 4 runs should use `scripts/run_phase4_batch.py` from a terminal
 rather than relying on a long-lived Jupyter kernel. The script performs the
 same load, chunk, embed, index, and `Phase4Runner` sequence as the notebook,
 loads configured CSV/TXT question inputs, and does not render traces inline.
-Manual and smoke modes require an explicit `--questions-file`; TXT files
-contain one question per line, and CSV files must contain a `question` column.
+The clearly marked `USER CONFIGURATION` section at the top of the script is the
+day-to-day interface. Set `QUESTIONS_FILE` and any mode, retry, answer-length,
+reranker, or resume values there, then click **Run Python File** in VS Code.
+The same zero-argument run works from PowerShell:
 
 ```powershell
-# Manual QA
-python scripts/run_phase4_batch.py --questions-file <path-to-question-file>
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py
+# or from an activated virtual environment
+python scripts\run_phase4_batch.py
+```
 
+TXT inputs contain one question per line, and CSV inputs must contain a
+`question` column. For a 440-question run, change `QUESTIONS_FILE` and
+optionally `MAX_ANSWER_WORDS`.
+
+CLI options are advanced, one-off overrides; none are required:
+
+```powershell
 # Small execution check
-python scripts/run_phase4_batch.py --mode smoke --questions-file <path-to-question-file>
+python scripts\run_phase4_batch.py --mode smoke --questions-file <path-to-question-file>
 
 # Benchmark input override
-python scripts/run_phase4_batch.py --mode benchmark --questions-file <path-to-benchmark-csv>
+python scripts\run_phase4_batch.py --mode benchmark --questions-file <path-to-benchmark-csv>
 ```
 
 `--mode` supports `smoke`, `manual_qa`, and `benchmark`. Additional controls
-include `--max-questions`, `--reranker-batch-size`, and
-`--local-files-only`. `--verbose` prints the resolved configuration, question
-source/count, output directory, reranker and LLM settings, resume settings, and
-timings. `--dry-run` validates and previews the run without constructing the
-pipeline. `--health-check` checks configured paths, dependencies, and output
-permissions, reports `PASS`/`WARN`/`FAIL`, and exits without QA. The existing
-runner remains responsible for CSV, XLSX,
+include `--max-questions`, `--max-answer-words`, retry/cooldown overrides,
+`--reranker-device`, `--reranker-batch-size`, `--local-files-only`, and
+`--resume`. The existing runner remains responsible for CSV, XLSX,
 standalone HTML, configuration, summary, metrics, retrieval traces, logs,
 per-question context, and supported SVG/HTML visualization exports.
 
 The terminal runner is unbounded for manual QA: all questions loaded from the
-explicit file are processed unless `--max-questions` is supplied.
+resolved default or CLI-provided file are processed unless `--max-questions`
+is supplied.
 The legacy `--large-run` flag remains accepted for command compatibility but is
 not required. The notebook retains its separate 25-question safety limit and
 warning, smoke mode retains its three-question limit, and benchmark mode is
@@ -280,9 +288,10 @@ Resume reconstructs final artifacts from prior successful checkpoints and new
 attempts. Previously failed occurrences remain eligible for another attempt.
 The question file and `--max-questions` setting must match the original run.
 
-Treat question lists as reviewable evaluation data: update the input files
-rather than editing Python. `--questions-file` can select any supported CSV or
-TXT input without changing the output contract.
+Treat question lists as reviewable evaluation data. Update the input file and
+point `QUESTIONS_FILE` at it for normal use; `--questions-file` can select any
+supported CSV or TXT input for a one-off run without changing the output
+contract.
 
 | Column | Meaning |
 |---|---|

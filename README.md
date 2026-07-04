@@ -216,32 +216,37 @@ result = Phase4Runner(pipeline=pipeline, config=config).run(
 print(result.paths.report_html)
 ```
 
-For batch runs, use the terminal entry point so model execution is not tied to
-a Jupyter kernel:
+For day-to-day Phase 4 runs, edit the clearly marked `USER CONFIGURATION`
+section near the top of `scripts/run_phase4_batch.py`, especially
+`QUESTIONS_FILE`, and then click **Run Python File** in VS Code. The same
+zero-argument workflow works from PowerShell, an activated virtual environment,
+or the explicit project interpreter:
 
 ```powershell
-python scripts/run_phase4_batch.py `
-  --questions-file <path-to-question-file>
-python scripts/run_phase4_batch.py `
-  --mode smoke `
-  --questions-file <path-to-question-file>
-python scripts/run_phase4_batch.py `
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py
+# or, after activating the virtual environment:
+python scripts\run_phase4_batch.py
+```
+
+The configuration section controls the question file, mode, answer-word limit,
+generation retries/cooldown, reranker device/batch/cache policy, and optional
+resume folder. Question lists are UTF-8 TXT files with one question per line or
+CSV files with a `question` column. For a 440-question run, set
+`QUESTIONS_FILE` to that question list and optionally adjust
+`MAX_ANSWER_WORDS`.
+
+The script performs the notebook-equivalent load, chunk, embed, index, and
+`Phase4Runner` sequence. Progress is flushed immediately, and no diagnostic,
+dry-run, health-check, or configuration-resolution stage delays normal
+execution.
+
+CLI options remain available as advanced one-off overrides:
+
+```powershell
+python scripts\run_phase4_batch.py `
   --mode benchmark `
   --questions-file <path-to-benchmark-csv>
 ```
-
-Manual and smoke runs require `--questions-file`; the CLI never assumes a
-question filename. Question lists are UTF-8 text files with one question per
-line, or CSV files with a `question` column. Benchmark mode can use either an
-explicit `--questions-file` or the path resolved by `Phase4Config`.
-
-The script mirrors the notebook's Phase 4 initialization, renders no inline
-traces, and prints timestamped, flushed progress before each expensive startup
-stage. Use `--verbose` for the resolved configuration and execution settings.
-`--dry-run` validates and previews questions without loading documents, indexes,
-the reranker, or the LLM. `--health-check` verifies configured paths, local
-dependencies, and output permissions without running QA. Paths and model names
-can be supplied through `--config-file` or their corresponding CLI overrides.
 
 Terminal manual-QA runs process every loaded question by default. Only an
 explicit `--max-questions N` truncates terminal input; `--large-run` remains an
@@ -258,7 +263,7 @@ the initial attempt with a 20-second cooldown. Every question attempt updates
 Successful occurrences are keyed by original index plus normalized-question
 hash, so duplicate question text resumes safely.
 
-Example long run:
+Optional advanced long-run override:
 
 ```powershell
 python scripts/run_phase4_batch.py `
@@ -282,8 +287,9 @@ python scripts/run_phase4_batch.py `
 Completed questions are skipped; failed or interrupted occurrences are retried.
 If retries remain exhausted, the final CSV retains a `generation_failed` row
 with the original exception type/message while all standard reports are still
-generated. `--max-answer-words` adds a grounded prompt upper bound; omitting it
-preserves the existing detailed answer behavior.
+generated. For the normal edit-and-run workflow, set `RESUME_RUN_FOLDER` and
+`MAX_ANSWER_WORDS` in `USER CONFIGURATION`; `--resume` and
+`--max-answer-words` are optional CLI equivalents.
 
 Reranking occurs after RRF because dense, BM25, and RRF scores are not
 calibrated for direct averaging. The selector can enforce maximum evidence
