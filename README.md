@@ -337,6 +337,10 @@ The standalone Phase 4 HTML report turns recognized `[1]` and
 `[source | Page N | Chunk ID]` answer markers into inline PDF-page citation
 badges. Answers without markers receive compact citation chips, and the full
 reference list remains collapsible. CSV/XLSX citation columns are unchanged.
+The report header also provides Light, Dark, and System theme controls. System
+mode follows the operating-system preference by default, while explicit
+choices persist locally in the browser. All theme assets are embedded, keeping
+the report standalone and double-click openable.
 
 `CrossEncoderReranker` remains lazy: no model is loaded during pipeline
 construction. On the first `answer()` call it always attempts
