@@ -90,6 +90,10 @@ PHASE4_CSV_COLUMNS = [
     "weak_evidence_count",
     "reranker_latency_seconds",
     "evidence_selection_latency_seconds",
+    "usable_candidate_count",
+    "threshold_pass_count",
+    "fallback_used",
+    "evidence_confidence",
 ]
 
 _OUTPUT_SUBDIRECTORIES = (
@@ -565,6 +569,16 @@ def _phase4_row_values(response: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "evidence_selection_latency_seconds": float(
             latency.get("evidence_selection_seconds") or 0.0
+        ),
+        "usable_candidate_count": int(
+            token_usage.get("usable_candidate_count") or 0
+        ),
+        "threshold_pass_count": int(
+            token_usage.get("threshold_pass_count") or 0
+        ),
+        "fallback_used": bool(token_usage.get("fallback_used")),
+        "evidence_confidence": str(
+            token_usage.get("evidence_confidence") or ""
         ),
     }
 
