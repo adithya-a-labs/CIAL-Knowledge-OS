@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import fmean
 from time import perf_counter
 from typing import Any
 
-from .batch_qa import BatchQAPipeline, collect_batch_answers
+from .batch_qa import (
+    BatchAnswerCollection,
+    BatchQAPipeline,
+    QuestionCompleteCallback,
+    collect_batch_answers,
+)
 from .benchmark_loader import Benchmark
 from .config import Phase3Config
 from .evaluation_metrics import evaluate_answer
@@ -188,11 +193,25 @@ class Phase3Runner:
         benchmark: Benchmark | None = None,
         top_k: int | None = None,
         run_metadata: Mapping[str, Any] | None = None,
+        initial_rows: Sequence[Mapping[str, Any]] = (),
+        initial_responses: Sequence[Mapping[str, Any] | None] = (),
+        on_question_complete: QuestionCompleteCallback | None = None,
     ) -> Phase3RunResult:
-        """Execute questions and generate the complete configured artifact set."""
+        """Execute questions and generate the complete configured artifact set.
+
+        ``initial_rows``/``initial_responses`` and ``on_question_complete`` are
+        additive resume hooks. Normal Phase 1--3 callers omit them and preserve
+        the previous lifecycle. Resume callers provide aligned checkpoint
+        records; new rows are merged and ordered by their private checkpoint
+        index before the standard exports are regenerated.
+        """
 
         if benchmark is not None and questions is None and questions_path is None:
             questions = [item.question for item in benchmark.questions]
+        if len(initial_rows) != len(initial_responses):
+            raise ValueError(
+                "initial_rows and initial_responses must have equal lengths."
+            )
         metadata = {
             str(key).strip(): value
             for key, value in (run_metadata or {}).items()
@@ -235,13 +254,61 @@ class Phase3Runner:
                 **metadata,
             },
         )
-        collection = collect_batch_answers(
-            pipeline=self.pipeline,
-            questions=questions,
-            questions_path=questions_path,
-            top_k=top_k,
-        )
-        rows = [dict(row) for row in collection.rows]
+        if (
+            questions is not None
+            and len(questions) == 0
+            and questions_path is None
+            and initial_rows
+        ):
+            collection = BatchAnswerCollection(
+                columns=tuple(
+                    key
+                    for key in initial_rows[0]
+                    if not str(key).startswith("__checkpoint_")
+                ),
+                rows=(),
+                responses=(),
+            )
+        else:
+            collection = collect_batch_answers(
+                pipeline=self.pipeline,
+                questions=questions,
+                questions_path=questions_path,
+                top_k=top_k,
+                on_question_complete=on_question_complete,
+            )
+        row_response_pairs = [
+            *[
+                (dict(row), dict(response) if response is not None else None)
+                for row, response in zip(
+                    initial_rows,
+                    initial_responses,
+                    strict=True,
+                )
+            ],
+            *[
+                (dict(row), dict(response) if response is not None else None)
+                for row, response in zip(
+                    collection.rows,
+                    collection.responses,
+                    strict=True,
+                )
+            ],
+        ]
+        if any("__checkpoint_index" in row for row, _ in row_response_pairs):
+            row_response_pairs.sort(
+                key=lambda pair: int(
+                    pair[0].get("__checkpoint_index") or 2**31
+                )
+            )
+        rows = [
+            {
+                key: value
+                for key, value in row.items()
+                if not str(key).startswith("__checkpoint_")
+            }
+            for row, _ in row_response_pairs
+        ]
         for row in rows:
             row.update(metadata)
         result_columns = (
@@ -252,10 +319,7 @@ class Phase3Runner:
                 if key not in collection.columns
             ),
         )
-        responses = [
-            dict(response) if response is not None else None
-            for response in collection.responses
-        ]
+        responses = [response for _, response in row_response_pairs]
         artifact_started_at = perf_counter()
         write_results_csv(paths.results_csv, rows, result_columns)
         write_results_xlsx(paths.results_xlsx, rows, result_columns)
