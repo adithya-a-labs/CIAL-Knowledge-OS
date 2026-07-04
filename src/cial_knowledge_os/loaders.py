@@ -1,8 +1,9 @@
-"""Local text and PDF document ingestion."""
+"""Local document ingestion with a recursive, configuration-driven corpus."""
 
 from __future__ import annotations
 
 import logging
+import warnings
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,11 @@ from langchain_core.documents import Document
 from .config import KnowledgeOSConfig
 
 logger = logging.getLogger(__name__)
+
+SUPPORTED_DOCUMENT_EXTENSIONS = frozenset(
+    {".pdf", ".txt", ".md", ".docx", ".html"}
+)
+IMPLEMENTED_KNOWLEDGE_EXTENSIONS = frozenset({".pdf"})
 
 SAMPLE_AIRPORT_DOCUMENTS = {
     "terminal_operations_sop.txt": """CIAL Terminal Operations SOP
@@ -58,10 +64,30 @@ def create_sample_airport_documents(config: KnowledgeOSConfig) -> list[Path]:
     return paths
 
 
-def _base_metadata(path: Path, loader_type: str, page_number: int | None = None) -> dict[str, Any]:
+def _base_metadata(
+    path: Path,
+    loader_type: str,
+    page_number: int | None = None,
+    *,
+    corpus_root: Path | None = None,
+) -> dict[str, Any]:
+    resolved = path.resolve()
+    relative_path: Path | None = None
+    if corpus_root is not None:
+        try:
+            relative_path = resolved.relative_to(corpus_root.resolve())
+        except ValueError:
+            relative_path = None
+    folder_parts = relative_path.parts[:-1] if relative_path is not None else ()
     metadata: dict[str, Any] = {
-        "source": str(path.resolve()),
+        # ``source`` and ``file_name`` are legacy Phase 1--4 fields.
+        "source": str(resolved),
         "file_name": path.name,
+        "source_filename": path.name,
+        "absolute_path": str(resolved),
+        "relative_path": relative_path.as_posix() if relative_path else path.name,
+        "category": folder_parts[0] if folder_parts else None,
+        "collection": folder_parts[1] if len(folder_parts) > 1 else None,
         "loader_type": loader_type,
         "document_type": path.suffix.lstrip(".").lower(),
         "access_level": "internal",
@@ -93,7 +119,7 @@ def load_text_documents(config: KnowledgeOSConfig) -> list[Document]:
     return documents
 
 
-def _load_pdf_with_docling(path: Path) -> list[Document]:
+def _load_pdf_with_docling(path: Path, corpus_root: Path) -> list[Document]:
     from docling.document_converter import DocumentConverter
 
     result = DocumentConverter().convert(str(path))
@@ -103,12 +129,12 @@ def _load_pdf_with_docling(path: Path) -> list[Document]:
     return [
         Document(
             page_content=text,
-            metadata=_base_metadata(path, "docling"),
+            metadata=_base_metadata(path, "docling", corpus_root=corpus_root),
         )
     ]
 
 
-def _load_pdf_with_pymupdf(path: Path) -> list[Document]:
+def _load_pdf_with_pymupdf(path: Path, corpus_root: Path) -> list[Document]:
     import fitz
 
     documents: list[Document] = []
@@ -119,26 +145,97 @@ def _load_pdf_with_pymupdf(path: Path) -> list[Document]:
                 documents.append(
                     Document(
                         page_content=text,
-                        metadata=_base_metadata(path, "pymupdf", index),
+                        metadata=_base_metadata(
+                            path,
+                            "pymupdf",
+                            index,
+                            corpus_root=corpus_root,
+                        ),
                     )
                 )
     return documents
 
 
-def load_pdf_documents(config: KnowledgeOSConfig) -> list[Document]:
-    """Load local PDFs, preferring Docling and falling back to PyMuPDF."""
-
-    pdf_paths = (
-        sorted(config.pdf_data_dir.rglob("*.pdf"))
-        if config.pdf_data_dir.exists()
-        else []
+def _supported_documents(root: Path) -> list[Path]:
+    if not root.exists():
+        return []
+    return sorted(
+        path
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix.lower() in SUPPORTED_DOCUMENT_EXTENSIONS
     )
+
+
+def resolve_corpus_root(config: KnowledgeOSConfig) -> Path:
+    """Select the canonical corpus or the deprecated configured fallback."""
+
+    canonical_documents = _supported_documents(config.knowledge_root)
+    if canonical_documents:
+        return config.knowledge_root
+
+    legacy_documents = [
+        path
+        for path in _supported_documents(config.legacy_pdf_root)
+        if path.suffix.lower() == ".pdf"
+    ]
+    if legacy_documents:
+        message = (
+            f"Knowledge repository '{config.knowledge_root}' is missing or empty; "
+            f"falling back to deprecated PDF corpus '{config.legacy_pdf_root}'. "
+            "Run scripts/migrate_pdf_to_files.py to migrate it."
+        )
+        warnings.warn(message, DeprecationWarning, stacklevel=2)
+        logger.warning(
+            "legacy_pdf_corpus_fallback",
+            extra={
+                "event": "document_discovery",
+                "knowledge_root": str(config.knowledge_root),
+                "legacy_pdf_root": str(config.legacy_pdf_root),
+            },
+        )
+        return config.legacy_pdf_root
+    return config.knowledge_root
+
+
+def discover_knowledge_documents(
+    config: KnowledgeOSConfig,
+) -> tuple[Path, list[Path]]:
+    """Recursively find recognized files below the active configured corpus."""
+
+    corpus_root = resolve_corpus_root(config)
+    paths = _supported_documents(corpus_root)
+    for path in paths:
+        extension = path.suffix.lower()
+        if extension not in IMPLEMENTED_KNOWLEDGE_EXTENSIONS:
+            logger.warning(
+                "document_type_not_implemented",
+                extra={
+                    "event": "document_discovery",
+                    "source": str(path.resolve()),
+                    "document_type": extension.lstrip("."),
+                },
+            )
+    return (
+        corpus_root,
+        [
+            path
+            for path in paths
+            if path.suffix.lower() in IMPLEMENTED_KNOWLEDGE_EXTENSIONS
+        ],
+    )
+
+
+def load_pdf_documents(config: KnowledgeOSConfig) -> list[Document]:
+    """Recursively load corpus PDFs, preferring Docling then PyMuPDF."""
+
+    corpus_root, pdf_paths = discover_knowledge_documents(config)
     if not pdf_paths:
         logger.info(
             "pdf_corpus_empty",
             extra={
                 "event": "document_loading",
-                "pdf_data_dir": str(config.pdf_data_dir),
+                "knowledge_root": str(config.knowledge_root),
+                "active_corpus_root": str(corpus_root),
             },
         )
         return []
@@ -167,7 +264,7 @@ def load_pdf_documents(config: KnowledgeOSConfig) -> list[Document]:
     for path in pdf_paths:
         if docling_available:
             try:
-                docling_documents = _load_pdf_with_docling(path)
+                docling_documents = _load_pdf_with_docling(path, corpus_root)
                 if docling_documents:
                     documents.extend(docling_documents)
                     continue
@@ -189,7 +286,7 @@ def load_pdf_documents(config: KnowledgeOSConfig) -> list[Document]:
                         "is not installed as a local fallback."
                     )
         try:
-            documents.extend(_load_pdf_with_pymupdf(path))
+            documents.extend(_load_pdf_with_pymupdf(path, corpus_root))
         except Exception as exc:
             raise RuntimeError(
                 f"Could not read PDF '{path}'. The file may be corrupted, "

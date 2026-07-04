@@ -23,6 +23,10 @@ class KnowledgeOSConfig:
     data_dir: Path | None = None
     sample_data_dir: Path | None = None
     raw_data_dir: Path | None = None
+    knowledge_root: Path | None = None
+    legacy_pdf_root: Path | None = None
+    # Deprecated compatibility alias. New code must use ``knowledge_root`` for
+    # the canonical corpus and ``legacy_pdf_root`` only for fallback/migration.
     pdf_data_dir: Path | None = None
     qdrant_dir: Path | None = None
     qdrant_collection_name: str = "cial_basic_rag"
@@ -48,7 +52,20 @@ class KnowledgeOSConfig:
             self.sample_data_dir, self.data_dir / "sample"
         )
         self.raw_data_dir = self._resolve(self.raw_data_dir, self.data_dir / "raw")
-        self.pdf_data_dir = self._resolve(self.pdf_data_dir, self.data_dir / "pdf")
+        self.knowledge_root = self._resolve(
+            self.knowledge_root,
+            self.data_dir / "files",
+        )
+        legacy_pdf_value = (
+            self.legacy_pdf_root
+            if self.legacy_pdf_root is not None
+            else self.pdf_data_dir
+        )
+        self.legacy_pdf_root = self._resolve(
+            legacy_pdf_value,
+            self.data_dir / "pdf",
+        )
+        self.pdf_data_dir = self.legacy_pdf_root
         self.qdrant_dir = self._resolve(
             self.qdrant_dir,
             self.data_dir / "qdrant" / self.qdrant_collection_name,

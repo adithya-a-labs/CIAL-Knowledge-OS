@@ -56,10 +56,14 @@ from .llm import (
     generate_answer,
 )
 from .loaders import (
+    IMPLEMENTED_KNOWLEDGE_EXTENSIONS,
+    SUPPORTED_DOCUMENT_EXTENSIONS,
     create_sample_airport_documents,
+    discover_knowledge_documents,
     load_all_documents,
     load_pdf_documents,
     load_text_documents,
+    resolve_corpus_root,
     summarize_documents,
 )
 from .rag_pipeline import BasicRAGPipeline
@@ -225,7 +229,9 @@ __all__ = [
     "ExperimentRunner",
     "ExperimentSweepResult",
     "GenerationFailedError",
+    "IMPLEMENTED_KNOWLEDGE_EXTENSIONS",
     "INSUFFICIENT_EVIDENCE_RESPONSE",
+    "SUPPORTED_DOCUMENT_EXTENSIONS",
     "UNSUPPORTED_QUERY_RESPONSE",
     "QueryTransformer",
     "QuestionIdentity",
@@ -251,6 +257,7 @@ __all__ = [
     "compress_context",
     "context_stage_counts_table",
     "deduplicate_results",
+    "discover_knowledge_documents",
     "default_bm25_tokenize",
     "display_context_sections_table",
     "display_question_trace",
@@ -308,6 +315,7 @@ __all__ = [
     "reformulate_for_domain",
     "render_answer_with_citations",
     "render_citations",
+    "resolve_corpus_root",
     "reset_qdrant_storage",
     "retrieve_multiple_queries",
     "retrieval_chunks_table",
