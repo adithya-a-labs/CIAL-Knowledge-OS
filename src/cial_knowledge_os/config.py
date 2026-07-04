@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import isfinite
 from pathlib import Path
 from typing import Literal
 
@@ -297,6 +298,9 @@ class Phase4Config(Phase3Config):
     fallback_to_top_n_if_empty: bool = True
     fallback_top_n: int = 3
     weak_evidence_answer_allowed: bool = True
+    min_fallback_reranker_score: float = 0.35
+    allow_extractive_fallback_for_weak_evidence: bool = False
+    unsupported_query_detection_enabled: bool = True
     # Evidence precision and answer depth are independent controls. These
     # fields change synthesis instructions, never the selected context.
     answer_detail_level: str = "detailed"
@@ -355,6 +359,17 @@ class Phase4Config(Phase3Config):
             raise ValueError("fallback_top_n must be greater than zero.")
         if self.fallback_top_n > self.max_selected_evidence:
             self.fallback_top_n = self.max_selected_evidence
+        if (
+            isinstance(self.min_fallback_reranker_score, bool)
+            or not isinstance(
+                self.min_fallback_reranker_score,
+                (int, float),
+            )
+            or not isfinite(float(self.min_fallback_reranker_score))
+        ):
+            raise ValueError(
+                "min_fallback_reranker_score must be a finite numeric value."
+            )
         if not self.answer_detail_level.strip():
             raise ValueError("answer_detail_level must not be blank.")
         self.answer_detail_level = self.answer_detail_level.strip().casefold()

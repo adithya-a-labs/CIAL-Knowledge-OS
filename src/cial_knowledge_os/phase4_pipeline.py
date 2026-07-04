@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections import Counter
 from collections.abc import Mapping
+from statistics import fmean
 from typing import Any
 
 from sentence_transformers import SentenceTransformer
@@ -24,6 +26,63 @@ from .retrievers import Retriever
 from .token_budget import Tokenizer
 
 logger = logging.getLogger(__name__)
+
+UNSUPPORTED_QUERY_RESPONSE = (
+    "The indexed documents do not contain enough evidence to answer this "
+    "question. This appears to require live/current/external data."
+)
+
+_CURRENT_DATA_MARKERS = re.compile(
+    r"\b(?:now|latest|current(?:ly)?|today(?:'s)?|tomorrow(?:'s)?|live|"
+    r"real[- ]?time)\b",
+    re.IGNORECASE,
+)
+_CURRENT_DATA_DOMAINS = (
+    re.compile(r"\b(?:weather|forecast)\b", re.IGNORECASE),
+    re.compile(r"\b(?:share|stock)\s+price\b", re.IGNORECASE),
+    re.compile(r"\bipl\b.*\b(?:score|match|fixture|result)\b", re.IGNORECASE),
+    re.compile(r"\b(?:score|match|fixture|result)\b.*\bipl\b", re.IGNORECASE),
+    re.compile(r"\bcafeteria\b.*\bmenu\b", re.IGNORECASE),
+    re.compile(r"\bmenu\b.*\bcafeteria\b", re.IGNORECASE),
+    re.compile(r"\bnetwork\s+topology\b", re.IGNORECASE),
+)
+_SUPPORT_STOP_WORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "at",
+    "be",
+    "do",
+    "does",
+    "for",
+    "from",
+    "how",
+    "in",
+    "is",
+    "it",
+    "me",
+    "of",
+    "on",
+    "please",
+    "show",
+    "tell",
+    "the",
+    "to",
+    "what",
+    "when",
+    "which",
+    "who",
+    "will",
+    "with",
+    "now",
+    "latest",
+    "current",
+    "currently",
+    "today",
+    "tomorrow",
+    "live",
+}
 
 
 class Phase4RAGPipeline(Phase3RAGPipeline):
@@ -243,6 +302,7 @@ Grounding rules:
 6. Reply exactly "{INSUFFICIENT_EVIDENCE_RESPONSE}" only when SELECTED EVIDENCE is empty or contains no usable information.
 
 Answer requirements:
+- Produce a {self.config.answer_detail_level} synthesis from the selected evidence.
 - Produce a comprehensive, enterprise-grade synthesis that balances depth with clarity.
 - Think like an experienced enterprise consultant preparing advice for a technical decision-maker.
 - Do not merely summarize retrieved passages; interpret, connect, and synthesize them into a coherent explanation.
@@ -441,6 +501,78 @@ ANSWER
             enriched.append(candidate)
         return RerankResult(tuple(enriched), 0.0, "disabled")
 
+    def _fallback_evidence_is_sufficient(
+        self,
+        *,
+        evidence_confidence: str,
+        final_chunks: list[dict[str, Any]],
+    ) -> bool:
+        """Return whether selected evidence may support an extractive fallback."""
+
+        if not final_chunks:
+            return False
+        selected = self.last_selected_chunks
+        if not selected:
+            return False
+        scores = [
+            float(item.get("reranker_score") or 0.0)
+            for item in selected
+        ]
+        minimum = float(self.config.min_fallback_reranker_score)
+        score_passed = max(scores) >= minimum and fmean(scores) >= minimum
+        all_selection_fallback = all(
+            str(item.get("selection_reason") or "") == "adaptive_fallback"
+            for item in selected
+        )
+        all_weak = all(bool(item.get("weak_evidence")) for item in selected)
+        weak_override = (
+            self.config.allow_extractive_fallback_for_weak_evidence
+            and evidence_confidence == "weak"
+        )
+        confidence_passed = (
+            evidence_confidence in {"strong", "mixed"} or weak_override
+        )
+        selection_passed = (
+            not all_selection_fallback and not all_weak
+        ) or weak_override
+        return score_passed and confidence_passed and selection_passed
+
+    @staticmethod
+    def _requires_current_external_data(question: str) -> bool:
+        normalized = " ".join(str(question).split())
+        return bool(_CURRENT_DATA_MARKERS.search(normalized)) or any(
+            pattern.search(normalized) for pattern in _CURRENT_DATA_DOMAINS
+        )
+
+    @staticmethod
+    def _current_question_has_direct_support(
+        question: str,
+        selected_chunks: list[dict[str, Any]],
+        *,
+        evidence_sufficient: bool,
+    ) -> bool:
+        """Conservatively identify direct indexed support for a current query."""
+
+        if not evidence_sufficient or not selected_chunks:
+            return False
+        evidence = " ".join(
+            str(item.get("text") or item.get("page_content") or "")
+            for item in selected_chunks
+        ).casefold()
+        question_terms = {
+            token
+            for token in re.findall(r"[a-z0-9]+", question.casefold())
+            if len(token) > 1 and token not in _SUPPORT_STOP_WORDS
+        }
+        if not question_terms:
+            return False
+        overlap = sum(term in evidence for term in question_terms)
+        required_overlap = min(2, len(question_terms))
+        temporal_or_domain_support = bool(
+            _CURRENT_DATA_MARKERS.search(evidence)
+        ) or any(pattern.search(evidence) for pattern in _CURRENT_DATA_DOMAINS)
+        return overlap >= required_overlap and temporal_or_domain_support
+
     def retrieve(self, question: str) -> list[dict[str, Any]]:
         """Retrieve, rerank, and select evidence for one question.
 
@@ -513,6 +645,7 @@ ANSWER
             if mixed_confidence
             else "strong"
         )
+        quality = self.evidence_quality_scorer.score(self.last_selected_chunks)
         context = str(response.get("context") or "")
         response["prompt"] = (
             self._build_phase4_prompt(
@@ -523,7 +656,42 @@ ANSWER
             if context
             else ""
         )
-        if (
+        final_chunks = (
+            response.get("context_stages", {}).get("compressed", [])
+            if isinstance(response.get("context_stages"), Mapping)
+            else []
+        )
+        final_chunks = [
+            dict(item) for item in final_chunks if isinstance(item, Mapping)
+        ]
+        fallback_evidence_sufficient = self._fallback_evidence_is_sufficient(
+            evidence_confidence=evidence_confidence,
+            final_chunks=final_chunks,
+        )
+        current_data_query = (
+            self.config.unsupported_query_detection_enabled
+            and self._requires_current_external_data(question)
+        )
+        unsupported_query = current_data_query and not (
+            self._current_question_has_direct_support(
+                question,
+                self.last_selected_chunks,
+                evidence_sufficient=fallback_evidence_sufficient,
+            )
+        )
+        fallback_candidate = bool(
+            final_chunks and response.get("answer_status") != "answered"
+        )
+        extractive_fallback_used = False
+        fallback_blocked = False
+
+        if unsupported_query:
+            fallback_blocked = fallback_candidate
+            response["raw_answer"] = UNSUPPORTED_QUERY_RESPONSE
+            response["answer"] = UNSUPPORTED_QUERY_RESPONSE
+            response["answer_status"] = "unsupported_query"
+            response["citations"] = []
+        elif (
             weak_evidence
             and self.config.weak_evidence_answer_allowed
             and response.get("answer_status") == "answered"
@@ -549,23 +717,12 @@ ANSWER
             if isinstance(phase3_trace_value, Mapping)
             else {}
         )
-        final_chunks = (
-            response.get("context_stages", {}).get("compressed", [])
-            if isinstance(response.get("context_stages"), Mapping)
-            else []
-        )
         if (
-            final_chunks
-            and (
-                not weak_evidence
-                or self.config.weak_evidence_answer_allowed
-            )
+            not unsupported_query
+            and fallback_candidate
+            and fallback_evidence_sufficient
             and response.get("answer_status") != "answered"
         ):
-            # A reranker score is a confidence signal, not proof that the
-            # retrieved text is unusable. Preserve answerability with a clearly
-            # labeled extractive fallback instead of converting non-empty
-            # evidence into "no evidence."
             cautious_citations = build_citations(
                 final_chunks,
                 link_resolver=self.citation_link_builder,
@@ -588,7 +745,17 @@ ANSWER
             )
             response["answer_status"] = "answered"
             response["citations"] = cautious_citations
-        quality = self.evidence_quality_scorer.score(self.last_selected_chunks)
+            extractive_fallback_used = True
+        elif (
+            not unsupported_query
+            and fallback_candidate
+            and response.get("answer_status") != "answered"
+        ):
+            fallback_blocked = True
+            response["raw_answer"] = INSUFFICIENT_EVIDENCE_RESPONSE
+            response["answer"] = INSUFFICIENT_EVIDENCE_RESPONSE
+            response["answer_status"] = "insufficient_evidence"
+            response["citations"] = []
         # Compare serialized context blocks rather than raw text alone. Phase 3
         # context includes citation headers, and omitting that overhead would
         # understate the tokens Phase 4 avoids.
@@ -647,6 +814,9 @@ ANSWER
             ),
             "weak_evidence": weak_evidence,
             "evidence_confidence": evidence_confidence,
+            "extractive_fallback_used": extractive_fallback_used,
+            "fallback_blocked": fallback_blocked,
+            "unsupported_query_detected": unsupported_query,
         }
         latency = {
             "retrieval_seconds": float(
@@ -743,6 +913,9 @@ ANSWER
                 "token_efficiency": token_efficiency,
                 "evidence_confidence": evidence_confidence,
                 "weak_evidence": weak_evidence,
+                "extractive_fallback_used": extractive_fallback_used,
+                "fallback_blocked": fallback_blocked,
+                "unsupported_query_detected": unsupported_query,
                 "reranker_load_source": reranker_load_source,
                 "phase3_question_trace": phase3_trace,
                 "question_trace": trace_payload,
@@ -764,6 +937,24 @@ ANSWER
                 "token_reduction_percent": token_reduction_percent,
                 "selected_chunk_count": float(len(self.last_selected_chunks)),
                 "discarded_chunk_count": float(len(self.last_discarded_chunks)),
+                "unsupported_query_count": float(
+                    self.metrics.get("unsupported_query_count") or 0.0
+                )
+                + float(response.get("answer_status") == "unsupported_query"),
+                "insufficient_evidence_count": float(
+                    self.metrics.get("insufficient_evidence_count") or 0.0
+                )
+                + float(
+                    response.get("answer_status") == "insufficient_evidence"
+                ),
+                "extractive_fallback_count": float(
+                    self.metrics.get("extractive_fallback_count") or 0.0
+                )
+                + float(extractive_fallback_used),
+                "fallback_blocked_count": float(
+                    self.metrics.get("fallback_blocked_count") or 0.0
+                )
+                + float(fallback_blocked),
             }
         )
         return response
