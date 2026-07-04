@@ -31,13 +31,7 @@ from cial_knowledge_os import (  # noqa: E402
 )
 
 
-DEFAULT_QUESTIONS = (
-    "What are the most important cybersecurity controls we should implement immediately?",
-    "Which governance controls are considered foundational?",
-    "How should cybersecurity investments be prioritized?",
-    "What cybersecurity gaps are most likely to expose critical infrastructure?",
-    "How can executive leadership measure cybersecurity maturity?",
-)
+DEFAULT_QUESTIONS_FILE = PROJECT_ROOT / "data" / "manual_qa" / "phase4_questions.txt"
 
 
 def positive_integer(value: str) -> int:
@@ -208,7 +202,7 @@ def select_inputs(
     """
 
     benchmark: Benchmark | None = None
-    source_label = "inline defaults"
+    source_label = str(DEFAULT_QUESTIONS_FILE)
 
     if args.questions_file is not None:
         source = args.questions_file.expanduser()
@@ -234,7 +228,18 @@ def select_inputs(
         questions = [item.question for item in benchmark.questions]
         source_label = str(config.benchmark_csv_path)
     else:
-        questions = list(DEFAULT_QUESTIONS)
+        try:
+            # Manual inputs are data, not application code. Keeping the default
+            # list in a text file makes QA changes reviewable and reusable
+            # without editing the terminal runner.
+            questions = load_questions(DEFAULT_QUESTIONS_FILE)
+        except (FileNotFoundError, ValueError) as exc:
+            raise RuntimeError(
+                "The default Phase 4 questions file is missing or empty. "
+                f"Expected path: {DEFAULT_QUESTIONS_FILE}. "
+                "Create a UTF-8 text file with one question per line, or pass "
+                "--questions-file <path> to use a different CSV/TXT file."
+            ) from exc
 
     if args.max_questions is not None:
         questions = questions[: args.max_questions]

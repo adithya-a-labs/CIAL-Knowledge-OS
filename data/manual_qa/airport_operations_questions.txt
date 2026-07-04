@@ -1,0 +1,12 @@
+What cybersecurity controls are most important for maintaining continuity of airport operations?
+How should airport leadership prioritize risks to passenger-processing and baggage-handling systems?
+What governance responsibilities should remain with executives during an airport cyber incident?
+How should critical operational technology be segmented from corporate IT systems?
+What controls should protect airport access-control and identity-management systems?
+How should third-party vendors with access to airport systems be governed?
+What incident-response preparations are needed for disruption of critical airport services?
+How should airport operators measure cyber resilience and operational recovery readiness?
+What backup and recovery practices are recommended for essential airport systems?
+How should vulnerability management account for systems that cannot tolerate frequent downtime?
+What monitoring controls help detect threats without disrupting safety-critical operations?
+How should cybersecurity requirements be incorporated into airport technology procurement?

@@ -204,15 +204,23 @@ same `RunManager`. It appends these machine-readable columns:
 Large Phase 4 runs should use `scripts/run_phase4_batch.py` from a terminal
 rather than relying on a long-lived Jupyter kernel. The script performs the
 same load, chunk, embed, index, and `Phase4Runner` sequence as the notebook,
-accepts inline defaults or CSV/TXT question files, and does not render traces
-inline:
+loads version-controlled CSV/TXT question inputs, and does not render traces
+inline. The default manual and smoke input is
+`data/manual_qa/phase4_questions.txt`; TXT files contain one question per line,
+and CSV files must contain a `question` column.
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\run_phase4_batch.py `
-  --mode manual_qa `
-  --questions-file questions.csv `
-  --large-run `
-  --reranker-device cuda
+# Default manual QA file
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py
+
+# Custom version-controlled question file
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py --questions-file data/manual_qa/cybersecurity_questions.txt
+
+# Small execution check
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py --mode smoke --questions-file data/manual_qa/smoke_questions.txt
+
+# Configured benchmark dataset
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py --mode benchmark
 ```
 
 `--mode` supports `smoke`, `manual_qa`, and `benchmark`. Additional controls
@@ -220,6 +228,12 @@ include `--max-questions`, `--reranker-batch-size`, and
 `--local-files-only`. The existing runner remains responsible for CSV, XLSX,
 standalone HTML, configuration, summary, metrics, retrieval traces, logs,
 per-question context, and supported SVG/HTML visualization exports.
+
+Additional starter inputs are maintained in
+`data/manual_qa/airport_operations_questions.txt`. Treat these lists as
+reviewable evaluation data: update the text files rather than editing Python.
+If the default file is unavailable, `--questions-file` can select any supported
+CSV or TXT input without changing the output contract.
 
 | Column | Meaning |
 |---|---|
