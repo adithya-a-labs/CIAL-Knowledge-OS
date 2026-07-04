@@ -110,10 +110,43 @@ require the approved cache to be staged in advance. The pipeline uses
 `BAAI/bge-m3`, `cross-encoder/ms-marco-MiniLM-L-6-v2`, and `gemma3:12b` by
 default. Documents and prompts are never sent to a hosted inference service.
 
-Place non-sensitive text fixtures in `data/sample/`, temporary text input in
-`data/raw/`, and approved local PDFs in `data/pdf/`. PDF ingestion prefers Docling
-and falls back to PyMuPDF. Each experiment's Qdrant data is written beneath
-`data/qdrant/` and must not be committed.
+Place approved enterprise documents in the canonical `data/files/` knowledge
+repository. Discovery is recursive and configured through
+`KnowledgeOSConfig.knowledge_root`; ingestion must not hardcode this path. A
+recommended taxonomy uses the first directory as the category and the second as
+the collection:
+
+```text
+data/files/
+|-- aviation/icao/
+|-- cybersecurity/nist/
+|-- engineering/electrical/
+|-- hr/
+`-- legal/
+```
+
+PDF is the currently implemented enterprise-document type. `.txt`, `.md`,
+`.docx`, and `.html` are recognized for future loaders and skipped with a clear
+log message until implemented. PDF ingestion prefers Docling and falls back to
+PyMuPDF. Loaded metadata includes the source filename, absolute path, path
+relative to `knowledge_root`, category, collection, extension, and page number
+when available, while retaining legacy Phase 1--4 source fields.
+
+`data/pdf/` is deprecated. When `data/files/` is missing or contains no
+recognized documents, the loader warns and temporarily falls back to
+`data/pdf/`. Copy the legacy corpus into the canonical repository with:
+
+```bash
+python scripts/migrate_pdf_to_files.py --dry-run
+python scripts/migrate_pdf_to_files.py
+# Destructive source cleanup is explicit:
+python scripts/migrate_pdf_to_files.py --move
+```
+
+Migration preserves filenames under `data/files/legacy_pdf/` and skips existing
+destinations. Non-sensitive text fixtures remain in `data/sample/`, temporary
+text input remains in `data/raw/`, and experiment Qdrant data is written beneath
+`data/qdrant/`; runtime data must not be committed.
 
 Existing files under `data/sample/` are loaded normally, but the pipeline never
 creates synthetic sample documents by default. Demonstration fixtures require an

@@ -1,6 +1,6 @@
 # CIAL Knowledge OS: Current State through Phase 4
 
-Last audited: 2026-07-03
+Last audited: 2026-07-05
 
 This document describes the implemented repository state. `PROJECT_REQUIREMENTS.md`
 defines the binding requirements, while this file distinguishes completed
@@ -28,8 +28,8 @@ The platform is designed around these principles:
 ## Current Architecture
 
 ```text
-Local documents
-  -> PDF/text loading
+Enterprise documents in configured data/files/ taxonomy
+  -> recursive PDF discovery and local PDF/text loading
   -> metadata-preserving chunking
   -> local embeddings
   -> embedded local Qdrant
@@ -51,6 +51,20 @@ visualization are split into focused modules. Configuration is centralized in
 experiment sweeps add declarative `ExperimentConfig` and `ExperimentGrid`
 values.
 
+`KnowledgeOSConfig.knowledge_root` resolves to `data/files/`, the canonical
+enterprise source repository. Files may be nested to any depth; the first folder
+is recorded as `category` and the second, when present, as `collection`.
+Recommended top-level categories include `aviation`, `cybersecurity`,
+`engineering`, `hr`, and `legal`, with standards bodies, systems, or document
+sets as second-level collections. PDF loading is implemented today. Recognized
+future extensions (`.txt`, `.md`, `.docx`, and `.html`) are logged and skipped.
+
+The former `data/pdf/` corpus is a deprecated compatibility fallback. It is used
+only when the canonical root is missing or has no recognized documents, and the
+loader emits a deprecation warning. `scripts/migrate_pdf_to_files.py` copies
+legacy PDFs to `data/files/legacy_pdf/` by default and supports `--dry-run` and
+explicit `--move` modes.
+
 The current LLM adapter uses Ollama. The surrounding pipeline accepts replaceable
 local model objects, but adapters for other local runtimes such as vLLM and
 llama.cpp are still future work.
@@ -60,7 +74,8 @@ llama.cpp are still future work.
 The frozen Phase 1 baseline is represented by
 `notebooks/01_Basic_RAG.ipynb` and `BasicRAGPipeline`. It implements:
 
-- local PDF loading with Docling and a PyMuPDF fallback;
+- recursive, configuration-driven local PDF loading with Docling and a PyMuPDF
+  fallback;
 - local text loading and metadata-preserving chunking;
 - local SentenceTransformers embeddings;
 - persistent embedded Qdrant storage;

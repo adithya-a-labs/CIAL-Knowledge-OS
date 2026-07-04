@@ -26,9 +26,10 @@ CIAL-Knowledge-OS/
 |       |-- vectorstore.py
 |       `-- visualization.py
 |-- data/
+|   |-- files/        # Canonical recursive enterprise knowledge repository
 |   |-- sample/       # Versioned, non-sensitive fixtures
 |   |-- raw/          # Ignored runtime text
-|   |-- pdf/          # Ignored real documents
+|   |-- pdf/          # Deprecated corpus fallback
 |   |-- qdrant/       # Ignored embedded database
 |   |-- cache/        # Ignored runtime cache
 |   `-- exports/      # Ignored generated exports

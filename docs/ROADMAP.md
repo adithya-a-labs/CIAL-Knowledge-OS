@@ -415,7 +415,7 @@ retrieval, contradiction detection, production interfaces, and several
 enterprise controls remain planned or deferred.
 
 ```text
-Enterprise Documents
+Enterprise Documents in the configured recursive `data/files/` repository
         ↓
 Ingestion
         ↓
@@ -445,6 +445,12 @@ Reports / Dashboard / Knowledge OS Interface
 Each stage should expose a stable contract, accept configuration, retain
 traceable metadata, and remain replaceable without forcing unrelated stages to
 change.
+
+The implemented source stage now uses
+`KnowledgeOSConfig.knowledge_root` as its canonical repository and discovers
+documents recursively. Category/collection folders form the initial enterprise
+taxonomy. The previous flat PDF directory remains a deprecated migration
+fallback, not the target architecture.
 
 ## Deferred Ideas and Future Research
 

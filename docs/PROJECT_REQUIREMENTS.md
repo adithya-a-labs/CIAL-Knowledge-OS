@@ -45,6 +45,11 @@ Build a secure, enterprise-grade Knowledge OS that allows CIAL employees to sear
 
 Index relevant metadata, including:
 
+- source filename
+- absolute source path
+- path relative to the configured knowledge root
+- category from the first knowledge-root folder
+- collection from the second knowledge-root folder, when present
 - department
 - document type
 - asset or system
@@ -57,6 +62,25 @@ Index relevant metadata, including:
 - owner or responsible team
 
 Retrieval should apply metadata filters wherever possible.
+
+### Canonical Knowledge Repository
+
+- Configure the enterprise corpus through `KnowledgeOSConfig.knowledge_root`,
+  which defaults to `project_root / "data" / "files"`.
+- Recursively discover documents below the configured root; do not scatter
+  hardcoded corpus paths through notebooks, runners, ingestion, or tests.
+- Organize enterprise files by category and optional collection, for example
+  `cybersecurity/nist/`, `aviation/icao/`, `engineering/electrical/`, `hr/`,
+  and `legal/`.
+- Implement PDF ingestion first. Recognize `.pdf`, `.txt`, `.md`, `.docx`, and
+  `.html` for extension filtering, and log-and-skip types without a loader.
+- Preserve legacy Phase 1--4 source metadata and export contracts while adding
+  taxonomy and path metadata.
+- Treat `data/pdf/` as a deprecated fallback only when the canonical root is
+  missing or contains no recognized documents. Emit a deprecation warning and
+  retain fallback support until a later approved removal.
+- Provide a safe migration utility that copies to `data/files/legacy_pdf/` by
+  default, supports `--dry-run`, and moves only with explicit `--move`.
 
 ## 6. Security and Data Privacy
 
