@@ -232,9 +232,16 @@ use the configured benchmark dataset when no override is supplied.
 
 The script mirrors the notebook's Phase 4 initialization, renders no inline
 traces, and prints the paths to the complete run bundle and existing SVG/HTML
-visualizations. Use `--large-run`, `--max-questions`, `--reranker-device`,
+visualizations. Use `--max-questions`, `--reranker-device`,
 `--reranker-batch-size`, and `--local-files-only` as needed. Runs remain under
 `outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp>/`.
+
+Terminal manual-QA runs process every loaded question by default. Only an
+explicit `--max-questions N` truncates terminal input; `--large-run` remains an
+accepted compatibility flag but is no longer required. The 25-question guard
+is restricted to the interactive notebook workflow, where it protects the
+kernel from rendering a large trace set. Smoke mode remains capped at three
+questions, and benchmark behavior is unchanged.
 
 Reranking occurs after RRF because dense, BM25, and RRF scores are not
 calibrated for direct averaging. The selector can enforce maximum evidence

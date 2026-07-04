@@ -600,6 +600,13 @@ def collect_batch_answers(
         questions_path=questions_path,
         project_root=project_root,
     )
+    logger.info(
+        "batch_question_count_resolved",
+        extra={
+            "event": "batch_qa",
+            "question_count": len(resolved_questions),
+        },
+    )
     retrieval_depth_attribute = (
         "retrieval_top_k" if hasattr(config, "retrieval_top_k") else "top_k"
     )

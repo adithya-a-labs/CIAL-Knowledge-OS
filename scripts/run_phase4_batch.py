@@ -122,7 +122,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--large-run",
         action="store_true",
-        help="Permit manual QA input above the notebook-safe 25-question limit.",
+        help=(
+            "Compatibility flag; terminal runs are already unbounded. "
+            "Use --max-questions to set an explicit limit."
+        ),
     )
     parser.add_argument(
         "--max-questions",
@@ -188,7 +191,10 @@ def build_config(args: argparse.Namespace) -> Phase4Config:
         evidence_redundancy_threshold=0.85,
         phase4_trace_mode="full",
         phase4_run_mode=args.mode,
-        allow_large_run=args.large_run,
+        # The 25-question guard protects interactive notebook rendering. This
+        # process is the non-interactive batch surface, so every loaded question
+        # proceeds unless --max-questions explicitly sliced the input above.
+        allow_large_run=True,
     )
 
 
@@ -270,14 +276,23 @@ def execute(args: argparse.Namespace) -> Phase4RunResult:
 
     config = build_config(args)
     questions, benchmark, source_label = select_inputs(args, config)
+    effective_large_run = bool(
+        args.large_run
+        or (
+            args.mode == "manual_qa"
+            and len(questions) > config.max_inline_manual_questions
+        )
+    )
 
     print("Initializing Phase 4 local pipeline...")
+    print(f"Loaded question count: {len(questions)}")
+    print(f"Question count entering Phase4Runner: {len(questions)}")
     print(
         {
             "mode": args.mode,
             "question_count": len(questions),
             "question_source": source_label,
-            "large_run": args.large_run,
+            "large_run": effective_large_run,
             "reranker_device": config.reranker_device,
             "reranker_batch_size": config.reranker_batch_size,
             "local_files_only": config.reranker_local_files_only,
@@ -298,16 +313,21 @@ def execute(args: argparse.Namespace) -> Phase4RunResult:
             }
         )
 
-        return Phase4Runner(pipeline=pipeline, config=config).run(
+        result = Phase4Runner(pipeline=pipeline, config=config).run(
             questions=questions,
             benchmark=benchmark,
             run_mode=args.mode,
             run_metadata={
                 "run_label": "terminal_phase4_batch",
                 "question_source": source_label,
-                "large_run": args.large_run,
+                "large_run": effective_large_run,
             },
         )
+        print(
+            "Question count returned by Phase4Runner: "
+            f"{result.summary.get('question_count', 0)}"
+        )
+        return result
     finally:
         # A terminal process should release embedded Qdrant deterministically;
         # relying on interpreter shutdown can leave a noisy destructor warning
@@ -343,6 +363,9 @@ def print_artifact_paths(result: Phase4RunResult) -> None:
     for figure in sorted(paths.figures.iterdir()):
         if figure.is_file() and figure.suffix.casefold() in {".svg", ".html"}:
             print(f"  visualization: {figure}")
+    with paths.results_csv.open(encoding="utf-8-sig", newline="") as handle:
+        written_rows = sum(1 for _ in csv.DictReader(handle))
+    print(f"  results.csv question rows: {written_rows}")
 
 
 def main(argv: Sequence[str] | None = None) -> int:

@@ -229,6 +229,15 @@ include `--max-questions`, `--reranker-batch-size`, and
 standalone HTML, configuration, summary, metrics, retrieval traces, logs,
 per-question context, and supported SVG/HTML visualization exports.
 
+The terminal runner is unbounded for manual QA: all questions loaded from the
+default or an explicit file are processed unless `--max-questions` is supplied.
+The legacy `--large-run` flag remains accepted for command compatibility but is
+not required. The notebook retains its separate 25-question safety limit and
+warning, smoke mode retains its three-question limit, and benchmark mode is
+unchanged. Terminal output and structured logs record the loaded count, counts
+entering Phase 4/Phase 3 and batch execution, and the rows written to
+`results.csv`.
+
 Additional starter inputs are maintained in
 `data/manual_qa/airport_operations_questions.txt`. Treat these lists as
 reviewable evaluation data: update the text files rather than editing Python.

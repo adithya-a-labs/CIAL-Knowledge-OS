@@ -229,6 +229,9 @@ class Phase3Runner:
                 "event": "run",
                 "retrieval_mode": self.config.retrieval_mode,
                 "run_path": str(paths.root),
+                "input_question_count": (
+                    len(questions) if questions is not None else None
+                ),
                 **metadata,
             },
         )

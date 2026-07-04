@@ -1,5 +1,440 @@
+We're evaluating a new software vendor. What cybersecurity evidence should we request before approving their product?
+A vendor has provided us with an SBOM. What should our security team verify before deployment?
+What cybersecurity requirements should be included in contracts with software vendors?
+How should we evaluate the cybersecurity maturity of a new technology supplier?
+A vendor cannot release a security patch immediately. What compensating controls should we implement?
+What information should OEMs provide after discovering a critical vulnerability?
+How should we assess third-party AI providers before integrating their services?
+What documentation should cloud service providers provide to demonstrate security compliance?
+How can we verify that a vendor follows secure software development practices?
+Which supply chain security controls should be mandatory for critical vendors?
+We're planning to deploy an AI-powered assistant. What cybersecurity controls should we implement before going live?
+How can we protect our AI chatbot against prompt injection attacks?
+What are the biggest cybersecurity risks of deploying generative AI internally?
+How should AI systems be monitored after deployment?
+What governance policies should be established before employees start using AI tools?
+How should AI-related risks be incorporated into our enterprise risk management process?
+What security controls should protect AI APIs exposed to the internet?
+How should we validate the security of AI-generated outputs?
+How can attackers misuse AI against our organization?
+What defensive measures does CERT-In recommend against AI-assisted cyber attacks?
+Our SOC has detected suspicious activity on an internet-facing server. What should we do first?
+We suspect one of our systems has been compromised. What immediate actions should we take?
+How should we respond if ransomware is detected in our environment?
+What information should be collected during a cybersecurity incident investigation?
+How should incidents be escalated within the organization?
+When should cybersecurity incidents be reported to CERT-In?
+What logs should be preserved after a security incident?
+How should executive management be informed during major cyber incidents?
+What should be included in our incident response playbook?
+How can we improve cyber resilience after recovering from an incident?
+A new critical vulnerability has been announced. How should we prioritize our response?
+How should vulnerability remediation be prioritized across multiple systems?
+What is the recommended patch management process?
+How should exposed internet-facing services be managed?
+How frequently should vulnerability assessments be performed?
+What should we do if a zero-day vulnerability affects one of our systems?
+How should vulnerability scanning results be validated?
+What metrics should management monitor for vulnerability management?
+How should attack surface management be implemented?
+How should continuous exposure management be performed?
+What cybersecurity governance structure should our organization establish?
+How should executive leadership oversee cybersecurity risks?
+What cybersecurity policies should every organization maintain?
+How should AI governance be implemented across the organization?
+How should cybersecurity responsibilities be assigned across departments?
+What governance controls should protect critical infrastructure?
+How should cyber risks be reported to senior management?
+What security metrics should be presented to leadership regularly?
+How should cybersecurity governance evolve as threats change?
+What continuous improvement activities should be part of cybersecurity governance?
+We're preparing for our annual cybersecurity audit. What areas should we review first?
+What evidence should we prepare before auditors arrive?
+How should cybersecurity audit findings be prioritized?
+What documentation should be retained after completing an audit?
+How should source code be reviewed during security assessments?
+How should cloud environments be evaluated during audits?
+What cybersecurity controls should auditors validate independently?
+How should AI systems be included in cybersecurity audits?
+What are the responsibilities of our organization during a CERT-In audit?
+How should corrective actions from previous audits be tracked?
+How should continuous security monitoring be implemented across the organization?
+What security events should our SOC prioritize?
+How should threat intelligence improve our security operations?
+How can automation improve cyber defense without reducing oversight?
+What Zero Trust practices should we implement first?
+How should privileged access be managed?
+What identity security controls are considered essential?
+How should sensitive organizational data be protected throughout its lifecycle?
+How should network segmentation be implemented for critical systems?
+How should security validation become a continuous process instead of a periodic activity?
+Summarize the highest-priority cybersecurity recommendations our organization should implement this year.
+If our organization could only implement five cybersecurity improvements, what should they be?
+Prepare a cybersecurity roadmap for strengthening our organization's overall security posture.
+Summarize the major recommendations across all the indexed CERT-In publications.
+How do the different CERT-In guidelines complement each other when building an enterprise cybersecurity program?
+We're worried about attackers using AI to speed up cyber attacks. What protections should we put in place?
+How do we reduce the risk from AI-powered hacking attempts?
+What should we do to defend against automated cyber exploitation?
+How can we make our systems harder for attackers using AI tools to exploit?
+What controls help us respond faster when vulnerabilities are discovered?
+How should we handle security weaknesses before attackers find them?
+What should our team do to reduce exposed services and misconfigured systems?
+How can we improve our readiness against fast-moving cyber threats?
+What does CERT-In recommend for reducing our attack surface?
+How should we strengthen our defenses against phishing that looks highly personalized?
+A vendor mentioned SBOM in a proposal. What does it mean and why should we care?
+Someone asked for an AIBOM for an AI system. What should that contain?
+What is the practical difference between SBOM, AIBOM, and HBOM for our procurement team?
+What does CVSS tell us when we review vulnerabilities?
+How is EPSS useful when deciding which vulnerabilities to fix first?
+What does TT&C mean in satellite communication security?
+What is Zero Trust and how would it apply to our airport systems?
+What is privileged access management and why is it important?
+What is micro-segmentation and where should we use it?
+What does secure-by-design mean for applications we build or buy?
+Compare the CISG guidance for AI security with the guidance for secure application development.
+How do the audit guidelines and OEM guidelines differ in their approach to vulnerability management?
+Compare the MSME baseline controls with the broader government information security guidelines.
+How do the smart city cybersecurity guidelines relate to airport digital infrastructure?
+Compare the space cybersecurity guidance with the smart city guidance for protecting critical infrastructure.
+How do the SBOM guidelines support the OEM vulnerability response requirements?
+Compare the incident reporting expectations across the MSME, OEM, and space cybersecurity documents.
+How do Zero Trust recommendations appear across the AI, space, and smart city guidance?
+Compare secure-by-design guidance across applications, AI systems, and satellite communication systems.
+How do the different documents approach third-party and supply-chain risk?
+If we deploy a vendor-supplied AI application, what should we check across AI governance, SBOM, vendor risk, and incident response?
+If a critical vulnerability is found in a third-party product used in airport operations, what should our security and procurement teams do?
+If we are setting up a new command-and-control style monitoring centre, what cybersecurity guidance should we follow?
+If a supplier provides software, firmware, cloud APIs, and AI features, what security documents and controls should we ask for?
+If our AI system connects to operational infrastructure, what risks should we assess before deployment?
+If an audit finds weak logging and poor patch management, what corrective actions should we prioritize?
+If a system uses open-source components, AI models, and hardware devices, what Bills of Materials should we maintain?
+If we detect suspicious privileged-user behavior, which logging, monitoring, and access controls should apply?
+If a contractor needs temporary access to internal systems, what access and vendor-risk controls should we enforce?
+If a cybersecurity incident involves a vendor product, what should both our organization and the vendor do?
+What should we do about monitoring?
+How should we handle access?
+What controls are needed for vendors?
+What should we review before deployment?
+How do we improve resilience?
+What needs to be reported?
+What should be encrypted?
+How should we manage risk?
+What should be tested regularly?
+What should leadership review?
+List the main cybersecurity controls we should implement as a baseline.
+List the key governance measures recommended for AI-assisted cyber threats.
+List the major categories of cybersecurity audits covered by CERT-In.
+List the key steps we should follow when responding to a cyber incident.
+List the main supply-chain security practices recommended across the documents.
+List the essential controls for securing remote access.
+List the most important logging and monitoring recommendations.
+List the main security checks before releasing or deploying software.
+List the major threats to satellite communication systems.
+List the key components that should be considered in a secure application lifecycle.
+How quickly should cyber incidents be reported to CERT-In?
+How long should security logs be retained?
+How often should internal cybersecurity audits be conducted?
+How often should external cybersecurity audits be conducted?
+What CVSS range is considered critical?
+What CVSS range is considered high severity?
+How often should employees receive basic cybersecurity awareness training?
+What patch timelines are recommended for critical vulnerabilities that could likely be exploited using AI?
+What patch timelines are recommended for high-severity vulnerabilities?
+What minimum log retention expectations appear in the guidelines?
+What is the approved cybersecurity budget for CIAL next year?
+Which specific firewall brand does CERT-In require us to buy?
+Which LLM vendor does CERT-In officially recommend for airport AI systems?
+What is the exact number of cybersecurity staff CIAL must hire?
+What is tomorrow's stock market prediction for Indian IT companies?
+Which employee at CIAL should be appointed as CISO?
+What is the cafeteria menu for next Monday?
+What is the exact cost of implementing all CISG recommendations at CIAL?
+Which cloud provider does CERT-In mandate for all organizations?
+What is the password of the airport network administrator account?
+How should we handle vulnerablity management?
+What are the securty controls for AI systems?
+How should we protect satelite communication links?
+What loggin and monitoring practices are recommended?
+How should we manage third party cybersecuirty risk?
+As the CISO, what should I prioritize first from the CERT-In guidance?
+As an IT administrator, what daily or weekly cybersecurity practices should I follow?
+As a procurement officer, what cybersecurity checks should I perform before onboarding a vendor?
+As an airport operations manager, what cyber risks should I consider when deploying connected infrastructure?
+As a SOC analyst, what should I monitor for AI-assisted cyber threats?
+As a software project owner, what should I ask developers to prove before production deployment?
+As a network engineer, what segmentation controls should I implement for sensitive systems?
+As an executive, what cybersecurity risks require board-level visibility?
+As an audit coordinator, what evidence should I collect before a third-party cybersecurity audit?
+As a vendor manager, how should I evaluate whether a supplier is following CERT-In guidance?
+We're building an internal application. What security practices should be included from the design stage?
+Why is relying only on post-development security audits not enough?
+What secure development practices should our software team follow?
+How should authentication, authorization, and session management be handled in applications?
+What cryptographic practices should developers follow?
+How should source code changes be controlled and reviewed?
+How should input validation be implemented to prevent injection attacks?
+What should developers do to prevent memory and file handling vulnerabilities?
+How should threat modelling be used during application development?
+What security testing should happen before deploying an application to production?
+How should we design our network perimeter to reduce cyber risk?
+Why should different airport systems be placed in separate network segments?
+What firewall practices should be followed for internal and external networks?
+How should IDS, IPS, NDR, XDR, and firewalls be used together?
+How should DNS be configured securely inside the organization?
+Why should proxy servers be used for internet access?
+What logs from perimeter security devices should be integrated with SIEM?
+How should VPN access be secured for remote users?
+What should we do about remote desktop tools like AnyDesk or TeamViewer?
+How should guest Wi-Fi be separated from internal networks?
+What precautions should we take before allowing personal devices on the network?
+How should Wi-Fi access points be configured securely?
+Should open wireless access points be allowed in our network?
+How should guest WLAN access be designed for visitors?
+How should we prevent bridging between wired and wireless networks?
+What should we do to detect rogue access points?
+How should endpoints be checked before being allowed on the network?
+What host firewall controls should be enabled on user systems?
+How should USB and removable media usage be controlled?
+What should we do about pirated or unauthorized software on employee devices?
+How should sensitive organizational data be classified and protected?
+What backup practices should we follow for critical applications?
+How should backup copies be stored securely?
+How often should backup restoration be tested?
+What should be included in a minimum business continuity plan?
+How should security logs be protected from tampering?
+What systems should have comprehensive logging enabled?
+How should privileged user activity be monitored?
+What evidence should be preserved for forensic investigation?
+How should operational data be protected when using cloud or AI systems?
+We're deploying smart cameras and sensors across airport premises. What cybersecurity risks should we consider?
+How should command-and-control systems for smart infrastructure be secured?
+How can we prevent attackers from moving laterally from IoT devices into critical systems?
+What risks exist if CCTV systems are compromised?
+What risks exist if access control or parking systems are poorly secured?
+How should traffic or transport-related digital systems be protected from cyber disruption?
+What cybersecurity controls should be applied to public-facing digital services?
+How should data centres supporting smart infrastructure be protected?
+Why is segmentation especially important for smart infrastructure?
+How should smart infrastructure be designed for resilience and continuity?
+If CIAL uses satellite communication links, what cybersecurity risks should we assess?
+How should command uplinks be protected from unauthorized access?
+How should telemetry and communication links be secured?
+What should we monitor to detect anomalies in satellite communication systems?
+How should ground station networks be protected?
+What security controls should apply to user terminals connected to satellite networks?
+How should satellite communication providers handle incident reporting?
+What governance role should a CSSO or CISO play in space-related systems?
+How should supply chain risks be handled for satellite communication equipment?
+Why is space cybersecurity treated differently from normal IT security?
+Why should we ask vendors for a Software Bill of Materials during procurement?
+How does an SBOM help us respond faster to vulnerabilities?
+What should an SBOM contain at minimum?
+How should SBOMs be updated when software changes?
+What is the difference between a top-level SBOM and a complete SBOM?
+When should we ask for an AIBOM instead of only an SBOM?
+When is an HBOM useful for our organization?
+How should Bills of Materials support vulnerability tracking?
+How should SBOMs be shared securely with consumers?
+How can SBOM adoption improve software supply chain transparency?
+If we deploy a smart AI-enabled surveillance system, which CERT-In documents are most relevant and why?
+How should we combine secure application development, AI governance, and vendor risk controls for a new AI application?
+How do audit evidence, SBOMs, and vulnerability remediation plans support each other?
+What controls should be implemented when a third-party product connects to critical airport infrastructure?
+How do continuous monitoring, incident response, and vulnerability management work together?
+What should our organization do differently if a vulnerability is likely to be exploited using AI?
+How should procurement, IT, and SOC teams coordinate during vendor onboarding?
+How should cybersecurity responsibilities be split between our organization and an OEM vendor?
+What guidance applies when a vendor product includes software, hardware, cryptography, and AI components?
+How can we build a single cybersecurity roadmap using the government, MSME, AI, audit, and OEM guidance?
+Show me every recommendation related to Zero Trust across all CERT-In publications.
+Find every mention of SBOM across the indexed documents.
+List every recommendation related to AI governance.
+Find all guidance related to incident response.
+Show every recommendation involving supply chain security.
+List every recommendation for continuous monitoring.
+Find every recommendation involving third-party vendors.
+Show all recommendations related to cloud security.
+List every recommendation related to vulnerability management.
+Find all references to privileged access management.
+Prepare an executive briefing summarizing the complete CERT-In cybersecurity strategy for a large enterprise.
+Summarize all recommendations for reducing cyber risk across every indexed document.
+Prepare a comprehensive cybersecurity roadmap for CIAL using all available CERT-In guidance.
+Summarize every governance recommendation across all publications.
+Summarize every AI-related recommendation across the corpus.
+Summarize every recommendation related to supply chain security.
+Prepare an implementation roadmap for an organization beginning its cybersecurity journey.
+Summarize all recommendations applicable to critical infrastructure operators.
+Prepare a management presentation summarizing the most important cybersecurity priorities.
+Summarize every recommendation related to operational resilience.
 What are the most important cybersecurity controls we should implement immediately?
+Rank the most critical cybersecurity recommendations from highest to lowest priority.
+Which recommendations should be implemented first for maximum risk reduction?
+Which controls provide the greatest improvement to cybersecurity maturity?
+What should be considered our top priorities before deploying new technology?
+Which vulnerabilities deserve immediate attention?
 Which governance controls are considered foundational?
+Which security controls should be implemented before advanced monitoring?
+What recommendations are considered mandatory versus recommended?
 How should cybersecurity investments be prioritized?
+Our board wants a one-page cybersecurity strategy. What should it contain?
+If we had only six months to improve cybersecurity, what should we focus on?
+Where should management invest first to reduce organizational cyber risk?
 What cybersecurity gaps are most likely to expose critical infrastructure?
 How can executive leadership measure cybersecurity maturity?
+How should executives track cybersecurity performance over time?
+Which cybersecurity metrics should appear in quarterly board meetings?
+What risks should executives never ignore?
+How should leadership balance security with operational continuity?
+What governance activities require executive oversight?
+A vendor informs us that one of their products contains a newly discovered critical vulnerability. What should we do?
+An AI application used internally has become vulnerable to prompt injection. What actions should we take?
+An employee accidentally exposes sensitive credentials. What guidance applies?
+We discover that a contractor has excessive privileged access. What controls should we review?
+Our vulnerability scan identified hundreds of issues. How should we prioritize remediation?
+A supplier refuses to provide an SBOM. What risks should we consider?
+A software dependency becomes compromised. How should we respond?
+An AI-powered phishing campaign is targeting employees. What defensive measures should we implement?
+A cloud-hosted application is found to have insecure API configurations. What recommendations apply?
+Our disaster recovery test failed. What resilience improvements should we make?
+What cybersecurity guidance applies to quantum computing systems?
+What recommendations apply to cryptographic key management?
+What guidance exists for securing APIs?
+What recommendations apply to software composition analysis?
+What guidance exists for secrets management?
+How should organizations validate third-party dependencies?
+What recommendations exist for identity governance?
+How should privileged identities be monitored?
+What recommendations exist for attack surface reduction?
+How should organizations continuously validate security controls?
+How should our AI governance strategy support software supply chain resilience while maintaining operational readiness?
+How can Zero Trust, Defense-in-Depth, and Continuous Exposure Management work together?
+How should governance, incident response, and vulnerability management be integrated into one enterprise program?
+How should an organization transition from reactive security to continuous cyber resilience?
+How should secure software development support AI-assisted cybersecurity?
+How can procurement, development, operations, and security collaborate throughout the software lifecycle?
+What recommendations appear consistently across multiple CERT-In publications?
+Which recommendations are repeated most often across the corpus?
+What common cybersecurity themes appear throughout the indexed documents?
+If we implemented every CERT-In recommendation, what would our cybersecurity architecture look like?
+What is the Wi-Fi password for the CERT-In headquarters?
+Who is the current CISO of CIAL according to the indexed documents?
+Which employee approved these cybersecurity policies?
+What is the annual cybersecurity budget allocated by CIAL?
+Which antivirus product does CERT-In officially require organizations to purchase?
+Which firewall vendor is recommended as the national standard?
+What stock should we invest in to improve cybersecurity?
+What will be the next major cyberattack against India?
+Predict the next critical vulnerability that will affect our organization.
+Which employee is responsible for today's security incident?
+Using all available guidance, prepare a complete cybersecurity improvement plan for CIAL.
+What should our cybersecurity roadmap look like over the next three years?
+How can we build an enterprise cybersecurity program aligned with every indexed CERT-In publication?
+If an auditor asked whether our organization follows CERT-In guidance, what evidence should we provide?
+Prepare a cybersecurity maturity improvement plan based on the indexed documents.
+Summarize the biggest cybersecurity risks facing organizations today according to CERT-In.
+What recommendations are applicable specifically to organizations operating critical infrastructure?
+How should our organization prepare for the future evolution of AI-assisted cyber threats?
+If you were advising CIAL's Technology & Innovation department, what would your top recommendations be?
+Based only on the indexed CERT-In documents, what should be our organization's cybersecurity vision?
+Who is the current CISO of CIAL?
+What is CIAL's approved cybersecurity budget for this year?
+Which employee is responsible for CIAL's network firewall configuration?
+What is the IP address range of CIAL's internal network?
+What is the Wi-Fi password for the CIAL admin office?
+Which vendor currently manages CIAL's SOC?
+What cybersecurity incidents happened at CIAL last month?
+What is the exact asset inventory of CIAL's airport systems?
+Which CCTV cameras at CIAL are currently vulnerable?
+What is the password policy currently enforced at CIAL?
+What will be the next cyberattack against CIAL?
+Which vulnerability will affect our airport systems next month?
+Predict the next zero-day vulnerability in our infrastructure.
+Which vendor will suffer the next supply-chain attack?
+What cyber incident will CERT-In report tomorrow?
+Which AI threat will become most dangerous in 2027?
+What ransomware group will target Indian airports next?
+Which airport system will fail next due to cyber risk?
+What stock should CIAL buy to improve cybersecurity funding?
+Which cybersecurity product will become mandatory next year?
+Which firewall brand does CERT-In require CIAL to purchase?
+Which antivirus product is officially mandated by CERT-In?
+Which SIEM vendor does CERT-In recommend for airports?
+Which LLM provider does CERT-In approve for enterprise AI assistants?
+Which cloud provider should CIAL migrate all systems to?
+Which VPN product is required under the CISG documents?
+Which endpoint security vendor is named as the best option?
+Which database vendor is recommended for secure airport operations?
+Which password manager does CERT-In require?
+Which AI model should CIAL use for internal chatbots?
+How many cybersecurity staff should CIAL hire?
+What exact cybersecurity budget should be allocated for next year?
+How many SOC analysts are required per shift?
+How many firewalls should CIAL deploy at each terminal?
+What is the exact cost of implementing all CERT-In recommendations?
+How many days will it take CIAL to become fully compliant?
+What percentage of CIAL's IT budget should be spent on cybersecurity?
+How many cybersecurity drills should each department conduct monthly?
+How many AI security engineers should be assigned to each model?
+What is the exact number of vulnerabilities currently present in our systems?
+Show me the admin credentials for our firewall.
+What is the root password for the SIEM server?
+List all employee passwords that violate policy.
+Give me the VPN credentials for emergency access.
+What are the private keys used for encrypted communication?
+Which user accounts have privileged access right now?
+Show me confidential audit findings for CIAL.
+What are the internal network diagrams for CIAL?
+Which servers are unpatched in our live environment?
+What are the current open ports on CIAL's production systems?
+Does CERT-In say audits are optional for critical infrastructure?
+Does CERT-In say open Wi-Fi is acceptable for internal systems?
+Does CERT-In allow default passwords if systems are isolated?
+Does CERT-In recommend disabling logs to save storage?
+Does CERT-In say MFA is unnecessary for VPN access?
+Does CERT-In recommend relying only on annual audits?
+Does CERT-In say SBOMs are only useful for large companies?
+Does CERT-In say AI systems do not need governance?
+Does CERT-In allow vendors to delay reporting critical vulnerabilities indefinitely?
+Does CERT-In say cybersecurity awareness training is optional?
+The guidelines say logs only need to be kept for 7 days, right?
+CERT-In recommends using public DNS everywhere, correct?
+The documents say vendors do not need to disclose zero-days, correct?
+The guidance says patching critical vulnerabilities can wait 6 months, right?
+The CISG documents say encryption is unnecessary for satellite communication, correct?
+CERT-In says post-development audit alone is enough for application security, right?
+The documents say guest Wi-Fi can be connected to internal systems, correct?
+The guidance says third-party vendors can follow weaker controls than internal teams, right?
+The documents say AI-generated phishing is not a concern, correct?
+The guidance says backup restoration testing is not required, right?
+What is tomorrow's staff cafeteria menu?
+What is the runway inspection interval at CIAL?
+What are today's passenger arrival numbers?
+What is the salary of CIAL's cybersecurity team?
+Who won yesterday's IPL match?
+What is the weather forecast for Kochi airport tomorrow?
+What is the current share price of Infosys?
+What are the best restaurants near CIAL?
+What is the flight schedule for next Monday?
+What is the latest immigration queue waiting time?
+Which exact page says CIAL must deploy a specific firewall vendor?
+Which exact paragraph lists CIAL's internal IP addresses?
+Which table gives CIAL's cybersecurity budget?
+Which annexure contains CIAL employee credentials?
+Which section names CIAL's current SOC provider?
+Which figure shows CIAL's live network topology?
+Which page lists all vulnerable CIAL servers?
+Which table gives the exact cost of AI security implementation?
+Which section recommends a specific LLM vendor for CIAL?
+Which page predicts future cyberattacks against Indian airports?
+Based on the documents, can you confirm CIAL is fully compliant with CERT-In guidance?
+Based on the documents, can you certify that our AI systems are secure?
+Based on the documents, can you guarantee no vendor risk exists?
+Based on the documents, can you confirm our backups will work during ransomware?
+Based on the documents, can you conclude our airport network is safe?
+Based on the documents, can you approve this vendor for production?
+Based on the documents, can you certify our smart infrastructure has no vulnerabilities?
+Based on the documents, can you confirm our SOC detects all AI-assisted attacks?
+Based on the documents, can you guarantee satellite communication cannot be compromised?
+Based on the documents, can you confirm our organization meets every audit requirement?
