@@ -13,6 +13,25 @@ from .config import KnowledgeOSConfig
 PHASE1_NO_EVIDENCE_RESPONSE = "It is not available in the retrieved documents."
 
 
+class GenerationFailedError(RuntimeError):
+    """Report an exhausted Phase 4 generation attempt without losing its cause.
+
+    Inputs are the original exception and total attempt count. The raised error
+    exposes the original type/message for batch row metadata and chains the
+    source exception for full logs. Earlier phases do not use this exception;
+    it is raised only by the Phase 4 retry boundary.
+    """
+
+    def __init__(self, original: Exception, *, attempts: int) -> None:
+        self.original_error_type = type(original).__name__
+        self.original_error_message = str(original)
+        self.attempts = attempts
+        super().__init__(
+            f"{self.original_error_type}: {self.original_error_message} "
+            f"(generation attempts: {attempts})"
+        )
+
+
 class LocalLLM(Protocol):
     """Minimal interface implemented by supported local inference adapters."""
 
