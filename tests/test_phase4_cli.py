@@ -386,6 +386,10 @@ class Phase4StartupExperienceTests(unittest.TestCase):
             config.max_answer_words,
             phase4_cli.MAX_ANSWER_WORDS,
         )
+        self.assertEqual(
+            config.adaptive_answer_sections,
+            phase4_cli.ADAPTIVE_ANSWER_SECTIONS,
+        )
         self.assertEqual(config.reranker_device, phase4_cli.RERANKER_DEVICE)
         self.assertEqual(
             config.reranker_batch_size,

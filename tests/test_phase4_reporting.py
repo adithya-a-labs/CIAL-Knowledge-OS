@@ -189,6 +189,21 @@ class Phase4CitationReportingTests(unittest.TestCase):
                 report,
             )
 
+    def test_adaptive_headings_render_fully_with_inline_citations(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = self._report(
+                root,
+                "## Top Risks\n\nThe primary risk is documented [1].\n\n"
+                "## Next Actions\n\nValidate the control owner [2].",
+                self._citations(root),
+            )
+
+            self.assertIn("<h2>Top Risks</h2>", report)
+            self.assertIn("<h2>Next Actions</h2>", report)
+            self.assertIn("Validate the control owner", report)
+            self.assertEqual(report.count('class="inline-citation"'), 2)
+
     def test_missing_inline_markers_get_compact_citation_chips(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

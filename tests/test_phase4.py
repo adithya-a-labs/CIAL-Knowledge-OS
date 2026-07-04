@@ -558,11 +558,39 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
             "reranker",
         )
         self.assertIn("Produce a detailed synthesis", pipeline.llm.prompt)
-        self.assertIn("Operational implications", pipeline.llm.prompt)
-        self.assertIn("Recommended controls or actions", pipeline.llm.prompt)
-        self.assertIn("Risks, gaps, and caveats", pipeline.llm.prompt)
+        self.assertIn(
+            "Choose the answer structure that best fits the question",
+            pipeline.llm.prompt,
+        )
+        self.assertIn("Do not use every section by default", pipeline.llm.prompt)
+        self.assertIn("Question-shape guidance", pipeline.llm.prompt)
+        self.assertIn("Step-by-Step Procedure", pipeline.llm.prompt)
+        self.assertIn("Priority Matrix", pipeline.llm.prompt)
+        self.assertIn("Cite every key factual claim", pipeline.llm.prompt)
         self.assertIn("Aim for at least 250 words", pipeline.llm.prompt)
+        self.assertNotIn(
+            "organize the answer as:\n- Executive answer",
+            pipeline.llm.prompt,
+        )
         self.assertNotIn("Answer concisely.", pipeline.llm.prompt)
+
+    def test_fixed_answer_sections_preserve_previous_template(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            pipeline = self._pipeline(Path(directory))
+            pipeline.config.adaptive_answer_sections = False
+            pipeline.answer("What control is required?")
+
+        prompt = pipeline.llm.prompt
+        self.assertIn(
+            "organize the answer as:\n- Executive answer",
+            prompt,
+        )
+        self.assertIn("- Evidence-backed findings", prompt)
+        self.assertIn("- Operational implications", prompt)
+        self.assertIn("- Recommended controls or actions", prompt)
+        self.assertIn("- Risks, gaps, and caveats", prompt)
+        self.assertIn("Include a short Decision notes section", prompt)
+        self.assertNotIn("Question-shape guidance", prompt)
 
     def test_max_answer_words_is_added_to_phase4_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -766,6 +794,14 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
             header = paths.results_csv.read_text(
                 encoding="utf-8-sig"
             ).splitlines()[0].split(",")
+            expected_columns = (
+                CSV_COLUMNS
+                + PHASE2_CSV_COLUMNS
+                + PHASE3_CSV_COLUMNS
+                + PHASE4_CSV_COLUMNS
+                + ["run_mode"]
+            )
+            self.assertEqual(header, expected_columns)
             self.assertEqual(
                 header[: len(CSV_COLUMNS + PHASE2_CSV_COLUMNS + PHASE3_CSV_COLUMNS)],
                 CSV_COLUMNS + PHASE2_CSV_COLUMNS + PHASE3_CSV_COLUMNS,
@@ -773,6 +809,11 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
             for column in PHASE4_CSV_COLUMNS:
                 self.assertIn(column, header)
             workbook = load_workbook(paths.results_xlsx)
+            workbook_header = [
+                cell.value
+                for cell in next(workbook.active.iter_rows(min_row=1, max_row=1))
+            ]
+            self.assertEqual(workbook_header, expected_columns)
             pdf_column = header.index("pdf_links") + 1
             self.assertIsNotNone(workbook.active.cell(2, pdf_column).hyperlink)
 
@@ -841,6 +882,7 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
         self.assertEqual(phase4.min_answer_words, 250)
         self.assertIsNone(phase4.max_answer_words)
         self.assertTrue(phase4.prefer_structured_answers)
+        self.assertTrue(phase4.adaptive_answer_sections)
         self.assertTrue(phase4.include_decision_notes)
         self.assertEqual(phase4.generation_retries, 2)
         self.assertEqual(phase4.retry_cooldown_seconds, 20.0)
