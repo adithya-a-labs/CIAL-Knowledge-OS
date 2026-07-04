@@ -23,8 +23,10 @@ from cial_knowledge_os.config import (
     Phase3Config,
     Phase4Config,
 )
+from cial_knowledge_os.context_builder import INSUFFICIENT_EVIDENCE_RESPONSE
 from cial_knowledge_os.evidence_quality import EvidenceQualityScorer
 from cial_knowledge_os.evidence_selector import EvidenceSelector
+from cial_knowledge_os.llm import build_grounded_prompt
 from cial_knowledge_os.phase4_pipeline import Phase4RAGPipeline
 from cial_knowledge_os.phase4_runner import Phase4Runner
 from cial_knowledge_os.phase4_trace import Phase4Trace, phase4_diagnostics
@@ -53,6 +55,12 @@ class _CitingLLM:
     def invoke(self, prompt: str) -> str:
         self.prompt = prompt
         return "**Use the selected control** [1]."
+
+
+class _RefusingLLM:
+    def invoke(self, prompt: str) -> str:
+        self.prompt = prompt
+        return INSUFFICIENT_EVIDENCE_RESPONSE
 
 
 class _FakeCrossEncoder:
@@ -532,6 +540,19 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
             response["question_trace"]["pipeline_flow"][2],
             "reranker",
         )
+        self.assertIn("Produce a detailed synthesis", pipeline.llm.prompt)
+        self.assertIn("Operational implications", pipeline.llm.prompt)
+        self.assertIn("Recommended controls or actions", pipeline.llm.prompt)
+        self.assertIn("Risks, gaps, and caveats", pipeline.llm.prompt)
+        self.assertIn("Aim for at least 250 words", pipeline.llm.prompt)
+        self.assertNotIn("Answer concisely.", pipeline.llm.prompt)
+
+    def test_phase3_prompt_style_remains_unchanged(self) -> None:
+        prompt = build_grounded_prompt("Question?", "[1] Evidence.")
+
+        self.assertIn("Answer concisely.", prompt)
+        self.assertIn("Prefer 5", prompt)
+        self.assertNotIn("Decision notes", prompt)
 
     def test_pipeline_answer_downloads_once_then_uses_cached_model(self) -> None:
         cache_state = {"available": False}
@@ -589,6 +610,48 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
         self.assertTrue(response["weak_evidence"])
         self.assertIn("Caution", response["answer"])
         self.assertGreater(len(response["selected_evidence"]), 0)
+        self.assertIn(
+            "All selected evidence is below the reranker threshold",
+            pipeline.llm.prompt,
+        )
+
+    def test_generator_safe_failure_with_usable_evidence_becomes_grounded_fallback(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            pipeline = self._pipeline(Path(directory))
+            pipeline.llm = _RefusingLLM()
+            response = pipeline.answer("What control is required?")
+
+        self.assertEqual(response["answer_status"], "answered")
+        self.assertGreater(len(response["selected_evidence"]), 0)
+        self.assertIn("evidence review required", response["answer"].lower())
+        self.assertTrue(response["citations"])
+
+    def test_insufficient_evidence_requires_no_usable_chunks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = Phase4Config(
+                project_root=root,
+                max_context_tokens=300,
+                evidence_token_budget=120,
+                max_query_variants=1,
+            )
+            pipeline = Phase4RAGPipeline(
+                config,
+                llm=_CitingLLM(),
+                tokenizer=_CharacterTokenizer(),
+                retrievers={
+                    "dense": _StaticRetriever("dense", []),
+                    "bm25": _StaticRetriever("bm25", []),
+                },
+                reranker=MockReranker({}),
+            )
+            response = pipeline.answer("What control is required?")
+
+        self.assertEqual(response["answer_status"], "insufficient_evidence")
+        self.assertEqual(response["selected_evidence"], [])
+        self.assertEqual(response["citations"], [])
 
     def test_phase4_bundle_contains_all_artifacts_and_report_sections(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -656,6 +719,11 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
             self.assertNotIn("https://cdn", report)
             self.assertNotIn("<script src=", report)
             self.assertIn("<strong>Use the selected control</strong>", report)
+            self.assertIn(
+                "Full generated answers are rendered below without preview truncation.",
+                report,
+            )
+            self.assertIn("Evidence selection reduces irrelevant context", report)
 
             trace = json.loads(
                 paths.retrieval_json.read_text(encoding="utf-8")
@@ -693,6 +761,10 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
         self.assertTrue(phase4.fallback_to_top_n_if_empty)
         self.assertEqual(phase4.fallback_top_n, 3)
         self.assertTrue(phase4.weak_evidence_answer_allowed)
+        self.assertEqual(phase4.answer_detail_level, "detailed")
+        self.assertEqual(phase4.min_answer_words, 250)
+        self.assertTrue(phase4.prefer_structured_answers)
+        self.assertTrue(phase4.include_decision_notes)
 
 
 if __name__ == "__main__":

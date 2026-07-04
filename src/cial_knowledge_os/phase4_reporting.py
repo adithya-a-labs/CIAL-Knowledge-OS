@@ -300,8 +300,11 @@ def write_phase4_html(
             "</details>"
         )
     comparison_note = (
-        "No benchmark-qualified Phase 3 versus Phase 4 comparison is attached "
-        "to this run. Phase 4 is implemented; full qualification remains pending."
+        "Phase 4 changes evidence precision, not the intended answer depth. It "
+        "retains Phase 3 grounding and citation rules while requesting detailed, "
+        "decision-useful synthesis from selected evidence only. No "
+        "benchmark-qualified Phase 3 versus Phase 4 quality comparison is "
+        "attached to this run; full qualification remains pending."
     )
     document = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -316,7 +319,7 @@ h1{{margin:0 0 8px;font-size:32px}}h2{{margin-top:0}}section,.answer-card{{backg
 .table-wrap{{overflow:auto}}table{{width:100%;border-collapse:collapse}}th,td{{padding:9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}}th{{background:#eef3fb;position:sticky;top:0}}
 .eyebrow{{text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}}.muted{{color:var(--muted)}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:#0f172a;color:#dbeafe;padding:14px;border-radius:9px}}
 .citation-list{{display:grid;gap:8px}}.citation-card{{display:flex;justify-content:space-between;gap:12px;border-left:4px solid var(--accent);padding:10px 12px;background:#f8fafc}}a{{color:#1d4ed8}}details{{border:1px solid var(--line);border-radius:9px;padding:10px;margin:10px 0}}summary{{cursor:pointer;font-weight:650}}
-.answer-content ul,.answer-content ol{{padding-left:24px}}code{{background:#eef2ff;padding:2px 5px;border-radius:4px}}@media(max-width:700px){{main{{padding:12px}}.grid{{grid-template-columns:1fr}}}}
+.answer-content{{white-space:normal;overflow:visible;max-height:none}}.answer-content ul,.answer-content ol{{padding-left:24px}}code{{background:#eef2ff;padding:2px 5px;border-radius:4px}}@media(max-width:700px){{main{{padding:12px}}.grid{{grid-template-columns:1fr}}}}
 </style></head><body><main>
 <header><p class="eyebrow" style="color:#bfdbfe">CIAL Knowledge OS</p><h1>Phase 4 · Reranking & Evidence Selection</h1><p>Offline execution report: Hybrid Retrieval → RRF → Reranking → Evidence Selection → Context → Answer</p></header>
 <section><h2>Executive Summary</h2><div class="metrics">{_cards([
@@ -330,7 +333,7 @@ h1{{margin:0 0 8px;font-size:32px}}h2{{margin-top:0}}section,.answer-card{{backg
 ("Fallback questions", metrics.get("fallback_question_count", 0)),
 ("Weak-evidence questions", metrics.get("weak_evidence_question_count", 0)),
 ])}</div><h3>Decision diagnostics</h3><ul>{''.join(diagnostics) or '<li>No diagnostics available.</li>'}</ul></section>
-<section><h2>Answers</h2>{''.join(answer_sections)}</section>
+<section><h2>Answers</h2><p>Full generated answers are rendered below without preview truncation. Evidence selection reduces irrelevant context, not answer depth.</p>{''.join(answer_sections)}</section>
 <section><h2>Citations</h2><p>Structured, clickable citation evidence is included with each answer card above.</p></section>
 <section><h2>Reranking Trace</h2>{''.join(reranking_sections)}</section>
 <section><h2>Evidence Selection</h2>{''.join(selection_sections)}</section>

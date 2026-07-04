@@ -81,6 +81,98 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
         )
         self._configure_phase4_components()
 
+    def _build_phase4_prompt(
+        self,
+        question: str,
+        context: str,
+        *,
+        weak_evidence: bool,
+    ) -> str:
+        """Build detailed Phase 4 instructions over selected evidence only.
+
+        Inputs are the question, the already-fitted selected-evidence context,
+        and whether every selected chunk is below the configured reranker
+        threshold. The output is a strict local-LLM prompt. Detail and structure
+        are presentation requirements, not permission to add facts: the prompt
+        preserves Phase 3 grounding and reference-ID rules, gives weak evidence
+        an explicit caveat, and reserves safe failure for truly empty context.
+        """
+
+        minimum_words = (
+            f"Aim for at least {self.config.min_answer_words} words when the "
+            "evidence supports that depth. "
+            if self.config.min_answer_words is not None
+            else ""
+        )
+        structure = (
+            """Use clear Markdown headings and, where supported, organize the answer as:
+- Executive answer
+- Evidence-backed findings
+- Operational implications
+- Recommended controls or actions
+- Risks, gaps, and caveats
+"""
+            if self.config.prefer_structured_answers
+            else "Use a coherent, decision-oriented narrative.\n"
+        )
+        decision_notes = (
+            "- Include a short Decision notes section that distinguishes immediate actions, follow-up validation, and unresolved evidence gaps.\n"
+            if self.config.include_decision_notes
+            else ""
+        )
+        weak_rule = (
+            "- All selected evidence is below the reranker threshold. State this limitation prominently, use cautious language, and recommend source verification before action.\n"
+            if weak_evidence
+            else ""
+        )
+        return f"""You are a strict grounded-answering system producing a {self.config.answer_detail_level} decision-support answer.
+
+Answer the QUESTION using only the provided SELECTED EVIDENCE.
+
+Grounding rules:
+1. Use only facts directly supported by SELECTED EVIDENCE.
+2. Do not use outside knowledge, invent controls, or infer unsupported organization-specific details.
+3. Cite key factual claims inline using the exact reference IDs shown in the evidence, such as [1].
+4. Do not invent, alter, or renumber reference IDs.
+5. If evidence supports only part of the question, answer that part and identify the remaining gap.
+6. Reply exactly "{INSUFFICIENT_EVIDENCE_RESPONSE}" only when SELECTED EVIDENCE is empty or contains no usable information.
+
+Answer requirements:
+- Produce a detailed synthesis; evidence selection improves precision, not answer brevity.
+- Explain operational implications and supported recommended controls or actions.
+- Identify supported risks, gaps, dependencies, and implementation caveats.
+- Prioritize recommendations when the evidence supports an ordering.
+- Avoid filler, repetition, unsupported background, and artificial padding.
+{weak_rule}{decision_notes}{minimum_words}
+{structure}
+SELECTED EVIDENCE
+{context}
+
+QUESTION
+{question}
+
+ANSWER
+"""
+
+    def _generate_grounded_answer(self, question: str, context: str) -> str:
+        """Generate a detailed Phase 4 synthesis without expanding context.
+
+        The inputs and raw string output match the inherited private generation
+        hook. Only the prompt style changes: the local model sees the same final
+        selected evidence that Phase 3 context construction fitted. Phase 1--3
+        continue using their established concise prompt.
+        """
+
+        if self.llm is None:
+            raise RuntimeError("Initialize the local LLM before generation.")
+        selection = self.last_selection_result
+        prompt = self._build_phase4_prompt(
+            question,
+            context,
+            weak_evidence=bool(selection and selection.weak_evidence),
+        )
+        return str(self.llm.invoke(prompt)).strip()
+
     def _configure_phase4_components(self) -> None:
         key = (
             id(self.token_manager),
@@ -235,6 +327,16 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
             if mixed_confidence
             else "strong"
         )
+        context = str(response.get("context") or "")
+        response["prompt"] = (
+            self._build_phase4_prompt(
+                question,
+                context,
+                weak_evidence=weak_evidence,
+            )
+            if context
+            else ""
+        )
         if (
             weak_evidence
             and self.config.weak_evidence_answer_allowed
@@ -385,6 +487,24 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
             "chunks": list(quality.chunks),
             "summary": quality.summary,
         }
+        # Phase 3 builds its trace before this subclass restores the Phase 4
+        # prompt. Refresh generation-only diagnostics so prompt/answer token
+        # counts describe what the model actually received and returned.
+        generation = phase3_trace.get("generation")
+        generation = dict(generation) if isinstance(generation, Mapping) else {}
+        generation.update(
+            {
+                "prompt_tokens": self.token_manager.count(
+                    str(response.get("prompt") or "")
+                ),
+                "answer_tokens": self.token_manager.count(
+                    str(response.get("raw_answer") or response.get("answer") or "")
+                ),
+                "status": response.get("answer_status"),
+            }
+        )
+        phase3_trace["generation"] = generation
+        phase3_trace["answer"] = str(response.get("answer") or "")
         trace = build_phase4_trace(
             question=question,
             phase3_trace=phase3_trace,

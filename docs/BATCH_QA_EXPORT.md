@@ -292,6 +292,11 @@ versus Discarded, Discard Reasons, comparison-status, and collapsible
 context/debug sections. Its charts are inline SVG; no CDN or external
 JavaScript is required.
 
+Answer cards render the complete generated Markdown without preview truncation.
+Phase 4 uses the Phase 3 grounding and citation contract but requests detailed,
+structured decision support from selected evidence only. The evidence selector
+reduces irrelevant context; it does not intentionally shorten answers.
+
 The implementation supports `smoke`, `manual_qa`, `benchmark`, and
 `export_only` modes and `compact`/`full` traces. Full benchmark qualification is
 pending; exported token and score diagnostics must not be described as proven

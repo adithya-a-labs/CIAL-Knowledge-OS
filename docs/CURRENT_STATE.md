@@ -157,6 +157,11 @@ Phase 3 improvement or trade-off on the unchanged frozen benchmark.
 - explicit weak/mixed/strong evidence confidence: weak evidence can produce a
   caution-labeled grounded answer, while zero evidence is reserved for an empty
   or invalid candidate pool;
+- a Phase 4-specific detailed answer style that retains Phase 3 grounding and
+  citations while adding operational implications, supported actions,
+  risks/gaps, caveats, and optional decision notes from selected evidence only;
+- configurable `answer_detail_level`, `min_answer_words`,
+  `prefer_structured_answers`, and `include_decision_notes` generation policy;
 - an intentional smaller evidence budget before the existing final context
   budget;
 - per-chunk evidence strength, retrieval provenance, citation availability,
@@ -177,6 +182,11 @@ citation engine, `RunManager`, batch collector, and evaluation interfaces.
 Earlier classes and configuration defaults are unchanged. Phase 4 disables
 neighbor expansion by default so evidence that did not pass reranking is not
 introduced after selection; callers can opt in explicitly.
+
+Phase 4 evidence reduction is not an answer-length optimization. Detailed
+synthesis is generated from the smaller, higher-precision selected context.
+Word targets apply only when evidence supports them and do not permit padding
+or unsupported claims.
 
 The default `reranker_local_files_only=False` is a developer-experience policy,
 not a cloud-inference dependency. Loading remains lazy and always tries the

@@ -254,9 +254,10 @@ class Phase4Config(Phase3Config):
     """Configure local reranking, evidence selection, and Phase 4 artifacts.
 
     Inputs are inherited Phase 3 retrieval/context settings plus local reranker
-    model, hardware, score, diversity, redundancy, and evidence-budget choices.
-    The resolved object is consumed by :class:`Phase4RAGPipeline` and
-    :class:`Phase4Runner`; effective values are persisted in every run bundle.
+    model, hardware, score, diversity, redundancy, evidence-budget, and
+    grounded-answer presentation choices. The resolved object is consumed by
+    :class:`Phase4RAGPipeline` and :class:`Phase4Runner`; effective values are
+    persisted in every run bundle.
 
     Phase 4 deliberately keeps all Phase 1--3 fields valid. Its defaults use a
     new collection/output namespace, allow one-time developer model staging,
@@ -296,6 +297,12 @@ class Phase4Config(Phase3Config):
     fallback_to_top_n_if_empty: bool = True
     fallback_top_n: int = 3
     weak_evidence_answer_allowed: bool = True
+    # Evidence precision and answer depth are independent controls. These
+    # fields change synthesis instructions, never the selected context.
+    answer_detail_level: str = "detailed"
+    min_answer_words: int | None = 250
+    prefer_structured_answers: bool = True
+    include_decision_notes: bool = True
     evidence_token_budget: int = 2_400
     selected_evidence_target_min_tokens: int = 800
     selected_evidence_target_max_tokens: int = 1_500
@@ -344,6 +351,15 @@ class Phase4Config(Phase3Config):
             raise ValueError("fallback_top_n must be greater than zero.")
         if self.fallback_top_n > self.max_selected_evidence:
             self.fallback_top_n = self.max_selected_evidence
+        if not self.answer_detail_level.strip():
+            raise ValueError("answer_detail_level must not be blank.")
+        self.answer_detail_level = self.answer_detail_level.strip().casefold()
+        if self.answer_detail_level not in {"concise", "balanced", "detailed"}:
+            raise ValueError(
+                "answer_detail_level must be concise, balanced, or detailed."
+            )
+        if self.min_answer_words is not None and self.min_answer_words <= 0:
+            raise ValueError("min_answer_words must be greater than zero or None.")
         if self.evidence_token_budget <= 0:
             raise ValueError("evidence_token_budget must be greater than zero.")
         if self.selected_evidence_target_min_tokens <= 0:

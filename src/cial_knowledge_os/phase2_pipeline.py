@@ -79,6 +79,24 @@ class Phase2RAGPipeline(BasicRAGPipeline):
         self.last_merged_retrieval = merged
         return retrieved
 
+    def _generate_grounded_answer(self, question: str, context: str) -> str:
+        """Generate with the established Phase 2/3 concise grounded prompt.
+
+        Inputs are the user question and final fitted context; output is the raw
+        local-model answer. This private hook preserves the exact Phase 1--3
+        generation behavior while allowing later phases to specialize answer
+        presentation without changing retrieval, context, or citation contracts.
+        """
+
+        if self.llm is None:
+            raise RuntimeError("Initialize the local LLM before generation.")
+        return generate_answer(
+            self.llm,
+            question,
+            context,
+            no_evidence_response=INSUFFICIENT_EVIDENCE_RESPONSE,
+        )
+
     def answer(self, question: str) -> dict[str, Any]:
         """Construct compressed context and generate one grounded answer."""
 
@@ -95,11 +113,9 @@ class Phase2RAGPipeline(BasicRAGPipeline):
             else:
                 if self.llm is None:
                     self.llm = create_local_llm(self.config)
-                raw_answer = generate_answer(
-                    self.llm,
+                raw_answer = self._generate_grounded_answer(
                     question,
                     context_result.context,
-                    no_evidence_response=INSUFFICIENT_EVIDENCE_RESPONSE,
                 )
         self.metrics["total_pipeline_latency"] = time.perf_counter() - started_at
         

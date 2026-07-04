@@ -195,6 +195,10 @@ config = Phase4Config(
     fallback_to_top_n_if_empty=True,
     fallback_top_n=3,
     weak_evidence_answer_allowed=True,
+    answer_detail_level="detailed",
+    min_answer_words=250,
+    prefer_structured_answers=True,
+    include_decision_notes=True,
     evidence_token_budget=2400,
     selected_evidence_target_min_tokens=800,
     selected_evidence_target_max_tokens=1500,
@@ -265,6 +269,13 @@ selected evidence is weak. Zero selected chunks are reserved for retrieval with
 no usable text. Discards use normalized reasons: `threshold_failed`,
 `redundancy`, `source_diversity_limit`, `token_budget`, `empty_text`, and
 `lower_rank_fallback`.
+
+Phase 4 optimizes evidence precision, not answer brevity. Its generation prompt
+retains the strict Phase 3 grounding and citation rules while requesting a
+detailed, structured synthesis of operational implications, supported actions,
+risks, gaps, caveats, and decision notes. `min_answer_words` is a target only
+when evidence supports that depth; it never authorizes padding or unsupported
+claims. The generator continues to receive only selected evidence.
 
 The default token manager uses the configured local tiktoken encoding
 (`cl100k_base` by default); it does not load or download a model. Injecting a
