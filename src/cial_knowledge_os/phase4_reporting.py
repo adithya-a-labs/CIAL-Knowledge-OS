@@ -152,6 +152,74 @@ _POPOVER_SCRIPT = r"""
 })();
 """
 
+_THEME_SCRIPT = r"""
+(() => {
+  const storageKey = "cial-phase4-report-theme";
+  const allowedThemes = new Set(["light", "dark", "system"]);
+  const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+  let preference = "system";
+  try {
+    const saved = window.localStorage.getItem(storageKey);
+    if (allowedThemes.has(saved)) preference = saved;
+  } catch (_error) {
+    preference = "system";
+  }
+
+  const resolvedTheme = (choice) => (
+    choice === "system"
+      ? (systemTheme.matches ? "dark" : "light")
+      : choice
+  );
+
+  const updateButtons = () => {
+    document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+      const selected = button.dataset.themeChoice === preference;
+      button.setAttribute("aria-pressed", String(selected));
+      button.classList.toggle("active", selected);
+    });
+  };
+
+  const applyTheme = (choice, persist = false) => {
+    preference = allowedThemes.has(choice) ? choice : "system";
+    document.documentElement.dataset.theme = resolvedTheme(preference);
+    document.documentElement.dataset.themePreference = preference;
+    updateButtons();
+    if (persist) {
+      try {
+        window.localStorage.setItem(storageKey, preference);
+      } catch (_error) {
+        // The report remains fully usable when file-browser storage is blocked.
+      }
+    }
+  };
+
+  applyTheme(preference);
+  const bindThemeControls = () => {
+    document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+      button.addEventListener("click", () => {
+        applyTheme(button.dataset.themeChoice, true);
+      });
+    });
+    updateButtons();
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindThemeControls, {
+      once: true,
+    });
+  } else {
+    bindThemeControls();
+  }
+  const followSystemTheme = () => {
+    if (preference === "system") applyTheme("system");
+  };
+  if (typeof systemTheme.addEventListener === "function") {
+    systemTheme.addEventListener("change", followSystemTheme);
+  } else if (typeof systemTheme.addListener === "function") {
+    systemTheme.addListener(followSystemTheme);
+  }
+})();
+"""
+
 
 def _number(value: Any, digits: int = 2) -> str:
     try:
@@ -164,7 +232,9 @@ def _bar_svg(
     values: Sequence[tuple[str, float]],
     *,
     title: str,
-    color: str = "#2563eb",
+    color: str = "var(--chart-bar)",
+    text_color: str = "var(--text)",
+    muted_text_color: str = "var(--muted-text)",
     width: int = 720,
 ) -> str:
     safe_values = [(str(label), max(0.0, float(value))) for label, value in values]
@@ -185,8 +255,9 @@ def _bar_svg(
         f'<svg viewBox="0 0 {width} {height}" role="img" '
         f'aria-label="{html.escape(title, quote=True)}" '
         'xmlns="http://www.w3.org/2000/svg">'
-        '<style>.title{font:600 16px system-ui;fill:#172033}.label,.value{'
-        'font:12px system-ui;fill:#344054}</style>'
+        f'<style>.title{{font:600 16px system-ui;fill:{text_color}}}'
+        f'.label,.value{{font:12px system-ui;fill:{muted_text_color}}}'
+        "</style>"
         f'<text x="12" y="24" class="title">{html.escape(title)}</text>'
         + "".join(rows)
         + "</svg>"
@@ -284,7 +355,13 @@ def write_phase4_figures(
     for filename, (title, values, color) in specifications.items():
         path = target / filename
         path.write_text(
-            _bar_svg(values, title=title, color=color),
+            _bar_svg(
+                values,
+                title=title,
+                color=color,
+                text_color="#172033",
+                muted_text_color="#344054",
+            ),
             encoding="utf-8",
         )
         written.append(path)
@@ -937,22 +1014,88 @@ def write_phase4_html(
     document = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Phase 4 Reranking and Evidence Selection</title>
+<script>{_THEME_SCRIPT}</script>
 <style>
-:root{{--bg:#f3f6fb;--panel:#fff;--ink:#172033;--muted:#667085;--line:#dfe5ef;--accent:#1d4ed8}}
-*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}}
-main{{max-width:1180px;margin:auto;padding:28px}}header{{padding:34px;border-radius:18px;background:linear-gradient(135deg,#102a56,#1d4ed8);color:white}}
-h1{{margin:0 0 8px;font-size:32px}}h2{{margin-top:0}}section,.answer-card{{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;margin:18px 0;box-shadow:0 6px 18px #102a560d}}
-.metrics{{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:18px}}.metric{{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px}}.metric span{{display:block;color:var(--muted);font-size:12px}}.metric strong{{font-size:22px}}
-.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px}}svg{{width:100%;height:auto;border:1px solid var(--line);border-radius:10px;background:#fff}}
-.table-wrap{{overflow:auto}}table{{width:100%;border-collapse:collapse}}th,td{{padding:9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}}th{{background:#eef3fb;position:sticky;top:0}}
-.eyebrow{{text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}}.muted{{color:var(--muted)}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:#0f172a;color:#dbeafe;padding:14px;border-radius:9px}}
-.answer-status{{display:inline-flex;margin:0 0 12px;padding:4px 9px;border-radius:999px;background:#e5e7eb;color:#374151;font-size:12px;font-weight:750;text-transform:uppercase;letter-spacing:.04em}}.status-answered{{background:#dcfce7;color:#166534}}.status-insufficient-evidence{{background:#fef3c7;color:#92400e}}.status-unsupported-query{{background:#fee2e2;color:#991b1b}}.status-generation-failed{{background:#f3e8ff;color:#6b21a8}}
-.inline-citation,.citation-chip{{display:inline-flex;align-items:center;border:1px solid #93b4e8;border-radius:999px;background:#eaf2ff;color:#174ea6;font-size:.78em;font-weight:700;line-height:1.35;padding:1px 6px;text-decoration:none;vertical-align:.08em;white-space:nowrap}}.inline-citation:hover,.citation-chip:hover{{background:#dbeafe;border-color:#2563eb}}.no-citation-link{{color:#475467;border-color:#cbd5e1;background:#f8fafc;cursor:help}}.citation-chips{{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:8px 0 12px}}.citation-chips-label{{color:var(--muted);font-size:12px;font-weight:650}}.citation-list{{display:grid;gap:8px}}.citation-card{{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:12px;border-left:4px solid var(--accent);padding:10px 12px;background:#f8fafc}}.citation-reference{{font-weight:750;color:var(--accent)}}.citation-details{{margin-top:12px}}a{{color:#1d4ed8}}details{{border:1px solid var(--line);border-radius:9px;padding:10px;margin:10px 0}}summary{{cursor:pointer;font-weight:650}}
-.citation-popover{{--popover-bg:#fff;--popover-ink:#172033;--popover-muted:#667085;--popover-line:#cbd5e1;position:fixed;z-index:1000;width:min(420px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:auto;padding:14px;border:1px solid var(--popover-line);border-radius:12px;background:var(--popover-bg);color:var(--popover-ink);box-shadow:0 16px 40px #0f172a3d;pointer-events:none;overflow-wrap:anywhere;white-space:normal}}.citation-popover[hidden]{{display:none}}.citation-popover-source{{font-weight:750;margin:0 0 8px}}.citation-popover-grid{{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 10px;margin:0 0 10px;font:12px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace}}.citation-popover-grid dt{{color:var(--popover-muted)}}.citation-popover-grid dd{{margin:0}}.citation-popover-snippet{{margin:0;padding:10px;border-radius:8px;background:#f1f5f9;white-space:pre-wrap;font:13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}}.citation-popover-snippet.missing{{color:var(--popover-muted);font-style:italic}}.citation-popover-snippet mark{{border-radius:2px;background:#fde68a;color:#713f12;padding:0 1px}}.citation-popover-action{{margin:9px 0 0;color:#1d4ed8;font-size:12px;font-weight:700}}
-.answer-content{{white-space:normal;overflow:visible;max-height:none}}.answer-content ul,.answer-content ol{{padding-left:24px}}code{{background:#eef2ff;padding:2px 5px;border-radius:4px}}@media(max-width:700px){{main{{padding:12px}}.grid{{grid-template-columns:1fr}}}}
-@media(prefers-color-scheme:dark){{.citation-popover{{--popover-bg:#111827;--popover-ink:#f8fafc;--popover-muted:#94a3b8;--popover-line:#475569;box-shadow:0 18px 48px #0009}}.citation-popover-snippet{{background:#1e293b}}.citation-popover-snippet mark{{background:#854d0e;color:#fef3c7}}.citation-popover-action{{color:#93c5fd}}}}
+:root{{
+  color-scheme:light;
+  --background:#f3f6fb;--card-background:#ffffff;--answer-background:#ffffff;
+  --text:#172033;--muted-text:#667085;--border:#dfe5ef;--accent:#1d4ed8;
+  --accent-contrast:#ffffff;--link:#1d4ed8;--success:#166534;
+  --success-background:#dcfce7;--warning:#92400e;--warning-background:#fef3c7;
+  --error:#991b1b;--error-background:#fee2e2;--neutral:#374151;
+  --neutral-background:#e5e7eb;--failure:#6b21a8;--failure-background:#f3e8ff;
+  --code-block:#0f172a;--code-text:#dbeafe;--inline-code:#eef2ff;
+  --citation-badge:#eaf2ff;--citation-text:#174ea6;--citation-border:#93b4e8;
+  --citation-hover:#dbeafe;--citation-card:#f8fafc;--citation-disabled:#475467;
+  --table-header:#eef3fb;--table-hover:#f8fafc;--chart-container:#ffffff;
+  --chart-bar:#2563eb;--metric-background:#f8fafc;--details-background:#ffffff;
+  --popover-background:#ffffff;--popover-text:#172033;--popover-muted:#667085;
+  --popover-border:#cbd5e1;--popover-snippet:#f1f5f9;--mark-background:#fde68a;
+  --mark-text:#713f12;--control-background:#ffffff;--control-hover:#eef3fb;
+  --control-active:#dbeafe;--focus:#2563eb;--header-start:#102a56;
+  --header-end:#1d4ed8;--header-text:#ffffff;--header-muted:#bfdbfe;
+  --shadow:#102a560d;--popover-shadow:#0f172a3d;
+}}
+[data-theme="dark"]{{
+  color-scheme:dark;
+  --background:#080f1d;--card-background:#111827;--answer-background:#131d2d;
+  --text:#e8eef8;--muted-text:#a8b3c5;--border:#334155;--accent:#78b3ff;
+  --accent-contrast:#08111f;--link:#93c5fd;--success:#86efac;
+  --success-background:#14532d;--warning:#fde68a;--warning-background:#713f12;
+  --error:#fecaca;--error-background:#7f1d1d;--neutral:#d1d5db;
+  --neutral-background:#374151;--failure:#e9d5ff;--failure-background:#581c87;
+  --code-block:#030712;--code-text:#dbeafe;--inline-code:#1e293b;
+  --citation-badge:#172554;--citation-text:#bfdbfe;--citation-border:#3b82f6;
+  --citation-hover:#1e3a8a;--citation-card:#182235;--citation-disabled:#cbd5e1;
+  --table-header:#1e293b;--table-hover:#182235;--chart-container:#0f172a;
+  --chart-bar:#60a5fa;--metric-background:#182235;--details-background:#0f172a;
+  --popover-background:#111827;--popover-text:#f8fafc;--popover-muted:#a8b3c5;
+  --popover-border:#475569;--popover-snippet:#1e293b;--mark-background:#854d0e;
+  --mark-text:#fef3c7;--control-background:#111827;--control-hover:#1e293b;
+  --control-active:#1e3a8a;--focus:#93c5fd;--header-start:#111c36;
+  --header-end:#1e3a8a;--header-text:#f8fafc;--header-muted:#bfdbfe;
+  --shadow:#00000040;--popover-shadow:#00000099;
+}}
+*{{box-sizing:border-box}}
+body{{margin:0;background:var(--background);color:var(--text);font:14px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}}
+main{{max-width:1180px;margin:auto;padding:28px}}
+header{{padding:30px 34px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(135deg,var(--header-start),var(--header-end));color:var(--header-text);box-shadow:0 8px 24px var(--shadow)}}
+.header-top{{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}}.header-copy{{min-width:0}}
+h1{{margin:0 0 8px;font-size:32px}}h2{{margin-top:0}}
+.theme-switcher{{display:inline-flex;flex:0 0 auto;gap:3px;padding:4px;border:1px solid var(--header-muted);border-radius:10px;background:var(--control-background)}}
+.theme-switcher button{{border:0;border-radius:7px;padding:7px 10px;background:transparent;color:var(--text);font:600 12px system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer}}
+.theme-switcher button:hover{{background:var(--control-hover)}}.theme-switcher button.active{{background:var(--control-active);color:var(--citation-text)}}
+.theme-switcher button:focus-visible,.inline-citation:focus-visible,.citation-chip:focus-visible,summary:focus-visible{{outline:3px solid var(--focus);outline-offset:2px}}
+.sr-only{{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}}
+section{{background:var(--card-background);border:1px solid var(--border);border-radius:14px;padding:22px;margin:18px 0;box-shadow:0 6px 18px var(--shadow)}}
+.answer-card{{background:var(--answer-background);border:1px solid var(--border);border-radius:12px;padding:20px;margin:16px 0;box-shadow:0 4px 14px var(--shadow)}}
+.metrics{{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:18px}}
+.metric{{background:var(--metric-background);border:1px solid var(--border);border-radius:10px;padding:14px}}.metric span{{display:block;color:var(--muted-text);font-size:12px}}.metric strong{{font-size:22px}}
+.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px}}
+svg{{width:100%;height:auto;border:1px solid var(--border);border-radius:10px;background:var(--chart-container)}}
+.table-wrap{{overflow:auto;border:1px solid var(--border);border-radius:9px}}table{{width:100%;border-collapse:collapse;background:var(--card-background)}}th,td{{padding:9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}}th{{background:var(--table-header);position:sticky;top:0}}tbody tr:hover{{background:var(--table-hover)}}
+.eyebrow{{text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}}header .eyebrow{{color:var(--header-muted)}}.muted{{color:var(--muted-text)}}
+pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--code-block);color:var(--code-text);padding:14px;border:1px solid var(--border);border-radius:9px}}code{{background:var(--inline-code);color:var(--text);padding:2px 5px;border-radius:4px}}
+.answer-status{{display:inline-flex;margin:0 0 12px;padding:4px 9px;border-radius:999px;background:var(--neutral-background);color:var(--neutral);font-size:12px;font-weight:750;text-transform:uppercase;letter-spacing:.04em}}
+.status-answered{{background:var(--success-background);color:var(--success)}}.status-insufficient-evidence{{background:var(--warning-background);color:var(--warning)}}.status-unsupported-query{{background:var(--error-background);color:var(--error)}}.status-generation-failed{{background:var(--failure-background);color:var(--failure)}}
+.inline-citation,.citation-chip{{display:inline-flex;align-items:center;border:1px solid var(--citation-border);border-radius:999px;background:var(--citation-badge);color:var(--citation-text);font-size:.78em;font-weight:700;line-height:1.35;padding:1px 6px;text-decoration:none;vertical-align:.08em;white-space:nowrap}}
+.inline-citation:hover,.citation-chip:hover{{background:var(--citation-hover);border-color:var(--accent)}}.no-citation-link{{color:var(--citation-disabled);border-color:var(--border);background:var(--metric-background);cursor:help}}
+.citation-chips{{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:8px 0 12px}}.citation-chips-label{{color:var(--muted-text);font-size:12px;font-weight:650}}.citation-list{{display:grid;gap:8px}}
+.citation-card{{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:12px;border-left:4px solid var(--accent);padding:10px 12px;background:var(--citation-card)}}.citation-reference{{font-weight:750;color:var(--accent)}}.citation-details{{margin-top:12px}}
+a{{color:var(--link)}}details{{border:1px solid var(--border);border-radius:9px;padding:10px;margin:10px 0;background:var(--details-background)}}summary{{cursor:pointer;font-weight:650}}
+.citation-popover{{position:fixed;z-index:1000;width:min(420px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:auto;padding:14px;border:1px solid var(--popover-border);border-radius:12px;background:var(--popover-background);color:var(--popover-text);box-shadow:0 16px 40px var(--popover-shadow);pointer-events:none;overflow-wrap:anywhere;white-space:normal}}.citation-popover[hidden]{{display:none}}
+.citation-popover-source{{font-weight:750;margin:0 0 8px}}.citation-popover-grid{{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 10px;margin:0 0 10px;font:12px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace}}.citation-popover-grid dt{{color:var(--popover-muted)}}.citation-popover-grid dd{{margin:0}}
+.citation-popover-snippet{{margin:0;padding:10px;border-radius:8px;background:var(--popover-snippet);white-space:pre-wrap;font:13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}}.citation-popover-snippet.missing{{color:var(--popover-muted);font-style:italic}}.citation-popover-snippet mark{{border-radius:2px;background:var(--mark-background);color:var(--mark-text);padding:0 1px}}.citation-popover-action{{margin:9px 0 0;color:var(--link);font-size:12px;font-weight:700}}
+.answer-content{{white-space:normal;overflow:visible;max-height:none}}.answer-content ul,.answer-content ol{{padding-left:24px}}
+@media(max-width:700px){{main{{padding:12px}}.grid{{grid-template-columns:1fr}}.header-top{{display:block}}.theme-switcher{{margin-top:18px}}}}
 </style></head><body><main>
-<header><p class="eyebrow" style="color:#bfdbfe">CIAL Knowledge OS</p><h1>Phase 4 · Reranking & Evidence Selection</h1><p>Offline execution report: Hybrid Retrieval → RRF → Reranking → Evidence Selection → Context → Answer</p></header>
+<header><div class="header-top"><div class="header-copy"><p class="eyebrow">CIAL Knowledge OS</p><h1>Phase 4 · Reranking & Evidence Selection</h1><p>Offline execution report: Hybrid Retrieval → RRF → Reranking → Evidence Selection → Context → Answer</p></div>
+<div class="theme-switcher" role="group" aria-label="Report color theme">
+<span class="sr-only">Report theme</span>
+<button type="button" data-theme-choice="light" aria-label="Use light theme" aria-pressed="false">Light</button>
+<button type="button" data-theme-choice="dark" aria-label="Use dark theme" aria-pressed="false">Dark</button>
+<button type="button" data-theme-choice="system" aria-label="Use system theme" aria-pressed="false">System</button>
+</div></div></header>
 <section><h2>Executive Summary</h2><div class="metrics">{_cards([
 ("Questions", summary.get("question_count", len(rows))),
 ("Successful", summary.get("successful_questions", 0)),

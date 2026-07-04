@@ -264,7 +264,7 @@ class Phase4CitationReportingTests(unittest.TestCase):
                 missing_snippet_report,
             )
 
-    def test_popover_is_standalone_viewport_aware_and_dark_mode_ready(
+    def test_popover_is_standalone_viewport_aware_and_theme_ready(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -281,11 +281,78 @@ class Phase4CitationReportingTests(unittest.TestCase):
             self.assertIn("pointerleave", report)
             self.assertIn("window.innerWidth", report)
             self.assertIn("window.innerHeight", report)
-            self.assertIn("@media(prefers-color-scheme:dark)", report)
+            self.assertIn("--popover-background:", report)
+            self.assertIn("background:var(--popover-background)", report)
             self.assertIn('document.createElement("mark")', report)
             self.assertEqual(
                 len(self._preview_data(report)),
                 2,
+            )
+            self.assertNotIn("https://cdn", report)
+            self.assertNotIn("<link rel=", report)
+
+    def test_theme_controls_support_light_dark_system_and_persistence(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = self._report(
+                root,
+                "Use both controls [1] [2].",
+                self._citations(root),
+            )
+
+            required_variables = (
+                "--background:",
+                "--card-background:",
+                "--text:",
+                "--muted-text:",
+                "--border:",
+                "--accent:",
+                "--success:",
+                "--warning:",
+                "--error:",
+                "--code-block:",
+                "--citation-badge:",
+                "--table-header:",
+                "--chart-container:",
+            )
+            for variable in required_variables:
+                self.assertIn(variable, report)
+            self.assertIn('[data-theme="dark"]', report)
+            self.assertIn('fill="var(--chart-bar)"', report)
+            self.assertIn("fill:var(--text)", report)
+            for theme in ("light", "dark", "system"):
+                self.assertIn(
+                    f'data-theme-choice="{theme}"',
+                    report,
+                )
+                self.assertIn(
+                    f'aria-label="Use {theme} theme"',
+                    report,
+                )
+            self.assertIn('role="group"', report)
+            self.assertIn('aria-label="Report color theme"', report)
+            self.assertIn('window.matchMedia("(prefers-color-scheme: dark)")', report)
+            self.assertIn(
+                'window.localStorage.getItem(storageKey)',
+                report,
+            )
+            self.assertIn(
+                'window.localStorage.setItem(storageKey, preference)',
+                report,
+            )
+            self.assertIn(
+                '"cial-phase4-report-theme"',
+                report,
+            )
+            self.assertIn(
+                "document.documentElement.dataset.theme",
+                report,
+            )
+            self.assertIn(
+                'systemTheme.addEventListener("change", followSystemTheme)',
+                report,
             )
             self.assertNotIn("https://cdn", report)
             self.assertNotIn("<link rel=", report)
