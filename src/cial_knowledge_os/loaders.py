@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import warnings
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -167,33 +166,8 @@ def _supported_documents(root: Path) -> list[Path]:
 
 
 def resolve_corpus_root(config: KnowledgeOSConfig) -> Path:
-    """Select the canonical corpus or the deprecated configured fallback."""
+    """Return the canonical configured corpus root."""
 
-    canonical_documents = _supported_documents(config.knowledge_root)
-    if canonical_documents:
-        return config.knowledge_root
-
-    legacy_documents = [
-        path
-        for path in _supported_documents(config.legacy_pdf_root)
-        if path.suffix.lower() == ".pdf"
-    ]
-    if legacy_documents:
-        message = (
-            f"Knowledge repository '{config.knowledge_root}' is missing or empty; "
-            f"falling back to deprecated PDF corpus '{config.legacy_pdf_root}'. "
-            "Run scripts/migrate_pdf_to_files.py to migrate it."
-        )
-        warnings.warn(message, DeprecationWarning, stacklevel=2)
-        logger.warning(
-            "legacy_pdf_corpus_fallback",
-            extra={
-                "event": "document_discovery",
-                "knowledge_root": str(config.knowledge_root),
-                "legacy_pdf_root": str(config.legacy_pdf_root),
-            },
-        )
-        return config.legacy_pdf_root
     return config.knowledge_root
 
 

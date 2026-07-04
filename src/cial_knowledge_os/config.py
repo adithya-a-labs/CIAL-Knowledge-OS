@@ -26,7 +26,7 @@ class KnowledgeOSConfig:
     knowledge_root: Path | None = None
     legacy_pdf_root: Path | None = None
     # Deprecated compatibility alias. New code must use ``knowledge_root`` for
-    # the canonical corpus and ``legacy_pdf_root`` only for fallback/migration.
+    # ingestion; ``legacy_pdf_root`` exists only for one-time migration.
     pdf_data_dir: Path | None = None
     qdrant_dir: Path | None = None
     qdrant_collection_name: str = "cial_basic_rag"
