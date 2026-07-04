@@ -28,7 +28,10 @@ from cial_knowledge_os.context_builder import INSUFFICIENT_EVIDENCE_RESPONSE
 from cial_knowledge_os.evidence_quality import EvidenceQualityScorer
 from cial_knowledge_os.evidence_selector import EvidenceSelector
 from cial_knowledge_os.llm import build_grounded_prompt
-from cial_knowledge_os.phase4_pipeline import Phase4RAGPipeline
+from cial_knowledge_os.phase4_pipeline import (
+    Phase4RAGPipeline,
+    UNSUPPORTED_QUERY_RESPONSE,
+)
 from cial_knowledge_os.phase4_runner import Phase4Runner
 from cial_knowledge_os.phase4_trace import Phase4Trace, phase4_diagnostics
 from cial_knowledge_os.reranker import CrossEncoderReranker, MockReranker
@@ -731,6 +734,69 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
         self.assertGreater(len(response["selected_evidence"]), 0)
         self.assertIn("evidence review required", response["answer"].lower())
         self.assertTrue(response["citations"])
+        self.assertTrue(response["extractive_fallback_used"])
+        self.assertFalse(response["fallback_blocked"])
+
+    def test_unsupported_current_question_is_not_answered(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            pipeline = self._pipeline(Path(directory))
+            response = pipeline.answer(
+                "What is today's airport weather forecast?"
+            )
+
+        self.assertEqual(response["answer_status"], "unsupported_query")
+        self.assertEqual(response["raw_answer"], UNSUPPORTED_QUERY_RESPONSE)
+        self.assertEqual(response["answer"], UNSUPPORTED_QUERY_RESPONSE)
+        self.assertEqual(response["citations"], [])
+        self.assertTrue(response["unsupported_query_detected"])
+
+    def test_weak_evidence_does_not_become_extractive_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            pipeline = self._pipeline(Path(directory))
+            pipeline.reranker = MockReranker(
+                {"first": -5.0, "second": -6.0}
+            )
+            pipeline.llm = _RefusingLLM()
+            response = pipeline.answer("What control is required?")
+
+        self.assertEqual(
+            response["answer_status"],
+            "insufficient_evidence",
+        )
+        self.assertEqual(response["answer"], INSUFFICIENT_EVIDENCE_RESPONSE)
+        self.assertEqual(response["citations"], [])
+        self.assertFalse(response["extractive_fallback_used"])
+        self.assertTrue(response["fallback_blocked"])
+
+    def test_unsupported_status_is_preserved_in_csv_xlsx_and_html(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            pipeline = self._pipeline(Path(directory))
+            result = Phase4Runner(
+                pipeline=_ReadyPipeline(pipeline),
+                config=pipeline.config,
+            ).run(
+                questions=["What is the current share price?"],
+                run_mode="smoke",
+            )
+            with result.paths.results_csv.open(
+                encoding="utf-8-sig",
+                newline="",
+            ) as handle:
+                row = next(csv.DictReader(handle))
+            workbook = load_workbook(result.paths.results_xlsx)
+            sheet = workbook.active
+            headers = [cell.value for cell in sheet[1]]
+            xlsx_status = sheet.cell(
+                row=2,
+                column=headers.index("answer_status") + 1,
+            ).value
+            report = result.paths.report_html.read_text(encoding="utf-8")
+
+        self.assertEqual(row["answer_status"], "Unsupported Query")
+        self.assertEqual(xlsx_status, "Unsupported Query")
+        self.assertIn("status-unsupported-query", report)
+        self.assertEqual(result.metrics["unsupported_query_count"], 1)
+        self.assertEqual(result.metrics["extractive_fallback_count"], 0)
 
     def test_insufficient_evidence_requires_no_usable_chunks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
