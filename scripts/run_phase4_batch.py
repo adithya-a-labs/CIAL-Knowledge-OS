@@ -25,6 +25,7 @@ QUESTIONS_FILE = (
 )
 RUN_MODE = "manual_qa"
 MAX_ANSWER_WORDS = 450
+ADAPTIVE_ANSWER_SECTIONS = True
 GENERATION_RETRIES = 2
 RETRY_COOLDOWN_SECONDS = 20
 RERANKER_DEVICE = "auto"
@@ -202,6 +203,7 @@ def build_config(args: argparse.Namespace) -> Any:
         project_root=PROJECT_ROOT,
         phase4_run_mode=_value(args.mode, RUN_MODE),
         max_answer_words=_value(args.max_answer_words, MAX_ANSWER_WORDS),
+        adaptive_answer_sections=ADAPTIVE_ANSWER_SECTIONS,
         generation_retries=_value(
             args.generation_retries,
             GENERATION_RETRIES,

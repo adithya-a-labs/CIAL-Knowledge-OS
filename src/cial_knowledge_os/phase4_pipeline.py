@@ -124,22 +124,82 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
             if self.config.max_answer_words is not None
             else ""
         )
-        structure = (
-            """Use clear Markdown headings and, where supported, organize the answer as:
+        if not self.config.prefer_structured_answers:
+            structure = "Use a coherent, decision-oriented narrative.\n"
+            content_requirements = """- Explain only implications, actions, risks, gaps, dependencies, or procedures that directly answer the question and are supported by selected evidence.
+- Avoid filler, repetition, unsupported background, and artificial padding.
+"""
+        elif self.config.adaptive_answer_sections:
+            decision_notes_family = (
+                "\n- Decision Notes"
+                if self.config.include_decision_notes
+                else ""
+            )
+            structure = f"""Choose the answer structure that best fits the question. Do not use every section by default. Use only sections that improve clarity.
+
+Allowed section families (select only the relevant ones):
+- Direct Answer
+- Overview
+- Key Concepts
+- Key Findings
+- Evidence
+- Top Risks
+- Business Impact
+- Recommended Controls
+- Recommended Actions
+- Step-by-Step Procedure
+- Comparison
+- Key Differences
+- Recommendation
+- Priority Matrix
+- Implementation Checklist
+- Owners and Dependencies
+- Operational Implications
+- Evidence Gaps
+- Caveats
+- Next Actions
+- Immediate / Next / Later Actions{decision_notes_family}
+
+Question-shape guidance:
+- If the question asks "what is", "define", or "explain", prefer Overview + Key Concepts + Evidence.
+- If it asks about risks or biggest threats, prefer Top Risks + Business Impact + Recommended Controls.
+- If it asks "how should we" or "what should we do", prefer Recommended Actions + Implementation Checklist + Caveats.
+- If it asks to compare or distinguish differences, prefer Comparison + Key Differences + Recommendation.
+- If it asks for a process, procedure, or steps, prefer Step-by-Step Procedure + Owners and Dependencies + Evidence.
+- If it asks to prioritize, prefer Priority Matrix + Immediate / Next / Later Actions.
+- If support is incomplete, explain Evidence Gaps instead of forcing a full report.
+
+Use clear Markdown headings and bullets where they improve readability. Do not create tables or diagrams.
+"""
+            if self.config.include_decision_notes:
+                structure += (
+                    "Use Decision Notes only when they materially clarify a "
+                    "decision, follow-up validation, or unresolved evidence gap.\n"
+                )
+            content_requirements = """- Cover only the findings, implications, controls, risks, procedures, comparisons, dependencies, and next actions that directly answer the question.
+- Prioritize recommendations only when the evidence supports an ordering.
+- Do not force unrelated analysis merely to fill a section.
+- Avoid filler, repetition, unsupported background, and artificial padding.
+"""
+        else:
+            structure = """Use clear Markdown headings and, where supported, organize the answer as:
 - Executive answer
 - Evidence-backed findings
 - Operational implications
 - Recommended controls or actions
 - Risks, gaps, and caveats
 """
-            if self.config.prefer_structured_answers
-            else "Use a coherent, decision-oriented narrative.\n"
-        )
-        decision_notes = (
-            "- Include a short Decision notes section that distinguishes immediate actions, follow-up validation, and unresolved evidence gaps.\n"
-            if self.config.include_decision_notes
-            else ""
-        )
+            if self.config.include_decision_notes:
+                structure += (
+                    "- Include a short Decision notes section that distinguishes "
+                    "immediate actions, follow-up validation, and unresolved "
+                    "evidence gaps.\n"
+                )
+            content_requirements = """- Explain operational implications and supported recommended controls or actions.
+- Identify supported risks, gaps, dependencies, and implementation caveats.
+- Prioritize recommendations when the evidence supports an ordering.
+- Avoid filler, repetition, unsupported background, and artificial padding.
+"""
         weak_rule = (
             "- All selected evidence is below the reranker threshold. State this limitation prominently, use cautious language, and recommend source verification before action.\n"
             if weak_evidence
@@ -152,18 +212,14 @@ Answer the QUESTION using only the provided SELECTED EVIDENCE.
 Grounding rules:
 1. Use only facts directly supported by SELECTED EVIDENCE.
 2. Do not use outside knowledge, invent controls, or infer unsupported organization-specific details.
-3. Cite key factual claims inline using the exact reference IDs shown in the evidence, such as [1].
+3. Cite every key factual claim and recommendation inline using the exact reference IDs shown in the evidence, such as [1].
 4. Do not invent, alter, or renumber reference IDs.
 5. If evidence supports only part of the question, answer that part and identify the remaining gap.
 6. Reply exactly "{INSUFFICIENT_EVIDENCE_RESPONSE}" only when SELECTED EVIDENCE is empty or contains no usable information.
 
 Answer requirements:
 - Produce a detailed synthesis; evidence selection improves precision, not answer brevity.
-- Explain operational implications and supported recommended controls or actions.
-- Identify supported risks, gaps, dependencies, and implementation caveats.
-- Prioritize recommendations when the evidence supports an ordering.
-- Avoid filler, repetition, unsupported background, and artificial padding.
-{weak_rule}{decision_notes}{minimum_words}{maximum_words}
+{content_requirements}{weak_rule}{minimum_words}{maximum_words}
 {structure}
 SELECTED EVIDENCE
 {context}

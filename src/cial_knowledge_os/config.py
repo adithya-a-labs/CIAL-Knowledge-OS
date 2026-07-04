@@ -303,6 +303,7 @@ class Phase4Config(Phase3Config):
     min_answer_words: int | None = 250
     max_answer_words: int | None = None
     prefer_structured_answers: bool = True
+    adaptive_answer_sections: bool = True
     include_decision_notes: bool = True
     generation_retries: int = 2
     retry_cooldown_seconds: float = 20.0
