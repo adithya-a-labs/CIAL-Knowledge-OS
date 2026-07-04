@@ -158,11 +158,12 @@ Phase 3 improvement or trade-off on the unchanged frozen benchmark.
   caution-labeled grounded answer, while zero evidence is reserved for an empty
   or invalid candidate pool;
 - a Phase 4-specific detailed answer style that retains Phase 3 grounding and
-  citations while adding operational implications, supported actions,
-  risks/gaps, caveats, and optional decision notes from selected evidence only;
+  citations while selecting question-relevant section families for findings,
+  implications, controls, procedures, comparisons, risks/gaps, caveats, and
+  next actions from selected evidence only;
 - configurable `answer_detail_level`, `min_answer_words`, optional
-  `max_answer_words`, `prefer_structured_answers`, and
-  `include_decision_notes` generation policy;
+  `max_answer_words`, `prefer_structured_answers`,
+  `adaptive_answer_sections`, and `include_decision_notes` generation policy;
 - Phase 4-only generation retries and cooldown for retryable local Ollama
   runner, stream, transport, HTTP 500, and memory-allocation failures;
 - per-question CSV/JSONL checkpoints and indexed question-hash resume support,
@@ -201,6 +202,13 @@ Phase 4 evidence reduction is not an answer-length optimization. Detailed
 synthesis is generated from the smaller, higher-precision selected context.
 Word targets apply only when evidence supports them and do not permit padding
 or unsupported claims.
+
+Phase 4 now supports semi-adaptive answer sections. The default prompt chooses
+only section families that fit the question shape; setting
+`adaptive_answer_sections=False` restores the previous fixed template for
+reproducibility. This is not a full response planner; full adaptive response
+planning is deferred to Phase 5. This prompt refinement is implemented but does
+not establish a benchmark-qualified quality improvement.
 
 The default `reranker_local_files_only=False` is a developer-experience policy,
 not a cloud-inference dependency. Loading remains lazy and always tries the

@@ -199,6 +199,7 @@ config = Phase4Config(
     min_answer_words=250,
     max_answer_words=None,
     prefer_structured_answers=True,
+    adaptive_answer_sections=True,
     include_decision_notes=True,
     generation_retries=2,
     retry_cooldown_seconds=20,
@@ -216,6 +217,15 @@ result = Phase4Runner(pipeline=pipeline, config=config).run(
 print(result.paths.report_html)
 ```
 
+Phase 4 now supports semi-adaptive answer sections. With
+`adaptive_answer_sections=True`, the generation prompt selects only headings
+that fit the question shape while retaining detailed synthesis, selected-
+evidence grounding, inline citations, weak-evidence caveats, and explicit
+evidence gaps. Set it to `False` to restore the previous fixed Phase 4 template
+for reproducibility. This is not a full response planner; full adaptive
+response planning is deferred to Phase 5. No benchmark quality improvement is
+claimed from this prompt refinement.
+
 For day-to-day Phase 4 runs, edit the clearly marked `USER CONFIGURATION`
 section near the top of `scripts/run_phase4_batch.py`, especially
 `QUESTIONS_FILE`, and then click **Run Python File** in VS Code. The same
@@ -229,11 +239,11 @@ python scripts\run_phase4_batch.py
 ```
 
 The configuration section controls the question file, mode, answer-word limit,
-generation retries/cooldown, reranker device/batch/cache policy, and optional
-resume folder. Question lists are UTF-8 TXT files with one question per line or
-CSV files with a `question` column. For a 440-question run, set
-`QUESTIONS_FILE` to that question list and optionally adjust
-`MAX_ANSWER_WORDS`.
+semi-adaptive answer sections, generation retries/cooldown, reranker
+device/batch/cache policy, and optional resume folder. Question lists are UTF-8
+TXT files with one question per line or CSV files with a `question` column. For
+a 440-question run, set `QUESTIONS_FILE` to that question list and optionally
+adjust `MAX_ANSWER_WORDS`.
 
 The script performs the notebook-equivalent load, chunk, embed, index, and
 `Phase4Runner` sequence. Progress is flushed immediately, and no diagnostic,

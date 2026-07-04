@@ -359,8 +359,13 @@ available in a collapsible citation-details section. Unsafe or unavailable
 links are rendered as non-clickable labels; CSV/XLSX citation fields are not
 changed.
 Phase 4 uses the Phase 3 grounding and citation contract but requests detailed,
-structured decision support from selected evidence only. The evidence selector
-reduces irrelevant context; it does not intentionally shorten answers.
+structured decision support from selected evidence only. Phase 4 now supports
+semi-adaptive answer sections: with `adaptive_answer_sections=True`, the prompt
+chooses only question-relevant section families; `False` restores the previous
+fixed template for reproducibility. This is not a full response planner; full
+adaptive response planning is deferred to Phase 5. The evidence selector
+reduces irrelevant context; it does not intentionally shorten answers. No
+benchmark quality improvement is claimed from this prompt-only change.
 
 The implementation supports `smoke`, `manual_qa`, `benchmark`, and
 `export_only` modes and `compact`/`full` traces. Full benchmark qualification is
