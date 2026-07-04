@@ -27,7 +27,7 @@ from cial_knowledge_os.evidence_quality import EvidenceQualityScorer
 from cial_knowledge_os.evidence_selector import EvidenceSelector
 from cial_knowledge_os.phase4_pipeline import Phase4RAGPipeline
 from cial_knowledge_os.phase4_runner import Phase4Runner
-from cial_knowledge_os.phase4_trace import Phase4Trace
+from cial_knowledge_os.phase4_trace import Phase4Trace, phase4_diagnostics
 from cial_knowledge_os.reranker import CrossEncoderReranker, MockReranker
 from cial_knowledge_os.token_budget import TokenBudgetManager
 
@@ -279,9 +279,9 @@ class RerankerAndSelectionTests(unittest.TestCase):
 
         self.assertEqual([item["chunk_id"] for item in result.selected], ["a"])
         reasons = {item["chunk_id"]: item["discard_reason"] for item in result.discarded}
-        self.assertEqual(reasons["b"], "redundant")
-        self.assertEqual(reasons["c"], "source_diversity")
-        self.assertEqual(reasons["d"], "low_score")
+        self.assertEqual(reasons["b"], "redundancy")
+        self.assertEqual(reasons["c"], "source_diversity_limit")
+        self.assertEqual(reasons["d"], "threshold_failed")
         self.assertEqual(reasons["e"], "token_budget")
         self.assertLessEqual(result.selected_tokens, 28)
 
@@ -312,10 +312,93 @@ class RerankerAndSelectionTests(unittest.TestCase):
         self.assertEqual(len(result.selected), 2)
         self.assertTrue(
             all(
-                item["discard_reason"] == "max_evidence_count"
+                item["discard_reason"] == "lower_rank_fallback"
                 for item in result.discarded
             )
         )
+
+    def test_selector_falls_back_to_floor_and_token_target(self) -> None:
+        manager = TokenBudgetManager(_CharacterTokenizer(), max_tokens=1_200)
+        selector = EvidenceSelector(
+            manager,
+            strategies=(
+                "top_k",
+                "reranker_score_threshold",
+                "source_diversity",
+                "redundancy_reduction",
+                "token_budget",
+            ),
+            min_selected_evidence=3,
+            max_selected_evidence=8,
+            score_threshold=0.2,
+            token_budget=1_200,
+            max_chunks_per_source=2,
+            redundancy_threshold=0.9,
+            fallback_to_top_n_if_empty=True,
+            fallback_top_n=3,
+            target_min_tokens=500,
+            target_max_tokens=900,
+        )
+        candidates = [
+            _candidate(
+                f"weak-{index}",
+                (f"distinct evidence section {index} " * 8)[:200],
+                source=f"C:/docs/{index}.pdf",
+                page=index,
+            )
+            | {"reranker_score": -float(index)}
+            for index in range(1, 6)
+        ]
+
+        result = selector.select(candidates)
+
+        self.assertGreaterEqual(len(result.selected), 3)
+        self.assertGreaterEqual(result.selected_tokens, 500)
+        self.assertLessEqual(result.selected_tokens, 900)
+        self.assertTrue(result.fallback_used)
+        self.assertTrue(result.weak_evidence)
+        self.assertTrue(
+            all(item["weak_evidence"] for item in result.selected)
+        )
+        self.assertTrue(
+            all(
+                item["discard_reason"]
+                in {
+                    "threshold_failed",
+                    "redundancy",
+                    "source_diversity_limit",
+                    "token_budget",
+                    "empty_text",
+                    "lower_rank_fallback",
+                }
+                for item in result.discarded
+            )
+        )
+
+    def test_selector_returns_zero_only_for_empty_candidates(self) -> None:
+        manager = TokenBudgetManager(_CharacterTokenizer(), max_tokens=100)
+        selector = EvidenceSelector(
+            manager,
+            strategies=("top_k", "reranker_score_threshold"),
+            min_selected_evidence=3,
+            max_selected_evidence=8,
+            score_threshold=0.2,
+            token_budget=100,
+            max_chunks_per_source=2,
+            redundancy_threshold=0.9,
+            target_min_tokens=50,
+            target_max_tokens=100,
+        )
+        candidates = [
+            _candidate("empty", "", source="C:/docs/a.pdf", page=1)
+            | {"reranker_score": 10.0}
+        ]
+
+        result = selector.select(candidates)
+
+        self.assertEqual(result.selected, ())
+        self.assertEqual(result.usable_candidate_count, 0)
+        self.assertEqual(result.discarded[0]["discard_reason"], "empty_text")
 
 
 class EvidenceQualityAndTraceTests(unittest.TestCase):
@@ -367,6 +450,25 @@ class EvidenceQualityAndTraceTests(unittest.TestCase):
             str(Path("context/a.md")),
         )
 
+    def test_starvation_diagnostics_flag_high_risk_selection(self) -> None:
+        diagnostics = phase4_diagnostics(
+            token_reduction_percent=95.0,
+            average_reranker_score=0.0,
+            medium_score_threshold=0.4,
+            discarded=[],
+            latency={},
+            unique_source_count=0,
+            selected_chunk_count=0,
+            candidate_chunk_count=12,
+            selected_evidence_tokens=0,
+            answer_status="insufficient_evidence",
+        )
+
+        signals = {item["signal"] for item in diagnostics}
+        self.assertIn("evidence_starvation", signals)
+        self.assertIn("excessive_token_reduction", signals)
+        self.assertIn("zero_average_reranker_score", signals)
+
 
 class Phase4PipelineAndArtifactTests(unittest.TestCase):
     def _pipeline(self, root: Path) -> Phase4RAGPipeline:
@@ -414,14 +516,18 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
         self.assertEqual(response["retrieval_mode"], "hybrid")
         self.assertEqual(
             [item["chunk_id"] for item in response["selected_evidence"]],
-            ["first"],
+            ["first", "second"],
         )
+        self.assertEqual(response["discarded_evidence"], [])
         self.assertEqual(
-            response["discarded_evidence"][0]["discard_reason"],
-            "low_score",
+            response["selected_evidence"][1]["selection_reason"],
+            "adaptive_fallback",
         )
-        self.assertNotIn("cafeteria", response["context"])
-        self.assertGreater(response["token_efficiency"]["token_reduction_percent"], 0)
+        self.assertEqual(response["evidence_confidence"], "mixed")
+        self.assertGreaterEqual(
+            response["token_efficiency"]["token_reduction_percent"],
+            0,
+        )
         self.assertEqual(
             response["question_trace"]["pipeline_flow"][2],
             "reranker",
@@ -468,12 +574,33 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
         self.assertIn("downloaded and cached successfully", output.getvalue())
         self.assertIn("loaded from local Hugging Face cache", output.getvalue())
 
+    def test_pipeline_answers_with_caution_when_only_weak_evidence_exists(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            pipeline = self._pipeline(Path(directory))
+            pipeline.reranker = MockReranker(
+                {"first": -5.0, "second": -6.0}
+            )
+            response = pipeline.answer("What control is required?")
+
+        self.assertEqual(response["answer_status"], "answered")
+        self.assertEqual(response["evidence_confidence"], "weak")
+        self.assertTrue(response["weak_evidence"])
+        self.assertIn("Caution", response["answer"])
+        self.assertGreater(len(response["selected_evidence"]), 0)
+
     def test_phase4_bundle_contains_all_artifacts_and_report_sections(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "manual.pdf").write_bytes(b"%PDF-test")
             (root / "other.pdf").write_bytes(b"%PDF-test")
             pipeline = self._pipeline(root)
+            pipeline.config.min_selected_evidence = 1
+            pipeline.config.max_selected_evidence = 1
+            pipeline.config.selected_evidence_target_min_tokens = 1
+            pipeline.config.selected_evidence_target_max_tokens = 120
+            pipeline.on_config_changed()
             result = Phase4Runner(
                 pipeline=_ReadyPipeline(pipeline),
                 config=pipeline.config,
@@ -536,9 +663,14 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
             self.assertEqual(trace["selected_chunks"][0]["chunk_id"], "first")
             self.assertEqual(
                 trace["discarded_chunks"][0]["discard_reason"],
-                "low_score",
+                "threshold_failed",
             )
             self.assertIn("results_csv", trace["artifacts"])
+            metrics = json.loads(paths.metrics_json.read_text(encoding="utf-8"))
+            self.assertEqual(
+                metrics["discard_reason_distribution"]["threshold_failed"],
+                1,
+            )
 
     def test_previous_phase_defaults_remain_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -555,6 +687,12 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
         self.assertEqual(phase4.phase_output_name, "04_Reranking_and_Evidence_Selection")
         self.assertFalse(phase4.enable_neighbor_expansion)
         self.assertFalse(phase4.reranker_local_files_only)
+        self.assertEqual(phase4.min_selected_evidence, 3)
+        self.assertEqual(phase4.max_selected_evidence, 8)
+        self.assertEqual(phase4.reranker_score_threshold, -4.0)
+        self.assertTrue(phase4.fallback_to_top_n_if_empty)
+        self.assertEqual(phase4.fallback_top_n, 3)
+        self.assertTrue(phase4.weak_evidence_answer_allowed)
 
 
 if __name__ == "__main__":
