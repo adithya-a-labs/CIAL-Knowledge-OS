@@ -21,10 +21,10 @@ if str(SOURCE_ROOT) not in sys.path:
 # =====================================================
 
 QUESTIONS_FILE = (
-    PROJECT_ROOT / "data" / "manual_qa" / "phase4_questions_small.txt"
+    PROJECT_ROOT / "data" / "manual_qa" / "phase4_hal.txt"
 )
 RUN_MODE = "manual_qa"
-MAX_ANSWER_WORDS = 450
+MAX_ANSWER_WORDS = 800
 ADAPTIVE_ANSWER_SECTIONS = True
 GENERATION_RETRIES = 2
 RETRY_COOLDOWN_SECONDS = 20
