@@ -52,6 +52,30 @@ def positive_integer(value: str) -> int:
     return parsed
 
 
+def non_negative_integer(value: str) -> int:
+    """Parse a non-negative CLI integer for retry configuration."""
+
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"{value!r} is not an integer.") from exc
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("value must be non-negative.")
+    return parsed
+
+
+def non_negative_number(value: str) -> float:
+    """Parse a non-negative CLI number for cooldown configuration."""
+
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a number.") from exc
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("value must be non-negative.")
+    return parsed
+
+
 def load_questions(path: str | Path) -> list[str]:
     """Load non-empty questions from a CSV or line-oriented TXT file.
 
@@ -149,6 +173,28 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable reranker downloads and require an existing Hugging Face cache.",
     )
+    parser.add_argument(
+        "--resume",
+        type=Path,
+        help="Resume an interrupted Phase 4 run from its run folder.",
+    )
+    parser.add_argument(
+        "--generation-retries",
+        type=non_negative_integer,
+        default=2,
+        help="Generation retries after the initial attempt (default: 2).",
+    )
+    parser.add_argument(
+        "--retry-cooldown-seconds",
+        type=non_negative_number,
+        default=20.0,
+        help="Cooldown between retryable generation attempts (default: 20).",
+    )
+    parser.add_argument(
+        "--max-answer-words",
+        type=positive_integer,
+        help="Optional upper word target for each generated answer.",
+    )
     return parser
 
 
@@ -182,8 +228,11 @@ def build_config(args: argparse.Namespace) -> Phase4Config:
         weak_evidence_answer_allowed=True,
         answer_detail_level="detailed",
         min_answer_words=250,
+        max_answer_words=args.max_answer_words,
         prefer_structured_answers=True,
         include_decision_notes=True,
+        generation_retries=args.generation_retries,
+        retry_cooldown_seconds=args.retry_cooldown_seconds,
         evidence_token_budget=2400,
         selected_evidence_target_min_tokens=800,
         selected_evidence_target_max_tokens=1500,
@@ -296,6 +345,11 @@ def execute(args: argparse.Namespace) -> Phase4RunResult:
             "reranker_device": config.reranker_device,
             "reranker_batch_size": config.reranker_batch_size,
             "local_files_only": config.reranker_local_files_only,
+            "generation_retries": config.generation_retries,
+            "generation_attempts": config.generation_retries + 1,
+            "retry_cooldown_seconds": config.retry_cooldown_seconds,
+            "max_answer_words": config.max_answer_words,
+            "resume": str(args.resume.resolve()) if args.resume else None,
         }
     )
 
@@ -322,6 +376,7 @@ def execute(args: argparse.Namespace) -> Phase4RunResult:
                 "question_source": source_label,
                 "large_run": effective_large_run,
             },
+            resume_run=args.resume,
         )
         print(
             "Question count returned by Phase4Runner: "
@@ -356,6 +411,10 @@ def print_artifact_paths(result: Phase4RunResult) -> None:
         ("logs.txt", paths.logs),
         ("context", paths.context),
         ("figures", paths.figures),
+        ("checkpoint.json", paths.root / "checkpoint.json"),
+        ("partial_results.csv", paths.root / "partial_results.csv"),
+        ("partial_results.jsonl", paths.root / "partial_results.jsonl"),
+        ("partial_retrieval.jsonl", paths.root / "partial_retrieval.jsonl"),
     )
     print("\nPhase 4 batch run complete. Artifacts:")
     for label, path in artifacts:
