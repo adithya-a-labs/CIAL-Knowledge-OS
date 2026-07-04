@@ -461,6 +461,12 @@ The reference notebooks should be treated as conceptual guides, not implementati
 - Make every evidence keep/discard decision inspectable and record a primary
   discard reason.
 - Prefer a small strong evidence set over filling the final context budget.
+- Do not optimize token reduction to the point of evidence starvation. Preserve
+  a configurable minimum evidence count, use adaptive ranked fallback, and
+  target a useful normal-QA evidence-token range.
+- Return zero selected chunks only when retrieval is empty or every candidate
+  has invalid/empty text. Mark below-threshold fallback evidence as weak and
+  caution the answer.
 - Measure candidate, selected, and final-context tokens plus stage latency.
 - Keep the reranker, selector, quality scorer, trace, pipeline, and reporting
   interfaces independently testable. Use deterministic mock rerankers in tests.

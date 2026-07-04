@@ -152,6 +152,11 @@ Phase 3 improvement or trade-off on the unchanged frozen benchmark.
   cross-encoder scores from incompatible scales;
 - evidence selection using maximum count, reranker threshold, source-diversity
   cap, lexical redundancy reduction, and evidence-token budget strategies;
+- a default three-chunk evidence floor, eight-chunk ceiling, adaptive ranked
+  fallback, and an 800--1500 selected-token target for normal QA;
+- explicit weak/mixed/strong evidence confidence: weak evidence can produce a
+  caution-labeled grounded answer, while zero evidence is reserved for an empty
+  or invalid candidate pool;
 - an intentional smaller evidence budget before the existing final context
   budget;
 - per-chunk evidence strength, retrieval provenance, citation availability,
@@ -385,9 +390,17 @@ pipeline logic. In particular, Phase 3 and Phase 4 must not hardcode:
 - artifact filenames.
 
 Phase 4 additionally configures the reranker model/device/batch/local-only
-policy, candidate depth, selection strategies, maximum evidence count, score
-threshold, source cap, redundancy threshold, evidence token budget, evidence
-strength thresholds, run mode, trace mode, and large-run guard.
+policy, candidate depth, selection strategies, minimum/maximum evidence count,
+reranker threshold, adaptive fallback, weak-evidence answer policy, source cap,
+redundancy threshold, evidence token budget and target range, evidence strength
+thresholds, run mode, trace mode, and large-run guard.
+
+Discard reasons are normalized as `threshold_failed`, `redundancy`,
+`source_diversity_limit`, `token_budget`, `empty_text`, and
+`lower_rank_fallback`. Aggregate counts are persisted in `metrics.json` and
+rendered in the standalone report. Diagnostics flag candidate starvation,
+greater-than-90-percent reduction, under-500-token answered contexts, and zero
+average selected score with non-empty candidates.
 
 Expose these through typed configuration or explicit function arguments, validate
 them at the boundary, serialize the effective configuration with every run, and

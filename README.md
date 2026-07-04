@@ -189,9 +189,15 @@ config = Phase4Config(
     reranker_local_files_only=False,  # cache first; download once if missing
     reranker_batch_size=16,
     reranker_candidate_top_k=30,
-    evidence_max_chunks=5,
-    evidence_score_threshold=0.20,
+    min_selected_evidence=3,
+    max_selected_evidence=8,
+    reranker_score_threshold=-4.0,
+    fallback_to_top_n_if_empty=True,
+    fallback_top_n=3,
+    weak_evidence_answer_allowed=True,
     evidence_token_budget=2400,
+    selected_evidence_target_min_tokens=800,
+    selected_evidence_target_max_tokens=1500,
     max_context_tokens=4096,
 )
 pipeline = Phase4RAGPipeline(config)
@@ -206,7 +212,11 @@ print(result.paths.report_html)
 Reranking occurs after RRF because dense, BM25, and RRF scores are not
 calibrated for direct averaging. The selector can enforce maximum evidence
 count, reranker threshold, source diversity, redundancy reduction, and a
-smaller evidence-token budget. Phase 4 bundles use
+smaller evidence-token budget. Thresholding is advisory: if it would starve a
+non-empty candidate pool, Phase 4 retains the configured evidence floor and
+marks fallback chunks as weak/low-confidence. Normal QA targets roughly
+800--1500 selected-evidence tokens rather than maximizing token reduction.
+Phase 4 bundles use
 `outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp>/`
 with the established Phase 3 artifact names.
 
@@ -224,6 +234,14 @@ config = Phase4Config(reranker_local_files_only=True)
 In strict mode a missing model fails with the configured model name, staging
 instructions, and a reminder that `MockReranker` is available for automated
 tests.
+
+Weak reranker scores no longer mean “no evidence.” When usable chunks exist,
+the selector falls back to ranked evidence, records `selection_reason` and
+`evidence_confidence`, and the answer is labeled with a caution when all
+selected evidence is weak. Zero selected chunks are reserved for retrieval with
+no usable text. Discards use normalized reasons: `threshold_failed`,
+`redundancy`, `source_diversity_limit`, `token_budget`, `empty_text`, and
+`lower_rank_fallback`.
 
 The default token manager uses the configured local tiktoken encoding
 (`cl100k_base` by default); it does not load or download a model. Injecting a

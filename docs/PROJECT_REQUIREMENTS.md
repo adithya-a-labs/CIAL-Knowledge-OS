@@ -275,6 +275,11 @@ This principle must remain true throughout the lifetime of the project.
   average raw dense, BM25, RRF, and reranker scores.
 - Select the minimum strong evidence set using configurable maximum count,
   reranker threshold, source diversity, redundancy reduction, and token budget.
+- Treat the reranker threshold as a confidence signal rather than a hard
+  no-evidence boundary. Keep a configurable evidence floor and adaptive
+  top-ranked fallback whenever non-empty usable candidates exist.
+- Distinguish weak evidence from no evidence and label weak-evidence answers
+  with caution instead of silently starving the generation context.
 - Reuse Phase 3 token management, citations, evaluation interfaces, reporting
   schema, and `RunManager` rather than creating competing implementations.
 - Record candidate, selected, and final-context tokens; reduction percentage;

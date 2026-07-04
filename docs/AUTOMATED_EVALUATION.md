@@ -169,6 +169,12 @@ retrieval settings. Compare:
 - average selected-evidence reranker score; and
 - strong/medium/weak evidence distribution.
 
+Qualification reports should also count evidence-starvation warnings,
+greater-than-90-percent token reduction, answered contexts below 500 selected
+tokens, zero average reranker score with non-empty candidates, adaptive
+fallback usage, and normalized discard reasons. These are control signals, not
+proof of answer-quality improvement.
+
 The full qualification is optional and gated because local generation is
 expensive. Phase 4 is implemented and automated-test ready, but it is not
 benchmark-qualified until both comparable artifact sets are retained and

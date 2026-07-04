@@ -216,6 +216,10 @@ same `RunManager`. It appends these machine-readable columns:
 | `weak_evidence_count` | Selected chunks below the configured medium threshold. |
 | `reranker_latency_seconds` | Local cross-encoder scoring and sorting latency. |
 | `evidence_selection_latency_seconds` | Keep/discard decision latency. |
+| `usable_candidate_count` | Non-empty candidates eligible for normal or fallback selection. |
+| `threshold_pass_count` | Candidates meeting the configured reranker threshold. |
+| `fallback_used` | Whether adaptive selection added evidence below the threshold. |
+| `evidence_confidence` | `strong`, `mixed`, `weak`, or `none`. |
 
 Run bundles are written below:
 
@@ -237,6 +241,15 @@ outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp>/
 reranker score/rank, selected/discarded status, discard reason, evidence
 strength, metadata completeness, citation availability/link, token counts,
 final-context inclusion, latency, answer, citations, and artifact paths.
+
+The selector defaults to `min_selected_evidence=3`,
+`max_selected_evidence=8`, `fallback_top_n=3`, and an 800--1500 selected-token
+target. A threshold miss does not erase all usable evidence: ranked fallback
+chunks are retained and marked weak. Zero selection is reserved for no
+candidates or candidates with empty text. Exact discard reasons are
+`threshold_failed`, `redundancy`, `source_diversity_limit`, `token_budget`,
+`empty_text`, and `lower_rank_fallback`; aggregate counts are included in
+`metrics.json` and `report.html`.
 
 The Phase 4 HTML report remains standalone and offline. It adds Executive
 Summary, Answers, Citations, Reranking Trace, Evidence Selection, Token
