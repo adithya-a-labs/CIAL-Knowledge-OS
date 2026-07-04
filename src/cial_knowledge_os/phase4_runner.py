@@ -14,8 +14,10 @@ from time import perf_counter
 from typing import Any
 
 from .benchmark_loader import Benchmark
+from .batch_qa import _resolve_questions
 from .config import Phase4Config
 from .phase3_runner import Phase3Runner
+from .phase4_checkpoint import Phase4CheckpointManager
 from .phase4_reporting import write_phase4_figures, write_phase4_html
 from .run_manager import RunManager, RunPaths
 
@@ -189,15 +191,18 @@ class Phase4Runner(Phase3Runner):
         top_k: int | None = None,
         run_metadata: Mapping[str, Any] | None = None,
         run_mode: str | None = None,
+        resume_run: str | Path | None = None,
     ) -> Phase4RunResult:
         """Execute Phase 4 and write the complete compatible artifact bundle.
 
-        Inputs match :class:`Phase3Runner` plus ``run_mode``. Smoke mode caps an
-        in-memory list at three questions. Manual/export-only lists above the
-        configured notebook-safe limit are warned and truncated unless
-        ``allow_large_run`` is explicit. Benchmark mode is never silently
-        truncated. Outputs include Phase 4 CSV fields, serialized traces,
-        manager-friendly XLSX, seven SVG diagnostics, and standalone HTML.
+        Inputs match :class:`Phase3Runner` plus ``run_mode`` and optional
+        ``resume_run``. Smoke mode caps an in-memory list at three questions.
+        Manual/export-only lists above the configured notebook-safe limit are
+        warned and truncated unless ``allow_large_run`` is explicit. Benchmark
+        mode is never silently truncated. Each attempt is checkpointed before
+        final CSV/XLSX/HTML/JSON/context/figure exports. Resume validates indexed
+        question hashes, skips successful occurrences, retries failed ones, and
+        rebuilds the standard artifact bundle in the original run folder.
         """
 
         effective_mode = run_mode or self.config.phase4_run_mode
@@ -210,23 +215,58 @@ class Phase4Runner(Phase3Runner):
         if (
             mode_questions is None
             and benchmark is not None
-            and effective_mode == "smoke"
         ):
             mode_questions = [item.question for item in benchmark.questions]
+        if mode_questions is None and questions_path is not None:
+            mode_questions = _resolve_questions(
+                questions=None,
+                questions_path=questions_path,
+                project_root=self.config.project_root,
+            )
+            questions_path = None
         limited_questions = self._apply_mode_limits(
             mode_questions,
             run_mode=effective_mode,
         )
+        if limited_questions is None:
+            raise ValueError("Phase 4 requires questions or a benchmark.")
+        all_questions = list(limited_questions)
+        if resume_run is not None:
+            self.run_manager = RunManager.from_existing(
+                self.config,
+                resume_run,
+            )
+        paths = self.run_manager.create()
+        checkpoint = Phase4CheckpointManager(paths.root)
+        checkpoint.initialize(
+            all_questions,
+            config=self.config,
+            resume=resume_run is not None,
+        )
+        pending = checkpoint.pending()
+        initial_rows, initial_responses = checkpoint.completed_records()
+        print(f"Skipped due to resume: {len(initial_rows)}")
+        print(f"Remaining question count: {len(pending)}")
+        print(f"Checkpoint path: {checkpoint.checkpoint_json}")
+
+        def checkpoint_question(
+            position: int,
+            row: dict[str, Any],
+            response: Mapping[str, Any] | None,
+        ) -> None:
+            checkpoint.record(pending[position - 1], row, response)
+
         metadata = dict(run_metadata or {})
         metadata.setdefault("run_mode", effective_mode)
         phase3_result = super().run(
-            questions=list(limited_questions)
-            if limited_questions is not None
-            else None,
-            questions_path=questions_path,
+            questions=[identity.question for identity in pending],
+            questions_path=None,
             benchmark=benchmark,
             top_k=top_k,
             run_metadata=metadata,
+            initial_rows=initial_rows,
+            initial_responses=initial_responses,
+            on_question_complete=checkpoint_question,
         )
         started = perf_counter()
         rows = self._read_rows(phase3_result.paths.results_csv)
@@ -270,6 +310,20 @@ class Phase4Runner(Phase3Runner):
             traces=traces,
             summary=summary,
             metrics=metrics,
+        )
+        checkpoint.finalize(
+            {
+                "results_csv": phase3_result.paths.results_csv,
+                "results_xlsx": phase3_result.paths.results_xlsx,
+                "report_html": phase3_result.paths.report_html,
+                "config_json": phase3_result.paths.config_json,
+                "summary_json": phase3_result.paths.summary_json,
+                "metrics_json": phase3_result.paths.metrics_json,
+                "retrieval_json": phase3_result.paths.retrieval_json,
+                "logs": phase3_result.paths.logs,
+                "context": phase3_result.paths.context,
+                "figures": phase3_result.paths.figures,
+            }
         )
         return Phase4RunResult(
             paths=phase3_result.paths,

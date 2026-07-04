@@ -70,6 +70,47 @@ class RunManager:
             artifact_names=config.artifact_names,
         )
 
+    @classmethod
+    def from_existing(
+        cls,
+        config: Phase3Config,
+        run_path: str | Path,
+    ) -> "RunManager":
+        """Attach the configured artifact contract to an existing run folder.
+
+        Inputs are a Phase 3-compatible config and resume directory. The output
+        is a normal ``RunManager`` whose paths point at that directory; missing
+        context/figure folders are recreated without deleting or overwriting
+        checkpoint data. Normal callers continue using :meth:`from_config`.
+        """
+
+        root = Path(run_path).expanduser()
+        if not root.is_absolute():
+            root = config.project_root / root
+        root = root.resolve()
+        if not root.is_dir():
+            raise FileNotFoundError(f"Resume run folder not found: {root}")
+        manager = cls.from_config(config)
+        names = config.artifact_names
+        figures = (root / names.figures_dir).resolve()
+        context = (root / names.context_dir).resolve()
+        figures.mkdir(exist_ok=True)
+        context.mkdir(exist_ok=True)
+        manager.paths = RunPaths(
+            root=root,
+            results_csv=(root / names.results_csv).resolve(),
+            results_xlsx=(root / names.results_xlsx).resolve(),
+            report_html=(root / names.report_html).resolve(),
+            config_json=(root / names.config_json).resolve(),
+            summary_json=(root / names.summary_json).resolve(),
+            retrieval_json=(root / names.retrieval_json).resolve(),
+            metrics_json=(root / names.metrics_json).resolve(),
+            logs=(root / names.logs).resolve(),
+            figures=figures,
+            context=context,
+        )
+        return manager
+
     def create(self, *, timestamp: datetime | None = None) -> RunPaths:
         """Create a timestamped run folder without overwriting an earlier run."""
 

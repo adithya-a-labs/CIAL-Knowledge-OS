@@ -49,7 +49,12 @@ from .experiment_runner import (
     ReconfiguringPipelineFactory,
 )
 from .fusion import ReciprocalRankFusion
-from .llm import build_grounded_prompt, create_local_llm, generate_answer
+from .llm import (
+    GenerationFailedError,
+    build_grounded_prompt,
+    create_local_llm,
+    generate_answer,
+)
 from .loaders import (
     create_sample_airport_documents,
     load_all_documents,
@@ -70,6 +75,11 @@ from .phase3_runner import Phase3Runner, Phase3RunResult
 from .evidence_quality import EvidenceQualityReport, EvidenceQualityScorer
 from .evidence_selector import EvidenceSelectionResult, EvidenceSelector
 from .phase4_pipeline import Phase4RAGPipeline
+from .phase4_checkpoint import (
+    Phase4CheckpointManager,
+    QuestionIdentity,
+    normalize_question,
+)
 from .phase4_reporting import write_phase4_figures, write_phase4_html
 from .phase4_runner import Phase4Runner, Phase4RunResult
 from .phase4_trace import Phase4Trace, build_phase4_trace, phase4_diagnostics
@@ -188,6 +198,7 @@ __all__ = [
     "Phase3Runner",
     "Phase3RunResult",
     "Phase4RAGPipeline",
+    "Phase4CheckpointManager",
     "Phase4Runner",
     "Phase4RunResult",
     "Phase4Trace",
@@ -213,8 +224,10 @@ __all__ = [
     "ExperimentGrid",
     "ExperimentRunner",
     "ExperimentSweepResult",
+    "GenerationFailedError",
     "INSUFFICIENT_EVIDENCE_RESPONSE",
     "QueryTransformer",
+    "QuestionIdentity",
     "QueryVariant",
     "ReconfiguringPipelineFactory",
     "Timer",
@@ -263,6 +276,7 @@ __all__ = [
     "load_question_traces",
     "load_dashboard_data",
     "load_embedding_model",
+    "normalize_question",
     "load_pdf_documents",
     "load_text_documents",
     "merge_overlapping_chunks",
