@@ -301,8 +301,11 @@ class Phase4Config(Phase3Config):
     # fields change synthesis instructions, never the selected context.
     answer_detail_level: str = "detailed"
     min_answer_words: int | None = 250
+    max_answer_words: int | None = None
     prefer_structured_answers: bool = True
     include_decision_notes: bool = True
+    generation_retries: int = 2
+    retry_cooldown_seconds: float = 20.0
     evidence_token_budget: int = 2_400
     selected_evidence_target_min_tokens: int = 800
     selected_evidence_target_max_tokens: int = 1_500
@@ -360,6 +363,12 @@ class Phase4Config(Phase3Config):
             )
         if self.min_answer_words is not None and self.min_answer_words <= 0:
             raise ValueError("min_answer_words must be greater than zero or None.")
+        if self.max_answer_words is not None and self.max_answer_words <= 0:
+            raise ValueError("max_answer_words must be greater than zero or None.")
+        if self.generation_retries < 0:
+            raise ValueError("generation_retries must be non-negative.")
+        if self.retry_cooldown_seconds < 0:
+            raise ValueError("retry_cooldown_seconds must be non-negative.")
         if self.evidence_token_budget <= 0:
             raise ValueError("evidence_token_budget must be greater than zero.")
         if self.selected_evidence_target_min_tokens <= 0:

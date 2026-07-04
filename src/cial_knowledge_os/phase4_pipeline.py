@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from collections import Counter
 from collections.abc import Mapping
 from typing import Any
@@ -13,13 +15,15 @@ from .config import Phase4Config
 from .context_builder import INSUFFICIENT_EVIDENCE_RESPONSE, compress_context
 from .evidence_quality import EvidenceQualityScorer
 from .evidence_selector import EvidenceSelectionResult, EvidenceSelector
-from .llm import LocalLLM
+from .llm import GenerationFailedError, LocalLLM
 from .phase3_pipeline import Phase3RAGPipeline
 from .phase4_trace import build_phase4_trace
 from .query_transformations import QueryTransformer
 from .reranker import CrossEncoderReranker, RerankResult, Reranker
 from .retrievers import Retriever
 from .token_budget import Tokenizer
+
+logger = logging.getLogger(__name__)
 
 
 class Phase4RAGPipeline(Phase3RAGPipeline):
@@ -98,10 +102,26 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
         an explicit caveat, and reserves safe failure for truly empty context.
         """
 
+        effective_minimum = self.config.min_answer_words
+        if (
+            effective_minimum is not None
+            and self.config.max_answer_words is not None
+        ):
+            effective_minimum = min(
+                effective_minimum,
+                self.config.max_answer_words,
+            )
         minimum_words = (
-            f"Aim for at least {self.config.min_answer_words} words when the "
+            f"Aim for at least {effective_minimum} words when the "
             "evidence supports that depth. "
-            if self.config.min_answer_words is not None
+            if effective_minimum is not None
+            else ""
+        )
+        maximum_words = (
+            f"Do not exceed {self.config.max_answer_words} words. "
+            "Prefer concise prioritization over dropping citations or adding "
+            "unsupported compression.\n"
+            if self.config.max_answer_words is not None
             else ""
         )
         structure = (
@@ -143,7 +163,7 @@ Answer requirements:
 - Identify supported risks, gaps, dependencies, and implementation caveats.
 - Prioritize recommendations when the evidence supports an ordering.
 - Avoid filler, repetition, unsupported background, and artificial padding.
-{weak_rule}{decision_notes}{minimum_words}
+{weak_rule}{decision_notes}{minimum_words}{maximum_words}
 {structure}
 SELECTED EVIDENCE
 {context}
@@ -171,7 +191,86 @@ ANSWER
             context,
             weak_evidence=bool(selection and selection.weak_evidence),
         )
-        return str(self.llm.invoke(prompt)).strip()
+        total_attempts = self.config.generation_retries + 1
+        last_error: Exception | None = None
+        for attempt in range(1, total_attempts + 1):
+            try:
+                answer = str(self.llm.invoke(prompt)).strip()
+                self.metrics["generation_attempts"] = float(attempt)
+                self.metrics["generation_retry_count"] = float(attempt - 1)
+                return answer
+            except Exception as exc:
+                last_error = exc
+                retryable = self._is_retryable_generation_error(exc)
+                logger.exception(
+                    "phase4_generation_attempt_failed",
+                    extra={
+                        "event": "generation_retry",
+                        "attempt": attempt,
+                        "total_attempts": total_attempts,
+                        "retryable": retryable,
+                        "error_type": type(exc).__name__,
+                    },
+                )
+                if not retryable or attempt >= total_attempts:
+                    self.metrics["generation_attempts"] = float(attempt)
+                    self.metrics["generation_retry_count"] = float(attempt - 1)
+                    raise GenerationFailedError(
+                        exc,
+                        attempts=attempt,
+                    ) from exc
+                next_attempt = attempt + 1
+                message = (
+                    "Generation failed; retrying attempt "
+                    f"{next_attempt}/{total_attempts} after cooldown."
+                )
+                print(message)
+                logger.warning(
+                    message,
+                    extra={
+                        "event": "generation_retry",
+                        "next_attempt": next_attempt,
+                        "total_attempts": total_attempts,
+                        "cooldown_seconds": (
+                            self.config.retry_cooldown_seconds
+                        ),
+                    },
+                )
+                if self.config.retry_cooldown_seconds:
+                    time.sleep(self.config.retry_cooldown_seconds)
+        assert last_error is not None
+        raise GenerationFailedError(last_error, attempts=total_attempts)
+
+    @staticmethod
+    def _is_retryable_generation_error(error: Exception) -> bool:
+        """Return whether a local generation failure is safe to retry.
+
+        The input is the exception raised by the LLM adapter. The boolean output
+        recognizes Ollama runner/stream/server failures plus common local
+        transport exceptions. Retrieval and reranking are outside this method,
+        so retrying never repeats those expensive stages.
+        """
+
+        message = f"{type(error).__name__}: {error}".casefold()
+        retryable_markers = (
+            "model runner has unexpectedly stopped",
+            "model runner stopped",
+            "no data received from ollama stream",
+            "status code: 500",
+            "status code 500",
+            "responseerror",
+            "std::bad_alloc",
+            "connection reset",
+            "connection refused",
+            "connection aborted",
+            "timed out",
+            "timeout",
+            "stream",
+        )
+        return isinstance(
+            error,
+            (ConnectionError, OSError, TimeoutError),
+        ) or any(marker in message for marker in retryable_markers)
 
     def _configure_phase4_components(self) -> None:
         key = (

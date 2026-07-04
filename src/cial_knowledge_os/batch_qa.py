@@ -11,8 +11,9 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
+from .llm import GenerationFailedError
 from .token_budget import (
     DEFAULT_TIKTOKEN_ENCODING,
     TokenManager,
@@ -129,6 +130,11 @@ class BatchAnswerCollection:
     columns: tuple[str, ...]
     rows: tuple[dict[str, Any], ...]
     responses: tuple[Mapping[str, Any] | None, ...]
+
+QuestionCompleteCallback = Callable[
+    [int, dict[str, Any], Mapping[str, Any] | None],
+    None,
+]
 
 
 def _require_pipeline_ready(pipeline: BatchQAPipeline) -> None:
@@ -589,8 +595,15 @@ def collect_batch_answers(
     questions: Iterable[str] | None = None,
     questions_path: str | Path | None = None,
     top_k: int | None = None,
+    on_question_complete: QuestionCompleteCallback | None = None,
 ) -> BatchAnswerCollection:
-    """Collect backward-compatible rows while retaining full Phase 3 traces."""
+    """Collect rows and optionally checkpoint each completed question.
+
+    Existing inputs and outputs remain unchanged. ``on_question_complete`` is
+    an additive callback receiving the one-based batch position, mutable row,
+    and response immediately after each attempt. Phase 4 uses it for durable
+    checkpoints; earlier phases omit it and retain their prior behavior.
+    """
 
     _require_pipeline_ready(pipeline)
     config = pipeline.config
@@ -645,7 +658,7 @@ def collect_batch_answers(
 
     try:
         setattr(config, retrieval_depth_attribute, requested_top_k)
-        for question in resolved_questions:
+        for position, question in enumerate(resolved_questions, start=1):
             row = _blank_row(
                 question=question,
                 top_k=requested_top_k,
@@ -717,7 +730,16 @@ def collect_batch_answers(
                 if phase4_export:
                     row.update(_phase4_row_values(response))
             except Exception as exc:
-                row["error"] = str(exc)
+                if isinstance(exc, GenerationFailedError):
+                    row["answer_status"] = "generation_failed"
+                    row["status"] = "failed"
+                    row["error"] = (
+                        f"{exc.original_error_type}: "
+                        f"{exc.original_error_message}; "
+                        f"attempts={exc.attempts}"
+                    )
+                else:
+                    row["error"] = str(exc)
                 logger.exception(
                     "batch_question_failed",
                     extra={"event": "batch_qa", "question": question},
@@ -729,6 +751,8 @@ def collect_batch_answers(
                 )
                 rows.append(row)
                 responses.append(response)
+                if on_question_complete is not None:
+                    on_question_complete(position, row, response)
     finally:
         setattr(config, retrieval_depth_attribute, configured_top_k)
     return BatchAnswerCollection(
