@@ -59,11 +59,11 @@ Recommended top-level categories include `aviation`, `cybersecurity`,
 sets as second-level collections. PDF loading is implemented today. Recognized
 future extensions (`.txt`, `.md`, `.docx`, and `.html`) are logged and skipped.
 
-The former `data/pdf/` corpus is a deprecated compatibility fallback. It is used
-only when the canonical root is missing or has no recognized documents, and the
-loader emits a deprecation warning. `scripts/migrate_pdf_to_files.py` copies
-legacy PDFs to `data/files/legacy_pdf/` by default and supports `--dry-run` and
-explicit `--move` modes.
+Runtime ingestion does not search the former `data/pdf/` corpus. Missing or
+empty canonical repositories produce an empty corpus rather than a fallback.
+`scripts/migrate_pdf_to_files.py` remains a one-time transition utility: it
+copies legacy PDFs to `data/files/legacy_pdf/` by default and supports
+`--dry-run` and explicit `--move` modes.
 
 The current LLM adapter uses Ollama. The surrounding pipeline accepts replaceable
 local model objects, but adapters for other local runtimes such as vLLM and

@@ -29,7 +29,7 @@ CIAL-Knowledge-OS/
 |   |-- files/        # Canonical recursive enterprise knowledge repository
 |   |-- sample/       # Versioned, non-sensitive fixtures
 |   |-- raw/          # Ignored runtime text
-|   |-- pdf/          # Deprecated corpus fallback
+|   |-- pdf/          # Optional temporary migration source
 |   |-- qdrant/       # Ignored embedded database
 |   |-- cache/        # Ignored runtime cache
 |   `-- exports/      # Ignored generated exports

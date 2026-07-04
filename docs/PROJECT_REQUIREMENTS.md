@@ -76,9 +76,8 @@ Retrieval should apply metadata filters wherever possible.
   `.html` for extension filtering, and log-and-skip types without a loader.
 - Preserve legacy Phase 1--4 source metadata and export contracts while adding
   taxonomy and path metadata.
-- Treat `data/pdf/` as a deprecated fallback only when the canonical root is
-  missing or contains no recognized documents. Emit a deprecation warning and
-  retain fallback support until a later approved removal.
+- Do not search `data/pdf/` during runtime ingestion. A missing or empty
+  canonical root must remain empty rather than silently switching corpora.
 - Provide a safe migration utility that copies to `data/files/legacy_pdf/` by
   default, supports `--dry-run`, and moves only with explicit `--move`.
 

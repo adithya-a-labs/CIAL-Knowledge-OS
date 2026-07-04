@@ -132,9 +132,10 @@ PyMuPDF. Loaded metadata includes the source filename, absolute path, path
 relative to `knowledge_root`, category, collection, extension, and page number
 when available, while retaining legacy Phase 1--4 source fields.
 
-`data/pdf/` is deprecated. When `data/files/` is missing or contains no
-recognized documents, the loader warns and temporarily falls back to
-`data/pdf/`. Copy the legacy corpus into the canonical repository with:
+Runtime ingestion never searches `data/pdf/`. If `data/files/` is missing or
+contains no implemented documents, the pipeline reports an empty corpus. Before
+deleting an old `data/pdf/` directory, copy its PDFs into the canonical
+repository with:
 
 ```bash
 python scripts/migrate_pdf_to_files.py --dry-run
@@ -144,7 +145,8 @@ python scripts/migrate_pdf_to_files.py --move
 ```
 
 Migration preserves filenames under `data/files/legacy_pdf/` and skips existing
-destinations. Non-sensitive text fixtures remain in `data/sample/`, temporary
+destinations. The old directory can be deleted after migration. Non-sensitive
+text fixtures remain in `data/sample/`, temporary
 text input remains in `data/raw/`, and experiment Qdrant data is written beneath
 `data/qdrant/`; runtime data must not be committed.
 

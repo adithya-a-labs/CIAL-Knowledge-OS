@@ -449,8 +449,8 @@ change.
 The implemented source stage now uses
 `KnowledgeOSConfig.knowledge_root` as its canonical repository and discovers
 documents recursively. Category/collection folders form the initial enterprise
-taxonomy. The previous flat PDF directory remains a deprecated migration
-fallback, not the target architecture.
+taxonomy. The previous flat PDF directory is only a migration source and is not
+searched by runtime ingestion.
 
 ## Deferred Ideas and Future Research
 
