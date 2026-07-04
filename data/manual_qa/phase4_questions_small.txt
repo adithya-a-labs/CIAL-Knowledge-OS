@@ -1,0 +1,13 @@
+We're evaluating a new software vendor. What cybersecurity evidence should we request before approving their product?
+A vendor has provided us with an SBOM. What should our security team verify before deployment?
+What cybersecurity requirements should be included in contracts with software vendors?
+How should we evaluate the cybersecurity maturity of a new technology supplier?
+A vendor cannot release a security patch immediately. What compensating controls should we implement?
+What information should OEMs provide after discovering a critical vulnerability?
+How should we assess third-party AI providers before integrating their services?
+What documentation should cloud service providers provide to demonstrate security compliance?
+How can we verify that a vendor follows secure software development practices?
+Which supply chain security controls should be mandatory for critical vendors?
+We're planning to deploy an AI-powered assistant. What cybersecurity controls should we implement before going live?
+How can we protect our AI chatbot against prompt injection attacks?
+What are the biggest cybersecurity risks of deploying generative AI internally?
