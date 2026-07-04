@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import json
 import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
@@ -15,6 +16,141 @@ from .phase3_reporting import render_safe_markdown
 
 _REFERENCE_TAIL_PATTERN = re.compile(r"(?im)^\s*references?\s*:\s*$")
 _BRACKETED_CITATION_PATTERN = re.compile(r"\[([^\[\]\r\n]+)\]")
+_POPOVER_SCRIPT = r"""
+(() => {
+  const dataNode = document.getElementById("citation-preview-data");
+  const popover = document.getElementById("citation-popover");
+  if (!dataNode || !popover) return;
+  const previews = JSON.parse(dataNode.textContent || "{}");
+  const fields = Object.fromEntries(
+    Array.from(popover.querySelectorAll("[data-field]")).map(
+      (node) => [node.dataset.field, node]
+    )
+  );
+  let activeBadge = null;
+
+  const setText = (name, value) => {
+    fields[name].textContent = value || "Unavailable";
+  };
+
+  const renderSnippet = (snippet, terms) => {
+    const target = fields.snippet;
+    target.replaceChildren();
+    if (!snippet) {
+      target.textContent = "Evidence preview unavailable.";
+      target.classList.add("missing");
+      return;
+    }
+    target.classList.remove("missing");
+    const usableTerms = Array.from(
+      new Set((terms || []).map((term) => String(term)).filter(Boolean))
+    ).sort((left, right) => right.length - left.length);
+    if (!usableTerms.length) {
+      target.textContent = snippet;
+      return;
+    }
+    const lowerSnippet = snippet.toLocaleLowerCase();
+    let cursor = 0;
+    while (cursor < snippet.length) {
+      let nextIndex = -1;
+      let nextTerm = "";
+      for (const term of usableTerms) {
+        const found = lowerSnippet.indexOf(term.toLocaleLowerCase(), cursor);
+        if (
+          found >= 0 &&
+          (nextIndex < 0 || found < nextIndex ||
+            (found === nextIndex && term.length > nextTerm.length))
+        ) {
+          nextIndex = found;
+          nextTerm = term;
+        }
+      }
+      if (nextIndex < 0) {
+        target.append(document.createTextNode(snippet.slice(cursor)));
+        break;
+      }
+      if (nextIndex > cursor) {
+        target.append(
+          document.createTextNode(snippet.slice(cursor, nextIndex))
+        );
+      }
+      const mark = document.createElement("mark");
+      mark.textContent = snippet.slice(nextIndex, nextIndex + nextTerm.length);
+      target.append(mark);
+      cursor = nextIndex + nextTerm.length;
+    }
+  };
+
+  const position = (clientX, clientY) => {
+    const margin = 8;
+    const gap = 14;
+    const rect = popover.getBoundingClientRect();
+    let left = clientX + gap;
+    let top = clientY + gap;
+    if (left + rect.width + margin > window.innerWidth) {
+      left = clientX - rect.width - gap;
+    }
+    if (top + rect.height + margin > window.innerHeight) {
+      top = clientY - rect.height - gap;
+    }
+    popover.style.left = `${Math.max(margin, Math.min(
+      left,
+      window.innerWidth - rect.width - margin
+    ))}px`;
+    popover.style.top = `${Math.max(margin, Math.min(
+      top,
+      window.innerHeight - rect.height - margin
+    ))}px`;
+  };
+
+  const show = (badge, clientX, clientY) => {
+    const preview = previews[badge.dataset.citationPreview];
+    if (!preview) return;
+    activeBadge = badge;
+    setText("source", preview.source);
+    setText("page", preview.page);
+    setText("chunk", preview.chunk);
+    setText("score", preview.reranker_score);
+    setText("strength", preview.evidence_strength);
+    setText("retriever", preview.retrieval_source);
+    fields.action.textContent = preview.pdf_available
+      ? "Click to open PDF"
+      : "Source available but PDF link unavailable.";
+    renderSnippet(preview.snippet, preview.matched_terms);
+    popover.hidden = false;
+    popover.setAttribute("aria-hidden", "false");
+    badge.setAttribute("aria-describedby", "citation-popover");
+    position(clientX, clientY);
+  };
+
+  const hide = (badge) => {
+    if (badge && badge !== activeBadge) return;
+    if (activeBadge) activeBadge.removeAttribute("aria-describedby");
+    activeBadge = null;
+    popover.hidden = true;
+    popover.setAttribute("aria-hidden", "true");
+  };
+
+  document.querySelectorAll("[data-citation-preview]").forEach((badge) => {
+    badge.addEventListener("pointerenter", (event) => {
+      show(badge, event.clientX, event.clientY);
+    });
+    badge.addEventListener("pointermove", (event) => {
+      if (activeBadge === badge) position(event.clientX, event.clientY);
+    });
+    badge.addEventListener("pointerleave", () => hide(badge));
+    badge.addEventListener("focus", () => {
+      const rect = badge.getBoundingClientRect();
+      show(badge, rect.left + rect.width / 2, rect.bottom);
+    });
+    badge.addEventListener("blur", () => hide(badge));
+  });
+  window.addEventListener("resize", () => hide(activeBadge));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") hide(activeBadge);
+  });
+})();
+"""
 
 
 def _number(value: Any, digits: int = 2) -> str:
@@ -228,9 +364,220 @@ def _citation_title(citation: Mapping[str, Any]) -> str:
     return " | ".join(parts)
 
 
+def _record_value(record: Mapping[str, Any], key: str) -> Any:
+    value = record.get(key)
+    if value is not None and value != "":
+        return value
+    metadata = record.get("metadata")
+    return metadata.get(key) if isinstance(metadata, Mapping) else None
+
+
 def _source_key(value: Any) -> str:
     source = Path(str(value or "")).name.casefold()
     return source.removesuffix(".pdf")
+
+
+def _citation_matches_record(
+    citation: Mapping[str, Any],
+    record: Mapping[str, Any],
+) -> bool:
+    citation_source = _source_key(
+        citation.get("source_file") or citation.get("source")
+    )
+    record_source = _source_key(
+        _record_value(record, "source")
+        or _record_value(record, "file_name")
+        or record.get("source_path")
+    )
+    if citation_source and record_source and citation_source != record_source:
+        return False
+
+    citation_chunk = str(citation.get("chunk_id") or "").strip().casefold()
+    record_chunk = str(_record_value(record, "chunk_id") or "").strip().casefold()
+    if citation_chunk and record_chunk:
+        return (
+            citation_chunk == record_chunk
+            or citation_chunk in record_chunk
+            or record_chunk in citation_chunk
+        )
+
+    citation_page = str(citation.get("page_number") or "").strip().casefold()
+    record_page = str(
+        _record_value(record, "page_number")
+        or _record_value(record, "page")
+        or ""
+    ).strip().casefold()
+    return bool(
+        (citation_source or citation_page)
+        and (not citation_page or not record_page or citation_page == record_page)
+    )
+
+
+def _matching_record(
+    citation: Mapping[str, Any],
+    records: Any,
+) -> Mapping[str, Any] | None:
+    if not isinstance(records, Sequence) or isinstance(records, (str, bytes)):
+        return None
+    return next(
+        (
+            record
+            for record in records
+            if isinstance(record, Mapping)
+            and _citation_matches_record(citation, record)
+        ),
+        None,
+    )
+
+
+def _retrieval_source_label(
+    evidence: Mapping[str, Any],
+    quality: Mapping[str, Any],
+) -> str:
+    raw_sources = evidence.get("retrieval_sources")
+    sources = (
+        [str(value).casefold() for value in raw_sources]
+        if isinstance(raw_sources, Sequence)
+        and not isinstance(raw_sources, (str, bytes))
+        else []
+    )
+    fallback = str(
+        evidence.get("retrieval_source")
+        or quality.get("retrieval_source")
+        or ""
+    ).casefold()
+    if fallback == "both":
+        sources.extend(("dense", "bm25"))
+    elif fallback:
+        sources.append(fallback)
+    if any(
+        evidence.get(key) not in {None, ""}
+        for key in ("rrf_score", "rrf_rank", "original_rrf_rank")
+    ):
+        sources.append("rrf")
+
+    labels = []
+    for key, label in (("dense", "Dense"), ("bm25", "BM25"), ("rrf", "RRF")):
+        if key in sources:
+            labels.append(label)
+    return " + ".join(labels) or "Unavailable"
+
+
+def _matched_terms(
+    citation: Mapping[str, Any],
+    trace: Mapping[str, Any],
+    evidence: Mapping[str, Any],
+) -> list[str]:
+    values: list[Any] = []
+    direct = evidence.get("matched_terms")
+    if isinstance(direct, Sequence) and not isinstance(direct, (str, bytes)):
+        values.extend(direct)
+    for key in (
+        "bm25_results",
+        "dense_results",
+        "rrf_fused_candidates",
+        "candidate_pool",
+    ):
+        records = trace.get(key)
+        if not isinstance(records, Sequence) or isinstance(records, (str, bytes)):
+            continue
+        for record in records:
+            if not isinstance(record, Mapping):
+                continue
+            if not _citation_matches_record(citation, record):
+                continue
+            terms = record.get("matched_terms")
+            if isinstance(terms, Sequence) and not isinstance(
+                terms,
+                (str, bytes),
+            ):
+                values.extend(terms)
+
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        term = str(value).strip()
+        normalized = term.casefold()
+        if len(term) < 2 or normalized in seen:
+            continue
+        seen.add(normalized)
+        unique.append(term)
+        if len(unique) == 16:
+            break
+    return unique
+
+
+def _citation_previews(
+    trace: Mapping[str, Any],
+    citations: Sequence[Mapping[str, Any]],
+    *,
+    question_index: int,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Attach bounded, exact evidence previews without duplicating chunk text."""
+
+    quality_value = trace.get("evidence_quality")
+    quality_mapping = (
+        quality_value if isinstance(quality_value, Mapping) else {}
+    )
+    quality_records = quality_mapping.get("chunks")
+    enriched: list[dict[str, Any]] = []
+    previews: dict[str, dict[str, Any]] = {}
+    for position, citation in enumerate(citations, start=1):
+        preview_id = f"q{question_index}-c{position}"
+        evidence = (
+            _matching_record(citation, trace.get("final_context_chunks"))
+            or _matching_record(citation, trace.get("selected_chunks"))
+            or {}
+        )
+        quality = _matching_record(citation, quality_records) or {}
+        text = str(evidence.get("text") or evidence.get("text_preview") or "")
+        score = evidence.get("reranker_score")
+        if score in {None, ""}:
+            score = quality.get("reranker_score")
+        try:
+            formatted_score = f"{float(score):.4f}"
+        except (TypeError, ValueError):
+            formatted_score = "Unavailable"
+
+        previews[preview_id] = {
+            "source": str(
+                citation.get("source_file")
+                or citation.get("source")
+                or _record_value(evidence, "source")
+                or "Unknown source"
+            ),
+            "page": str(citation.get("page_number") or "N/A"),
+            "chunk": str(citation.get("chunk_id") or "N/A"),
+            "reranker_score": formatted_score,
+            "evidence_strength": str(
+                quality.get("evidence_strength") or "Unavailable"
+            ).title(),
+            "retrieval_source": _retrieval_source_label(evidence, quality),
+            # This is a direct substring of the selected evidence, never a
+            # generated summary. Compact traces already cap text_preview.
+            "snippet": text[:260],
+            "matched_terms": _matched_terms(citation, trace, evidence),
+            "pdf_available": bool(
+                _safe_citation_href(citation.get("pdf_link"))
+            ),
+        }
+        enriched_citation = dict(citation)
+        enriched_citation["_preview_id"] = preview_id
+        enriched.append(enriched_citation)
+    return enriched, previews
+
+
+def _json_for_html(value: Any) -> str:
+    """Serialize JSON safely inside a standalone HTML script element."""
+
+    return (
+        json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        .replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
 
 
 def _structured_citation(
@@ -314,14 +661,31 @@ def _citation_badge(
     title = html.escape(_citation_title(citation), quote=True)
     escaped_label = html.escape(label)
     href = _safe_citation_href(citation.get("pdf_link"))
+    preview_id = html.escape(
+        str(citation.get("_preview_id") or ""),
+        quote=True,
+    )
+    preview_attribute = (
+        f' data-citation-preview="{preview_id}"'
+        if preview_id
+        else ""
+    )
+    aria_label = html.escape(
+        f"{label}: {_citation_title(citation)}. "
+        "Hover for evidence preview.",
+        quote=True,
+    )
     if href:
         return (
-            f'<a class="{css_class}" '
-            f'href="{html.escape(href, quote=True)}" title="{title}">'
+            f'<a class="{css_class}"{preview_attribute} '
+            f'href="{html.escape(href, quote=True)}" '
+            f'aria-label="{aria_label}" data-citation-title="{title}">'
             f"{escaped_label}</a>"
         )
     return (
-        f'<span class="{css_class} no-citation-link" title="{title}">'
+        f'<span class="{css_class} no-citation-link"{preview_attribute} '
+        f'tabindex="0" aria-label="{aria_label}" '
+        f'data-citation-title="{title}">'
         f"{escaped_label}</span>"
     )
 
@@ -444,6 +808,7 @@ def write_phase4_html(
     quality_sections = []
     debug_sections = []
     diagnostics = []
+    citation_preview_data: dict[str, dict[str, Any]] = {}
     for index, row in enumerate(rows, start=1):
         trace = traces[index - 1] if index <= len(traces) else {}
         question = str(row.get("question") or trace.get("question") or "")
@@ -458,6 +823,12 @@ def write_phase4_html(
             and not isinstance(citation_value, (str, bytes))
             else []
         )
+        citations, question_previews = _citation_previews(
+            trace,
+            citations,
+            question_index=index,
+        )
+        citation_preview_data.update(question_previews)
         answer_html, inline_citation_count = (
             _render_answer_with_inline_citations(
                 str(row.get("answer") or trace.get("answer") or ""),
@@ -564,7 +935,9 @@ h1{{margin:0 0 8px;font-size:32px}}h2{{margin-top:0}}section,.answer-card{{backg
 .table-wrap{{overflow:auto}}table{{width:100%;border-collapse:collapse}}th,td{{padding:9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}}th{{background:#eef3fb;position:sticky;top:0}}
 .eyebrow{{text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}}.muted{{color:var(--muted)}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:#0f172a;color:#dbeafe;padding:14px;border-radius:9px}}
 .inline-citation,.citation-chip{{display:inline-flex;align-items:center;border:1px solid #93b4e8;border-radius:999px;background:#eaf2ff;color:#174ea6;font-size:.78em;font-weight:700;line-height:1.35;padding:1px 6px;text-decoration:none;vertical-align:.08em;white-space:nowrap}}.inline-citation:hover,.citation-chip:hover{{background:#dbeafe;border-color:#2563eb}}.no-citation-link{{color:#475467;border-color:#cbd5e1;background:#f8fafc;cursor:help}}.citation-chips{{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:8px 0 12px}}.citation-chips-label{{color:var(--muted);font-size:12px;font-weight:650}}.citation-list{{display:grid;gap:8px}}.citation-card{{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:12px;border-left:4px solid var(--accent);padding:10px 12px;background:#f8fafc}}.citation-reference{{font-weight:750;color:var(--accent)}}.citation-details{{margin-top:12px}}a{{color:#1d4ed8}}details{{border:1px solid var(--line);border-radius:9px;padding:10px;margin:10px 0}}summary{{cursor:pointer;font-weight:650}}
+.citation-popover{{--popover-bg:#fff;--popover-ink:#172033;--popover-muted:#667085;--popover-line:#cbd5e1;position:fixed;z-index:1000;width:min(420px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:auto;padding:14px;border:1px solid var(--popover-line);border-radius:12px;background:var(--popover-bg);color:var(--popover-ink);box-shadow:0 16px 40px #0f172a3d;pointer-events:none;overflow-wrap:anywhere;white-space:normal}}.citation-popover[hidden]{{display:none}}.citation-popover-source{{font-weight:750;margin:0 0 8px}}.citation-popover-grid{{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 10px;margin:0 0 10px;font:12px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace}}.citation-popover-grid dt{{color:var(--popover-muted)}}.citation-popover-grid dd{{margin:0}}.citation-popover-snippet{{margin:0;padding:10px;border-radius:8px;background:#f1f5f9;white-space:pre-wrap;font:13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}}.citation-popover-snippet.missing{{color:var(--popover-muted);font-style:italic}}.citation-popover-snippet mark{{border-radius:2px;background:#fde68a;color:#713f12;padding:0 1px}}.citation-popover-action{{margin:9px 0 0;color:#1d4ed8;font-size:12px;font-weight:700}}
 .answer-content{{white-space:normal;overflow:visible;max-height:none}}.answer-content ul,.answer-content ol{{padding-left:24px}}code{{background:#eef2ff;padding:2px 5px;border-radius:4px}}@media(max-width:700px){{main{{padding:12px}}.grid{{grid-template-columns:1fr}}}}
+@media(prefers-color-scheme:dark){{.citation-popover{{--popover-bg:#111827;--popover-ink:#f8fafc;--popover-muted:#94a3b8;--popover-line:#475569;box-shadow:0 18px 48px #0009}}.citation-popover-snippet{{background:#1e293b}}.citation-popover-snippet mark{{background:#854d0e;color:#fef3c7}}.citation-popover-action{{color:#93c5fd}}}}
 </style></head><body><main>
 <header><p class="eyebrow" style="color:#bfdbfe">CIAL Knowledge OS</p><h1>Phase 4 · Reranking & Evidence Selection</h1><p>Offline execution report: Hybrid Retrieval → RRF → Reranking → Evidence Selection → Context → Answer</p></header>
 <section><h2>Executive Summary</h2><div class="metrics">{_cards([
@@ -597,6 +970,21 @@ h1{{margin:0 0 8px;font-size:32px}}h2{{margin-top:0}}section,.answer-card{{backg
 <section><h2>Candidate Pool Funnel</h2>{chart_html['funnel']}</section>
 <section><h2>Phase 3 vs Phase 4 Comparison</h2><p>{html.escape(comparison_note)}</p></section>
 <section><h2>Context and Debug Details</h2>{''.join(debug_sections)}</section>
-</main></body></html>"""
+</main>
+<div id="citation-popover" class="citation-popover" role="tooltip" aria-hidden="true" hidden>
+  <p class="citation-popover-source" data-field="source"></p>
+  <dl class="citation-popover-grid">
+    <dt>Page</dt><dd data-field="page"></dd>
+    <dt>Chunk</dt><dd data-field="chunk"></dd>
+    <dt>Reranker score</dt><dd data-field="score"></dd>
+    <dt>Evidence strength</dt><dd data-field="strength"></dd>
+    <dt>Retrieved via</dt><dd data-field="retriever"></dd>
+  </dl>
+  <p class="citation-popover-snippet" data-field="snippet"></p>
+  <p class="citation-popover-action" data-field="action"></p>
+</div>
+<script type="application/json" id="citation-preview-data">{_json_for_html(citation_preview_data)}</script>
+<script>{_POPOVER_SCRIPT}</script>
+</body></html>"""
     target.write_text(document, encoding="utf-8")
     return target

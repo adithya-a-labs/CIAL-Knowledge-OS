@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import json
+import re
 import tempfile
 import unittest
 from html.parser import HTMLParser
@@ -45,15 +47,68 @@ class Phase4CitationReportingTests(unittest.TestCase):
         root: Path,
         answer: str,
         citations: list[dict[str, object]],
+        *,
+        trace_updates: dict[str, object] | None = None,
     ) -> str:
         path = root / "report.html"
         rows = [{"question": "What controls apply?", "answer": answer}]
+        selected = []
+        quality = []
+        bm25_results = []
+        for index, citation in enumerate(citations, start=1):
+            text = (
+                f"Original selected evidence {index}: software vendor controls "
+                "must be independently verified before approval. "
+                + ("Additional exact evidence text. " * 12)
+            )
+            selected.append(
+                {
+                    "source": citation["source"],
+                    "page_number": citation["page_number"],
+                    "chunk_id": citation["chunk_id"],
+                    "reranker_score": 0.91 - index / 10,
+                    "rrf_score": 0.02,
+                    "retrieval_sources": (
+                        ["dense", "bm25"] if index == 1 else ["bm25"]
+                    ),
+                    "matched_terms": ["software", "vendor", "approval"],
+                    "text": text,
+                }
+            )
+            quality.append(
+                {
+                    "source": citation["source"],
+                    "page_number": citation["page_number"],
+                    "chunk_id": citation["chunk_id"],
+                    "reranker_score": 0.91 - index / 10,
+                    "retrieval_source": (
+                        "both" if index == 1 else "bm25"
+                    ),
+                    "evidence_strength": (
+                        "strong" if index == 1 else "medium"
+                    ),
+                }
+            )
+            bm25_results.append(
+                {
+                    "source": citation["source"],
+                    "page_number": citation["page_number"],
+                    "chunk_id": citation["chunk_id"],
+                    "matched_terms": ["software", "vendor", "approval"],
+                }
+            )
+        trace = {
+            "question": "What controls apply?",
+            "answer": answer,
+            "citations": citations,
+            "selected_chunks": selected,
+            "final_context_chunks": selected,
+            "bm25_results": bm25_results,
+            "evidence_quality": {"chunks": quality},
+        }
+        trace.update(trace_updates or {})
         traces = [
-            {
-                "question": "What controls apply?",
-                "answer": answer,
-                "citations": citations,
-            }
+            trace
         ]
         write_phase4_html(
             path,
@@ -63,6 +118,16 @@ class Phase4CitationReportingTests(unittest.TestCase):
             metrics={},
         )
         return path.read_text(encoding="utf-8")
+
+    def _preview_data(self, report: str) -> dict[str, dict[str, object]]:
+        match = re.search(
+            r'<script type="application/json" '
+            r'id="citation-preview-data">(.*?)</script>',
+            report,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(match)
+        return json.loads(match.group(1))
 
     def test_numeric_markers_render_as_inline_pdf_links(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -78,9 +143,25 @@ class Phase4CitationReportingTests(unittest.TestCase):
             self.assertIn(">[" + "1]</a>", report)
             self.assertIn("#page=47", report)
             self.assertIn(
-                'title="CISG-2026-01.pdf | Page 47 | Chunk 151 | '
+                'data-citation-title="CISG-2026-01.pdf | Page 47 | Chunk 151 | '
                 'Score 0.8123"',
                 report,
+            )
+            preview = self._preview_data(report)["q1-c1"]
+            self.assertEqual(preview["source"], "CISG-2026-01.pdf")
+            self.assertEqual(preview["page"], "47")
+            self.assertEqual(preview["chunk"], "151")
+            self.assertEqual(preview["reranker_score"], "0.8100")
+            self.assertEqual(preview["evidence_strength"], "Strong")
+            self.assertEqual(preview["retrieval_source"], "Dense + BM25 + RRF")
+            self.assertLessEqual(len(preview["snippet"]), 260)
+            self.assertTrue(
+                preview["snippet"].startswith("Original selected evidence 1:")
+            )
+            self.assertEqual(report.count(preview["snippet"]), 1)
+            self.assertEqual(
+                preview["matched_terms"],
+                ["software", "vendor", "approval"],
             )
             self.assertNotIn('class="citation-chips"', report)
             self.assertIn(
@@ -100,7 +181,7 @@ class Phase4CitationReportingTests(unittest.TestCase):
             )
 
             self.assertIn(
-                f'class="inline-citation" href="{citations[0]["pdf_link"]}"',
+                f'href="{citations[0]["pdf_link"]}"',
                 report,
             )
             self.assertIn(
@@ -121,6 +202,110 @@ class Phase4CitationReportingTests(unittest.TestCase):
             self.assertIn('class="citation-chips"', report)
             self.assertEqual(report.count('class="citation-chip"'), 2)
             self.assertIn("Sources:</span>", report)
+
+    def test_missing_pdf_and_missing_snippet_have_popover_fallbacks(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            citations = self._citations(root)
+            citations[0]["pdf_link"] = None
+            report = self._report(
+                root,
+                "Apply the unavailable source [1].",
+                citations,
+            )
+            preview = self._preview_data(report)["q1-c1"]
+
+            self.assertFalse(preview["pdf_available"])
+            self.assertTrue(
+                preview["snippet"].startswith("Original selected evidence 1:")
+            )
+            self.assertIn(
+                "Source available but PDF link unavailable.",
+                report,
+            )
+            self.assertIn(
+                'class="inline-citation no-citation-link"',
+                report,
+            )
+
+            missing_snippet_report = self._report(
+                root,
+                "Apply the unavailable source [1].",
+                citations,
+                trace_updates={
+                    "final_context_chunks": [],
+                    "selected_chunks": [],
+                },
+            )
+            missing_preview = self._preview_data(
+                missing_snippet_report
+            )["q1-c1"]
+
+            self.assertEqual(missing_preview["snippet"], "")
+            self.assertIn(
+                "Evidence preview unavailable.",
+                missing_snippet_report,
+            )
+
+    def test_popover_is_standalone_viewport_aware_and_dark_mode_ready(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = self._report(
+                root,
+                "Use both controls [1] [2].",
+                self._citations(root),
+            )
+
+            self.assertIn('id="citation-popover"', report)
+            self.assertIn('role="tooltip"', report)
+            self.assertIn("pointerenter", report)
+            self.assertIn("pointerleave", report)
+            self.assertIn("window.innerWidth", report)
+            self.assertIn("window.innerHeight", report)
+            self.assertIn("@media(prefers-color-scheme:dark)", report)
+            self.assertIn('document.createElement("mark")', report)
+            self.assertEqual(
+                len(self._preview_data(report)),
+                2,
+            )
+            self.assertNotIn("https://cdn", report)
+            self.assertNotIn("<link rel=", report)
+
+    def test_snippet_html_is_json_escaped_and_rendered_as_text(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            citations = self._citations(root)
+            exact_text = (
+                "Evidence <img src=x onerror=alert(1)> requires vendor review."
+            )
+            evidence = {
+                "source": citations[0]["source"],
+                "page_number": citations[0]["page_number"],
+                "chunk_id": citations[0]["chunk_id"],
+                "reranker_score": 0.8,
+                "retrieval_sources": ["dense"],
+                "text": exact_text,
+            }
+            report = self._report(
+                root,
+                "Apply the control [1].",
+                citations,
+                trace_updates={
+                    "selected_chunks": [evidence],
+                    "final_context_chunks": [evidence],
+                },
+            )
+
+            self.assertEqual(
+                self._preview_data(report)["q1-c1"]["snippet"],
+                exact_text,
+            )
+            self.assertNotIn("<img src=x", report)
+            self.assertIn("\\u003cimg src=x", report)
 
     def test_report_is_standalone_safe_and_does_not_mutate_export_data(
         self,
@@ -143,7 +328,7 @@ class Phase4CitationReportingTests(unittest.TestCase):
             self.assertTrue(report.casefold().startswith("<!doctype html>"))
             self.assertIn("<strong>Control</strong>", report)
             self.assertIn("&lt;script&gt;", report)
-            self.assertNotIn("<script>", report)
+            self.assertNotIn("<script>alert", report)
             self.assertNotIn("javascript:alert", report)
             self.assertNotIn("References:", report)
             self.assertNotIn("https://cdn", report)
