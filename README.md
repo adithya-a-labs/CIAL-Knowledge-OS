@@ -209,6 +209,22 @@ result = Phase4Runner(pipeline=pipeline, config=config).run(
 print(result.paths.report_html)
 ```
 
+For batch runs, use the terminal entry point so model execution is not tied to
+a Jupyter kernel:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py --mode smoke
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py --mode manual_qa --questions-file questions.txt --large-run
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py --mode benchmark --max-questions 25 --local-files-only
+```
+
+The script accepts CSV files with a `question` column and TXT files with one
+question per line. It mirrors the notebook's Phase 4 initialization, renders no
+inline traces, and prints the paths to the complete run bundle and existing
+SVG/HTML visualizations. Use `--reranker-device`, `--reranker-batch-size`, and
+`--local-files-only` to control reranker deployment. Runs remain under
+`outputs/batch_answers/04_Reranking_and_Evidence_Selection/run_<timestamp>/`.
+
 Reranking occurs after RRF because dense, BM25, and RRF scores are not
 calibrated for direct averaging. The selector can enforce maximum evidence
 count, reranker threshold, source diversity, redundancy reduction, and a

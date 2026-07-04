@@ -201,6 +201,26 @@ offline sections; CSV and XLSX retain only compact summary fields.
 `Phase4Runner` reuses `collect_batch_answers()`, the Phase 3 columns, and the
 same `RunManager`. It appends these machine-readable columns:
 
+Large Phase 4 runs should use `scripts/run_phase4_batch.py` from a terminal
+rather than relying on a long-lived Jupyter kernel. The script performs the
+same load, chunk, embed, index, and `Phase4Runner` sequence as the notebook,
+accepts inline defaults or CSV/TXT question files, and does not render traces
+inline:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_phase4_batch.py `
+  --mode manual_qa `
+  --questions-file questions.csv `
+  --large-run `
+  --reranker-device cuda
+```
+
+`--mode` supports `smoke`, `manual_qa`, and `benchmark`. Additional controls
+include `--max-questions`, `--reranker-batch-size`, and
+`--local-files-only`. The existing runner remains responsible for CSV, XLSX,
+standalone HTML, configuration, summary, metrics, retrieval traces, logs,
+per-question context, and supported SVG/HTML visualization exports.
+
 | Column | Meaning |
 |---|---|
 | `candidate_chunk_count` | Post-RRF, deduplicated candidates eligible for reranking. |
