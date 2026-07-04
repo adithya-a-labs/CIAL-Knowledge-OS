@@ -126,8 +126,15 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
         )
         if not self.config.prefer_structured_answers:
             structure = "Use a coherent, decision-oriented narrative.\n"
-            content_requirements = """- Explain only implications, actions, risks, gaps, dependencies, or procedures that directly answer the question and are supported by selected evidence.
-- Avoid filler, repetition, unsupported background, and artificial padding.
+            content_requirements = """- Produce a comprehensive, decision-oriented synthesis rather than a simple summary of retrieved evidence.
+- Explain only implications, actions, risks, gaps, dependencies, procedures, and recommendations that directly answer the question and are supported by the selected evidence.
+- Expand important concepts when the retrieved evidence provides sufficient detail.
+- Explain why recommendations matter, not only what should be done.
+- Where multiple evidence sources support the same conclusion, synthesize them into one coherent explanation rather than listing them independently.
+- Discuss operational, security, governance, implementation, or compliance implications only when directly supported by the evidence.
+- Highlight dependencies, assumptions, and evidence gaps where appropriate.
+- Prioritize information density over answer length.
+- Avoid filler, repetition, unsupported background, speculation, and artificial padding.
 """
         elif self.config.adaptive_answer_sections:
             decision_notes_family = (
@@ -176,10 +183,22 @@ Use clear Markdown headings and bullets where they improve readability. Do not c
                     "Use Decision Notes only when they materially clarify a "
                     "decision, follow-up validation, or unresolved evidence gap.\n"
                 )
-            content_requirements = """- Cover only the findings, implications, controls, risks, procedures, comparisons, dependencies, and next actions that directly answer the question.
+            content_requirements = """- Produce a comprehensive, enterprise-grade synthesis rather than a collection of extracted facts.
+- Cover only the findings, implications, controls, risks, procedures, comparisons, dependencies, trade-offs, and next actions that directly answer the question.
+- Expand important concepts when supported by the retrieved evidence.
+- Explain not only what the evidence says, but why it matters for enterprise decision-making.
+- When multiple sources contribute to the same conclusion, synthesize them into a single coherent explanation instead of listing them separately.
+- For every recommendation, explain:
+  - what should be done
+  - why it matters
+  - expected operational or security benefit
+  - prerequisites or dependencies when supported by the evidence
+- Discuss implementation complexity, governance considerations, operational impact, compliance implications, and long-term maintenance only when supported by the evidence.
 - Prioritize recommendations only when the evidence supports an ordering.
+- Clearly distinguish confirmed evidence from evidence gaps.
 - Do not force unrelated analysis merely to fill a section.
-- Avoid filler, repetition, unsupported background, and artificial padding.
+- Prioritize information density over answer length.
+- Avoid filler, repetition, unsupported background, speculation, and artificial padding.
 """
         else:
             structure = """Use clear Markdown headings and, where supported, organize the answer as:
@@ -195,10 +214,16 @@ Use clear Markdown headings and bullets where they improve readability. Do not c
                     "immediate actions, follow-up validation, and unresolved "
                     "evidence gaps.\n"
                 )
-            content_requirements = """- Explain operational implications and supported recommended controls or actions.
-- Identify supported risks, gaps, dependencies, and implementation caveats.
-- Prioritize recommendations when the evidence supports an ordering.
-- Avoid filler, repetition, unsupported background, and artificial padding.
+            content_requirements = """- Produce a comprehensive, enterprise-grade synthesis rather than a simple summary of the retrieved evidence.
+- Explain operational implications and supported recommended controls or actions.
+- Explain why each recommendation matters and the expected operational or security benefit when supported by the evidence.
+- Identify supported risks, evidence gaps, dependencies, implementation considerations, and caveats.
+- Expand important concepts when the selected evidence provides sufficient detail.
+- Where multiple evidence sources support the same conclusion, synthesize them into a single coherent explanation instead of listing them independently.
+- Prioritize recommendations only when the evidence supports an ordering.
+- Clearly distinguish confirmed evidence from unresolved evidence gaps.
+- Prioritize information density over answer length.
+- Avoid filler, repetition, unsupported background, speculation, and artificial padding.
 """
         weak_rule = (
             "- All selected evidence is below the reranker threshold. State this limitation prominently, use cautious language, and recommend source verification before action.\n"
@@ -218,7 +243,13 @@ Grounding rules:
 6. Reply exactly "{INSUFFICIENT_EVIDENCE_RESPONSE}" only when SELECTED EVIDENCE is empty or contains no usable information.
 
 Answer requirements:
-- Produce a detailed synthesis; evidence selection improves precision, not answer brevity.
+- Produce a comprehensive, enterprise-grade synthesis that balances depth with clarity.
+- Think like an experienced enterprise consultant preparing advice for a technical decision-maker.
+- Do not merely summarize retrieved passages; interpret, connect, and synthesize them into a coherent explanation.
+- Expand important concepts only when supported by the retrieved evidence.
+- Explain relationships between findings instead of presenting isolated facts.
+- Prioritize information density over answer length.
+- Every recommendation must remain fully grounded in the selected evidence.
 {content_requirements}{weak_rule}{minimum_words}{maximum_words}
 {structure}
 SELECTED EVIDENCE
