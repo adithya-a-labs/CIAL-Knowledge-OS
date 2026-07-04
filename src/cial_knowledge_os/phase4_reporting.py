@@ -265,6 +265,8 @@ def write_phase4_html(
                 (
                     ("reranked_rank", "Rank"),
                     ("decision", "Decision"),
+                    ("selection_reason", "Selection reason"),
+                    ("weak_evidence", "Weak evidence"),
                     ("reranker_score", "Score"),
                     ("evidence_token_count", "Tokens"),
                     ("source", "Source"),
@@ -321,9 +323,12 @@ h1{{margin:0 0 8px;font-size:32px}}h2{{margin-top:0}}section,.answer-card{{backg
 ("Questions", summary.get("question_count", len(rows))),
 ("Successful", summary.get("successful_questions", 0)),
 ("Average context tokens", _number(metrics.get("average_context_tokens", 0))),
+("Average selected evidence tokens", _number(metrics.get("average_selected_evidence_tokens", 0))),
 ("Average token reduction", _number(metrics.get("average_token_reduction_percent", 0)) + "%"),
 ("Selected chunks", metrics.get("selected_chunk_count", 0)),
 ("Discarded chunks", metrics.get("discarded_chunk_count", 0)),
+("Fallback questions", metrics.get("fallback_question_count", 0)),
+("Weak-evidence questions", metrics.get("weak_evidence_question_count", 0)),
 ])}</div><h3>Decision diagnostics</h3><ul>{''.join(diagnostics) or '<li>No diagnostics available.</li>'}</ul></section>
 <section><h2>Answers</h2>{''.join(answer_sections)}</section>
 <section><h2>Citations</h2><p>Structured, clickable citation evidence is included with each answer card above.</p></section>
@@ -334,7 +339,13 @@ h1{{margin:0 0 8px;font-size:32px}}h2{{margin-top:0}}section,.answer-card{{backg
 <section><h2>Evidence Quality</h2>{chart_html['strengths']}{''.join(quality_sections)}</section>
 <section><h2>Source Diversity</h2>{chart_html['diversity']}</section>
 <section><h2>Selected vs Discarded Chunks</h2>{chart_html['selection']}</section>
-<section><h2>Discard Reason Breakdown</h2>{chart_html['discard_reasons']}</section>
+<section><h2>Discard Reason Breakdown</h2>{chart_html['discard_reasons']}{_table(
+    [
+        {"reason": label, "count": value}
+        for label, value in charts["discard_reasons"]
+    ],
+    (("reason", "Exact discard reason"), ("count", "Chunk count")),
+)}</section>
 <section><h2>Candidate Pool Funnel</h2>{chart_html['funnel']}</section>
 <section><h2>Phase 3 vs Phase 4 Comparison</h2><p>{html.escape(comparison_note)}</p></section>
 <section><h2>Context and Debug Details</h2>{''.join(debug_sections)}</section>

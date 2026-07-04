@@ -112,12 +112,30 @@ class Phase4Runner(Phase3Runner):
             return values
 
         strengths: Counter[str] = Counter()
+        discard_reasons: Counter[str] = Counter()
+        diagnostic_flags: Counter[str] = Counter()
+        fallback_questions = 0
+        weak_evidence_questions = 0
         for trace in traces:
             quality = trace.get("evidence_quality")
             quality = quality if isinstance(quality, Mapping) else {}
             summary = quality.get("summary")
             summary = summary if isinstance(summary, Mapping) else {}
             strengths.update(summary.get("strength_distribution") or {})
+            token_usage = trace.get("token_usage")
+            token_usage = (
+                token_usage if isinstance(token_usage, Mapping) else {}
+            )
+            discard_reasons.update(
+                token_usage.get("discard_reason_distribution") or {}
+            )
+            fallback_questions += bool(token_usage.get("fallback_used"))
+            weak_evidence_questions += bool(token_usage.get("weak_evidence"))
+            diagnostic_flags.update(
+                str(item.get("signal") or "unspecified")
+                for item in (trace.get("decision_summary") or [])
+                if isinstance(item, Mapping)
+            )
         reductions = numbers("token_reduction_percent")
         reranker_scores = numbers("average_reranker_score")
         return {
@@ -139,6 +157,22 @@ class Phase4Runner(Phase3Runner):
                 round(fmean(numbers("reranker_latency_seconds")), 6)
                 if rows
                 else 0.0
+            ),
+            "average_selected_evidence_tokens": (
+                round(fmean(numbers("selected_evidence_tokens")), 6)
+                if rows
+                else 0.0
+            ),
+            "average_citation_count": (
+                round(fmean(numbers("citation_count")), 6) if rows else 0.0
+            ),
+            "fallback_question_count": fallback_questions,
+            "weak_evidence_question_count": weak_evidence_questions,
+            "discard_reason_distribution": dict(
+                sorted(discard_reasons.items())
+            ),
+            "diagnostic_flag_counts": dict(
+                sorted(diagnostic_flags.items())
             ),
             "evidence_strength_distribution": {
                 name: strengths.get(name, 0)
