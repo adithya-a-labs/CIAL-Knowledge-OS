@@ -279,6 +279,9 @@ class Phase4Runner(Phase3Runner):
 
         metadata = dict(run_metadata or {})
         metadata.setdefault("run_mode", effective_mode)
+        indexing_summary = getattr(self.pipeline, "indexing_summary", None)
+        if isinstance(indexing_summary, Mapping) and indexing_summary:
+            metadata.setdefault("indexing_summary", dict(indexing_summary))
         phase3_result = super().run(
             questions=[identity.question for identity in pending],
             questions_path=None,

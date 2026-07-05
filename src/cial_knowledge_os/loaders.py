@@ -203,12 +203,22 @@ def load_pdf_documents(config: KnowledgeOSConfig) -> list[Document]:
     """Recursively load corpus PDFs, preferring Docling then PyMuPDF."""
 
     corpus_root, pdf_paths = discover_knowledge_documents(config)
+    return load_pdf_paths(pdf_paths, corpus_root=corpus_root)
+
+
+def load_pdf_paths(
+    pdf_paths: list[Path],
+    *,
+    corpus_root: Path,
+) -> list[Document]:
+    """Load an explicit PDF subset for incremental corpus processing."""
+
     if not pdf_paths:
         logger.info(
             "pdf_corpus_empty",
             extra={
                 "event": "document_loading",
-                "knowledge_root": str(config.knowledge_root),
+                "knowledge_root": str(corpus_root),
                 "active_corpus_root": str(corpus_root),
             },
         )

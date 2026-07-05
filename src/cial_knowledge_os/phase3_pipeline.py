@@ -178,7 +178,7 @@ class Phase3RAGPipeline(Phase2RAGPipeline):
     def build_lexical_index(self) -> bool:
         """Build or reuse BM25 from the already-created Phase 2 chunks."""
 
-        if not self.chunks:
+        if not self.chunks and self.indexing_plan is None:
             raise RuntimeError(
                 "Call load() and chunk() before building the BM25 index."
             )
@@ -196,12 +196,19 @@ class Phase3RAGPipeline(Phase2RAGPipeline):
         client = super().index()
         if self.config.retrieval_mode in {"bm25", "hybrid"}:
             self.build_lexical_index()
+            plan = self.indexing_plan
+            self.indexing_summary["bm25_rebuilt"] = bool(
+                plan is None
+                or plan.corpus_changed
+                or not self.config.incremental_indexing_enabled
+            )
         logger.info(
             "phase3_index_ready",
             extra={
                 "event": "indexing",
                 "retrieval_mode": self.config.retrieval_mode,
                 "chunk_count": len(self.chunks),
+                "indexing_summary": self.indexing_summary,
             },
         )
         return client

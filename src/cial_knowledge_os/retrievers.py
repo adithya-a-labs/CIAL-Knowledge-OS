@@ -181,10 +181,19 @@ class BM25Retriever:
 
         normalized = [self._normalize_chunk(chunk) for chunk in chunks]
         if not normalized:
-            raise ValueError(
-                "Cannot build the BM25 index because the chunk corpus is empty. "
-                "Load and chunk documents before indexing."
+            performed = self._index is None or bool(self._chunks)
+            self._chunks = []
+            self._index = []
+            self._fingerprint = self._corpus_fingerprint([])
+            logger.info(
+                "bm25_index_ready",
+                extra={
+                    "event": "bm25_index",
+                    "chunk_count": 0,
+                    "cache_hit": False,
+                },
             )
+            return performed
         fingerprint = self._corpus_fingerprint(normalized)
         if self._index is not None and fingerprint == self._fingerprint:
             logger.debug("bm25_index_reused", extra={"event": "bm25_index"})
@@ -227,6 +236,8 @@ class BM25Retriever:
                 "The BM25 index is not initialized. Call index(chunks) before "
                 "retrieve()."
             )
+        if not self._chunks:
+            return []
         tokens = self.tokenizer(query)
         if not tokens:
             return []

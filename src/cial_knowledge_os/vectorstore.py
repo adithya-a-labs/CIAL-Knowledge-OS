@@ -10,7 +10,15 @@ from typing import Any
 import numpy as np
 from langchain_core.documents import Document
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
+from qdrant_client.models import (
+    Distance,
+    FieldCondition,
+    Filter,
+    FilterSelector,
+    MatchValue,
+    PointStruct,
+    VectorParams,
+)
 
 from .config import KnowledgeOSConfig
 
@@ -208,3 +216,97 @@ def index_chunks(
         )
     except Exception as exc:
         _raise_useful_lock_error(exc)
+
+
+def _document_filter(
+    *,
+    document_id: str | None = None,
+    relative_path: str | None = None,
+) -> Filter:
+    conditions = []
+    if document_id:
+        conditions.append(
+            FieldCondition(
+                key="metadata.document_id",
+                match=MatchValue(value=document_id),
+            )
+        )
+    if relative_path:
+        conditions.append(
+            FieldCondition(
+                key="metadata.relative_path",
+                match=MatchValue(value=relative_path),
+            )
+        )
+    if not conditions:
+        raise ValueError("document_id or relative_path is required.")
+    return Filter(should=conditions)
+
+
+def delete_document_chunks(
+    client: QdrantClient,
+    config: KnowledgeOSConfig,
+    *,
+    document_id: str | None = None,
+    relative_path: str | None = None,
+) -> int:
+    """Delete and return the number of points belonging to one document."""
+
+    if not client.collection_exists(config.qdrant_collection_name):
+        return 0
+    query_filter = _document_filter(
+        document_id=document_id,
+        relative_path=relative_path,
+    )
+    try:
+        removed = int(
+            client.count(
+                collection_name=config.qdrant_collection_name,
+                count_filter=query_filter,
+                exact=True,
+            ).count
+        )
+        client.delete(
+            collection_name=config.qdrant_collection_name,
+            points_selector=FilterSelector(filter=query_filter),
+            wait=True,
+        )
+        return removed
+    except Exception as exc:
+        _raise_useful_lock_error(exc)
+        raise
+
+
+def load_indexed_chunks(
+    client: QdrantClient,
+    config: KnowledgeOSConfig,
+) -> list[Document]:
+    """Read the complete stored chunk corpus for BM25 and notebook inspection."""
+
+    if not client.collection_exists(config.qdrant_collection_name):
+        return []
+    chunks: list[Document] = []
+    offset: Any | None = None
+    try:
+        while True:
+            points, offset = client.scroll(
+                collection_name=config.qdrant_collection_name,
+                limit=256,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            for point in points:
+                payload = point.payload or {}
+                chunks.append(
+                    Document(
+                        page_content=str(payload.get("text", "")),
+                        metadata=dict(payload.get("metadata") or {}),
+                    )
+                )
+            if offset is None:
+                break
+    except Exception as exc:
+        _raise_useful_lock_error(exc)
+        raise
+    return chunks
