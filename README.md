@@ -480,3 +480,8 @@ capability routing, bounded consensus/revision, and an offline Decision
 Intelligence HTML dashboard. Phase 4 retrieval and evidence selection remain
 unchanged. See [docs/phase5.md](docs/phase5.md) and
 `notebooks/05_Agentic_Response_Planning.ipynb`.
+
+For live local execution monitoring, run
+`python -m cial_knowledge_os.live.command_center` and see
+[the command-center guide](docs/phase5-live-command-center.md). The dashboard
+uses only loopback FastAPI/SSE, packaged assets, and local device telemetry.

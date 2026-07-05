@@ -93,3 +93,10 @@ result = pipeline.answer("What controls should be prioritized?")
 
 Set `phase5.enabled` to `false`, or omit it, to return the Phase 4 response
 unchanged.
+
+## Optional live command center
+
+Phase 5 can publish execution events to a fully local FastAPI/SSE dashboard.
+This observer is not required for batch or notebook execution. See
+[Phase 5 Live Command Center](phase5-live-command-center.md) for startup,
+metrics, GPU limitations, and privacy guarantees.
