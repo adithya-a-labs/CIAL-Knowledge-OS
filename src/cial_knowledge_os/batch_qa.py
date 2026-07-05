@@ -100,6 +100,21 @@ PHASE4_CSV_COLUMNS = [
     "unsupported_query_detected",
 ]
 
+PHASE5_CSV_COLUMNS = [
+    "phase5_enabled",
+    "query_intent",
+    "response_format",
+    "critic_passed",
+    "compliance_passed",
+    "risk_passed",
+    "verification_rate",
+    "consensus_decision",
+    "revision_used",
+    "final_status",
+    "agent_latency_total_ms",
+    "model_map",
+]
+
 _OUTPUT_SUBDIRECTORIES = (
     "batch_answers",
     "evaluations",
@@ -604,6 +619,45 @@ def _phase4_row_values(response: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _phase5_row_values(response: Mapping[str, Any]) -> dict[str, Any]:
+    intent = response.get("query_intent")
+    intent = intent if isinstance(intent, Mapping) else {}
+    plan = response.get("response_plan")
+    plan = plan if isinstance(plan, Mapping) else {}
+    critic = response.get("critic_review")
+    critic = critic if isinstance(critic, Mapping) else {}
+    compliance = response.get("compliance_review")
+    compliance = compliance if isinstance(compliance, Mapping) else {}
+    risk = response.get("risk_review")
+    risk = risk if isinstance(risk, Mapping) else {}
+    verification = response.get("evidence_verification")
+    verification = verification if isinstance(verification, Mapping) else {}
+    consensus = response.get("consensus_decision")
+    consensus = consensus if isinstance(consensus, Mapping) else {}
+    return {
+        "phase5_enabled": bool(response.get("phase5_enabled")),
+        "query_intent": str(intent.get("intent") or ""),
+        "response_format": str(plan.get("format") or ""),
+        "critic_passed": bool(critic.get("passed")),
+        "compliance_passed": bool(compliance.get("passed")),
+        "risk_passed": bool(risk.get("passed")),
+        "verification_rate": float(
+            verification.get("verification_rate") or 0
+        ),
+        "consensus_decision": str(consensus.get("decision") or ""),
+        "revision_used": bool(response.get("revision_used")),
+        "final_status": str(response.get("final_status") or ""),
+        "agent_latency_total_ms": float(
+            response.get("agent_latency_total_ms") or 0
+        ),
+        "model_map": json.dumps(
+            response.get("model_map") or {},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
+    }
+
+
 def collect_batch_answers(
     *,
     pipeline: BatchQAPipeline,
@@ -648,6 +702,7 @@ def collect_batch_answers(
     phase2_export = retrieval_depth_attribute == "retrieval_top_k"
     phase3_export = hasattr(config, "retrieval_mode")
     phase4_export = hasattr(config, "reranker_model_name")
+    phase5_export = bool(getattr(pipeline, "enabled", False))
     token_manager_value = getattr(pipeline, "token_manager", None)
     token_manager = (
         token_manager_value
@@ -667,6 +722,7 @@ def collect_batch_answers(
         *(PHASE2_CSV_COLUMNS if phase2_export else []),
         *(PHASE3_CSV_COLUMNS if phase3_export else []),
         *(PHASE4_CSV_COLUMNS if phase4_export else []),
+        *(PHASE5_CSV_COLUMNS if phase5_export else []),
     ]
     rows: list[dict[str, Any]] = []
     responses: list[Mapping[str, Any] | None] = []
@@ -744,6 +800,8 @@ def collect_batch_answers(
                     )
                 if phase4_export:
                     row.update(_phase4_row_values(response))
+                if phase5_export:
+                    row.update(_phase5_row_values(response))
             except Exception as exc:
                 if isinstance(exc, GenerationFailedError):
                     row["answer_status"] = "generation_failed"
