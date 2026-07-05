@@ -17,6 +17,8 @@ venv/
 # Runtime data
 data/raw/
 data/qdrant/
+data/qdrant_server/
+data/indexes/
 data/cache/
 data/exports/
 outputs/
