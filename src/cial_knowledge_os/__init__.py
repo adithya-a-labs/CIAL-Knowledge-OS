@@ -5,6 +5,7 @@ from .batch_qa import (
     PHASE2_CSV_COLUMNS,
     PHASE3_CSV_COLUMNS,
     PHASE4_CSV_COLUMNS,
+    PHASE5_CSV_COLUMNS,
     BatchAnswerCollection,
     collect_batch_answers,
     export_batch_answers,
@@ -87,6 +88,9 @@ from .phase4_checkpoint import (
 from .phase4_reporting import write_phase4_figures, write_phase4_html
 from .phase4_runner import Phase4Runner, Phase4RunResult
 from .phase4_trace import Phase4Trace, build_phase4_trace, phase4_diagnostics
+from .agents import Agent, AgentResult, AgentState, Evidence, ModelRouter
+from .orchestration import ConsensusEngine, Phase5Pipeline, Phase5Runner, Phase5Trace
+from .reporting import render_phase5_html, write_phase5_html
 from .query_transformations import (
     QueryTransformer,
     QueryVariant,
@@ -186,6 +190,7 @@ __all__ = [
     "PHASE2_CSV_COLUMNS",
     "PHASE3_CSV_COLUMNS",
     "PHASE4_CSV_COLUMNS",
+    "PHASE5_CSV_COLUMNS",
     "BatchAnswerCollection",
     "BM25Retriever",
     "CitationLinkBuilder",
@@ -206,6 +211,15 @@ __all__ = [
     "Phase4Runner",
     "Phase4RunResult",
     "Phase4Trace",
+    "Agent",
+    "AgentResult",
+    "AgentState",
+    "Evidence",
+    "ModelRouter",
+    "ConsensusEngine",
+    "Phase5Pipeline",
+    "Phase5Runner",
+    "Phase5Trace",
     "ReciprocalRankFusion",
     "Retriever",
     "Reranker",
@@ -334,4 +348,6 @@ __all__ = [
     "write_standalone_html",
     "write_phase4_figures",
     "write_phase4_html",
+    "render_phase5_html",
+    "write_phase5_html",
 ]
