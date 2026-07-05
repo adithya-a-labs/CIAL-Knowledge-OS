@@ -32,7 +32,7 @@ Enterprise documents in configured data/files/ taxonomy
   -> recursive PDF discovery and local PDF/text loading
   -> metadata-preserving chunking
   -> local embeddings
-  -> embedded local Qdrant
+  -> embedded local Qdrant (default) or local Docker Qdrant server (opt-in)
   -> selectable dense, BM25, or hybrid retrieval
   -> Reciprocal Rank Fusion in hybrid mode
   -> Phase 2 query variants and multi-query evidence collection
@@ -78,6 +78,45 @@ collection-bound, so switching collection names safely causes a full scan.
 The current LLM adapter uses Ollama. The surrounding pipeline accepts replaceable
 local model objects, but adapters for other local runtimes such as vLLM and
 llama.cpp are still future work.
+
+### Qdrant deployment modes
+
+`KnowledgeOSConfig` provides `qdrant_mode`, `qdrant_url`,
+`qdrant_api_key`, `qdrant_collection_name`, and `qdrant_dir`. Omitting
+`qdrant_mode` preserves the `embedded` default and the existing path-based
+client. `qdrant_mode="server"` uses the configured URL and performs a health
+probe before indexing or retrieval. An unreachable service reports local
+Docker start commands rather than a low-level connection error.
+
+Embedded mode remains appropriate for notebooks, demonstrations, and small
+collections. The local Docker server is recommended for large collections and
+concurrent clients:
+
+```bash
+docker compose -f docker-compose.qdrant.yml up -d
+curl http://localhost:6333/healthz
+```
+
+Set `qdrant_mode="server"` and
+`qdrant_url="http://localhost:6333"` in the active phase configuration. Stop
+and start it with `docker stop cial-qdrant` and `docker start cial-qdrant`.
+Storage remains on-premises under `data/qdrant_server/`; there is no Qdrant
+Cloud dependency.
+
+Existing embedded collections can be inspected or migrated without changing
+the frozen notebooks:
+
+```bash
+python scripts/migrate_embedded_qdrant_to_server.py \
+  --source data/qdrant/cial_phase4 \
+  --url http://localhost:6333 \
+  --collection cial_phase4 \
+  --batch-size 512
+```
+
+The utility preserves point IDs, dense/named/sparse vector configuration,
+vectors, and payloads, supports `--dry-run`, and requires `--force` before
+overwriting a target collection.
 
 ## Completed Phase 1: Basic RAG
 
@@ -458,6 +497,7 @@ Operational choices must not be scattered as literals through notebooks or
 pipeline logic. In particular, Phase 3 and Phase 4 must not hardcode:
 
 - paths;
+- Qdrant deployment mode, URL, API key, collection, or embedded directory;
 - model names;
 - output folders;
 - retrieval modes;

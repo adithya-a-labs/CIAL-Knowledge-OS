@@ -119,6 +119,61 @@ require the approved cache to be staged in advance. The pipeline uses
 `BAAI/bge-m3`, `cross-encoder/ms-marco-MiniLM-L-6-v2`, and `gemma3:12b` by
 default. Documents and prompts are never sent to a hosted inference service.
 
+### Local Qdrant backends
+
+Embedded Qdrant remains the default for backward compatibility and is suitable
+for notebooks, demos, and small corpora. For large corpora, run Qdrant as a
+local Docker service:
+
+```bash
+docker compose -f docker-compose.qdrant.yml up -d
+curl http://localhost:6333/healthz
+```
+
+Select the service explicitly in configuration:
+
+```python
+from cial_knowledge_os import Phase4Config
+
+config = Phase4Config(
+    qdrant_mode="server",
+    qdrant_url="http://localhost:6333",
+)
+```
+
+For `scripts/run_phase4_batch.py`, the same opt-in is available through the
+`QDRANT_MODE`, `QDRANT_URL`, and `QDRANT_API_KEY` values in its user
+configuration section.
+
+The defaults are `qdrant_mode="embedded"`,
+`qdrant_url="http://localhost:6333"`, `qdrant_api_key=None`, and the existing
+per-collection `qdrant_dir`. Phase 4 continues to use collection
+`cial_phase4`. Server mode changes only the client connection; collection
+creation, incremental indexing, stable point IDs, vectors, and payload metadata
+retain the same behavior.
+
+Stop and restart the local service with:
+
+```bash
+docker stop cial-qdrant
+docker start cial-qdrant
+```
+
+Migrate an existing embedded Phase 4 collection after starting the server:
+
+```bash
+python scripts/migrate_embedded_qdrant_to_server.py \
+  --source data/qdrant/cial_phase4 \
+  --url http://localhost:6333 \
+  --collection cial_phase4 \
+  --batch-size 512
+```
+
+Use `--dry-run` to inspect the source without changing the server. Use
+`--force` only when the target collection may be deleted and recreated. The
+Docker service stores data at `data/qdrant_server/`; it remains fully local,
+offline-capable, and on-premises. Qdrant Cloud is not used.
+
 Place approved enterprise documents in the canonical `data/files/` knowledge
 repository. Discovery is recursive and configured through
 `KnowledgeOSConfig.knowledge_root`; ingestion must not hardcode this path. A
@@ -434,7 +489,8 @@ answer status, retrieval traces, and per-question latency. Notebook 02 only
 supplies real pipeline outputs to these helpers.
 
 Embedded Qdrant permits only one process per storage path. Close other notebook
-kernels or clients before reopening the same `data/qdrant/` directory.
+kernels or clients before reopening the same `data/qdrant/` directory. Local
+server mode supports concurrent clients and is recommended for large corpora.
 
 ## Batch QA Exports
 
