@@ -36,6 +36,8 @@ RESUME_RUN_FOLDER = None
 QDRANT_MODE = "server"
 QDRANT_URL = "http://localhost:6333"
 QDRANT_API_KEY = None
+QDRANT_BATCH_SIZE = None  # Resolves to 32 for server and 256 for embedded.
+QDRANT_UPSERT_WAIT = True
 
 
 def _print(message: str = "") -> None:
@@ -238,6 +240,8 @@ def build_config(args: argparse.Namespace) -> Any:
         qdrant_mode=QDRANT_MODE,
         qdrant_url=QDRANT_URL,
         qdrant_api_key=QDRANT_API_KEY,
+        qdrant_batch_size=QDRANT_BATCH_SIZE,
+        qdrant_upsert_wait=QDRANT_UPSERT_WAIT,
         # The notebook guard protects interactive rendering. This script is the
         # intentionally unbounded batch surface.
         allow_large_run=True,

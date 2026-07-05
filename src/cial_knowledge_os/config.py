@@ -31,6 +31,8 @@ class KnowledgeOSConfig:
     qdrant_mode: str = "embedded"
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str | None = None
+    qdrant_batch_size: int | None = None
+    qdrant_upsert_wait: bool = True
     qdrant_dir: Path | None = None
     document_manifest_path: Path | None = None
     qdrant_collection_name: str = "cial_basic_rag"
@@ -80,9 +82,20 @@ class KnowledgeOSConfig:
             self.document_manifest_path,
             self.data_dir / "indexes" / "document_manifest.json",
         )
+        if self.qdrant_batch_size is None:
+            self.qdrant_batch_size = (
+                32 if self.qdrant_mode == "server" else 256
+            )
 
         if self.chunk_size <= 0:
             raise ValueError("chunk_size must be greater than zero.")
+        if (
+            isinstance(self.qdrant_batch_size, bool)
+            or self.qdrant_batch_size <= 0
+        ):
+            raise ValueError("qdrant_batch_size must be greater than zero.")
+        if not isinstance(self.qdrant_upsert_wait, bool):
+            raise TypeError("qdrant_upsert_wait must be a boolean.")
         if not self.tokenizer_encoding_name.strip():
             raise ValueError("tokenizer_encoding_name must not be blank.")
         self.tokenizer_encoding_name = self.tokenizer_encoding_name.strip()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import shutil
 import uuid
 from pathlib import Path
@@ -21,6 +22,8 @@ from qdrant_client.models import (
 )
 
 from .config import KnowledgeOSConfig
+
+logger = logging.getLogger(__name__)
 
 _LOCK_MESSAGE = (
     "Embedded Qdrant storage is locked. Only one process can access the same "
@@ -228,27 +231,53 @@ def index_chunks(
             f"Embedding vectors have size {actual_size}, but Qdrant collection "
             f"'{config.qdrant_collection_name}' expects size {expected_size}."
         )
-    points = [
-        PointStruct(
-            id=_stable_point_id(chunk),
-            vector=np.asarray(vector, dtype=float).tolist(),
-            payload={
-                "text": chunk.page_content,
-                "metadata": _json_safe_metadata(dict(chunk.metadata)),
+    if not chunks:
+        return
+
+    batch_size = config.qdrant_batch_size
+    total_points = len(chunks)
+    total_batches = (total_points + batch_size - 1) // batch_size
+    for batch_index, start in enumerate(
+        range(0, total_points, batch_size),
+        start=1,
+    ):
+        end = min(start + batch_size, total_points)
+        points = [
+            PointStruct(
+                id=_stable_point_id(chunk),
+                vector=np.asarray(vector, dtype=float).tolist(),
+                payload={
+                    "text": chunk.page_content,
+                    "metadata": _json_safe_metadata(dict(chunk.metadata)),
+                },
+            )
+            for chunk, vector in zip(
+                chunks[start:end],
+                embeddings[start:end],
+                strict=True,
+            )
+        ]
+        try:
+            client.upsert(
+                collection_name=config.qdrant_collection_name,
+                points=points,
+                wait=config.qdrant_upsert_wait,
+            )
+        except Exception as exc:
+            _raise_useful_lock_error(exc)
+        logger.info(
+            "qdrant_upsert_batch_complete",
+            extra={
+                "event": "qdrant_upsert",
+                "collection_name": config.qdrant_collection_name,
+                "qdrant_mode": config.qdrant_mode,
+                "batch_index": batch_index,
+                "total_batches": total_batches,
+                "batch_points": len(points),
+                "indexed_points": end,
+                "total_points": total_points,
             },
         )
-        for chunk, vector in zip(chunks, embeddings, strict=True)
-    ]
-    if not points:
-        return
-    try:
-        client.upsert(
-            collection_name=config.qdrant_collection_name,
-            points=points,
-            wait=True,
-        )
-    except Exception as exc:
-        _raise_useful_lock_error(exc)
 
 
 def _document_filter(
