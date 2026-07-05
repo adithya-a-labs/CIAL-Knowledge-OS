@@ -47,15 +47,22 @@ def load_embedding_model(config: KnowledgeOSConfig) -> SentenceTransformer:
         ) from exc
 
 
-def embed_texts(model: SentenceTransformer, texts: list[str]) -> np.ndarray:
+def embed_texts(
+    model: SentenceTransformer,
+    texts: list[str],
+    *,
+    batch_size: int = 8,
+) -> np.ndarray:
     """Create normalized local embeddings."""
 
+    if isinstance(batch_size, bool) or batch_size <= 0:
+        raise ValueError("Embedding batch size must be greater than zero.")
     if not texts:
         dimension = get_embedding_dimension(model)
         return np.empty((0, dimension), dtype=np.float32)
     vectors = model.encode(
         texts,
-        batch_size=8,
+        batch_size=batch_size,
         normalize_embeddings=True,
         show_progress_bar=False,
         convert_to_numpy=True,

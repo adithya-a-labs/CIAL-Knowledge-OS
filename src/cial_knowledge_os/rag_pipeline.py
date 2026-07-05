@@ -23,6 +23,7 @@ from .incremental_index import (
     entry_paths,
     write_manifest,
 )
+from .infra.qdrant_health import parse_collection_health
 from .llm import LocalLLM, create_local_llm, generate_answer
 from .loaders import (
     create_sample_airport_documents,
@@ -160,6 +161,7 @@ class BasicRAGPipeline:
                 self.embeddings = embed_texts(
                     self.embedding_model,
                     [chunk.page_content for chunk in self.chunks],
+                    batch_size=self.config.embedding_batch_size,
                 )
             else:
                 self.embeddings = np.empty(
@@ -193,6 +195,28 @@ class BasicRAGPipeline:
             self.client = None
         if self.config.reset_vectorstore:
             reset_qdrant_storage(self.config)
+        plan = self.indexing_plan
+        total_documents = (
+            len(plan.new) + len(plan.changed) + len(plan.unchanged)
+            if plan is not None
+            else len(self.documents)
+        )
+        total_chunks = len(self.chunks) + int(
+            self.indexing_summary.get("chunks_reused", 0)
+        )
+        logger.info(
+            "indexing_started",
+            extra={
+                "event": "indexing",
+                "qdrant_mode": self.config.qdrant_mode,
+                "collection_name": self.config.qdrant_collection_name,
+                "force_rebuild_index": self.config.force_rebuild_index,
+                "total_documents": total_documents,
+                "total_chunks": total_chunks,
+                "embedding_batch_size": self.config.embedding_batch_size,
+                "qdrant_batch_size": self.config.qdrant_batch_size,
+            },
+        )
         with Timer(self.metrics, "indexing_time"):
             self.client = create_qdrant_client(self.config)
             try:
@@ -217,9 +241,23 @@ class BasicRAGPipeline:
                     and not collection_existed
                 ):
                     raise RuntimeError(
-                        "The document manifest references unchanged chunks, but "
-                        "the configured Qdrant collection is missing. Set "
-                        "force_rebuild_index=True to restore the index safely."
+                        "Manifest references unchanged chunks, but the active "
+                        "vector backend does not contain the expected collection. "
+                        "This usually happens after switching from embedded to "
+                        "server Qdrant. Set FORCE_REBUILD_INDEX=True once or run "
+                        "the migration utility."
+                    )
+                if (
+                    plan is not None
+                    and plan.unchanged
+                    and not plan.force_rebuild
+                    and collection_existed
+                    and previous_point_count == 0
+                ):
+                    raise RuntimeError(
+                        "Manifest references unchanged chunks, but the active "
+                        "Qdrant collection contains no points. Set "
+                        "FORCE_REBUILD_INDEX=True once to restore the index."
                     )
                 if self.config.force_rebuild_index:
                     recreate_collection(
@@ -232,6 +270,26 @@ class BasicRAGPipeline:
                         self.client,
                         self.config,
                         embedding_dimension,
+                    )
+                collection_health = parse_collection_health(
+                    self.client.get_collection(
+                        self.config.qdrant_collection_name
+                    ),
+                    embedding_dimension=embedding_dimension,
+                )
+                for warning in collection_health["warnings"]:
+                    logger.warning(
+                        warning,
+                        extra={
+                            "event": "qdrant_health",
+                            "collection_name": self.config.qdrant_collection_name,
+                            "collection_status": collection_health[
+                                "collection_status"
+                            ],
+                            "optimizer_status": collection_health[
+                                "optimizer_status"
+                            ],
+                        },
                     )
                 reused_chunks = int(
                     self.indexing_summary.get("chunks_reused", 0)

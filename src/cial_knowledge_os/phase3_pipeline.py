@@ -193,6 +193,26 @@ class Phase3RAGPipeline(Phase2RAGPipeline):
     def index(self):
         """Build dense and lexical indexes once from the shared chunk corpus."""
 
+        plan = self.indexing_plan
+        if (
+            plan is not None
+            and plan.unchanged
+            and not plan.corpus_changed
+            and self.config.retrieval_mode in {"bm25", "hybrid"}
+        ):
+            cache_path = (
+                Path(self.config.bm25_cache_dir)
+                / self.config.bm25_cache_filename
+            )
+            self.indexing_summary["bm25_cache_validated"] = cache_path.is_file()
+            if not cache_path.is_file():
+                logger.warning(
+                    "bm25_cache_missing_rebuild_required",
+                    extra={
+                        "event": "indexing_consistency",
+                        "bm25_cache_path": str(cache_path),
+                    },
+                )
         client = super().index()
         if self.config.retrieval_mode in {"bm25", "hybrid"}:
             self.build_lexical_index()

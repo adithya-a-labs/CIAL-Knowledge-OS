@@ -10,6 +10,17 @@ from typing import Literal
 from .token_budget import DEFAULT_TIKTOKEN_ENCODING
 
 
+def resolve_qdrant_batch_size(
+    qdrant_mode: str,
+    configured_batch_size: int | None = None,
+) -> int:
+    """Resolve a bounded Qdrant upsert batch without changing legacy configs."""
+
+    if configured_batch_size is not None:
+        return configured_batch_size
+    return 32 if qdrant_mode == "server" else 256
+
+
 def _default_project_root() -> Path:
     current = Path.cwd().resolve()
     return current.parent if current.name == "notebooks" else current
@@ -38,6 +49,7 @@ class KnowledgeOSConfig:
     qdrant_collection_name: str = "cial_basic_rag"
     embedding_model_name: str = "BAAI/bge-m3"
     embedding_device: str = "auto"
+    embedding_batch_size: int = 8
     ollama_model_name: str = "gemma3:12b"
     tokenizer_encoding_name: str = DEFAULT_TIKTOKEN_ENCODING
     chunk_size: int = 700
@@ -82,10 +94,10 @@ class KnowledgeOSConfig:
             self.document_manifest_path,
             self.data_dir / "indexes" / "document_manifest.json",
         )
-        if self.qdrant_batch_size is None:
-            self.qdrant_batch_size = (
-                32 if self.qdrant_mode == "server" else 256
-            )
+        self.qdrant_batch_size = resolve_qdrant_batch_size(
+            self.qdrant_mode,
+            self.qdrant_batch_size,
+        )
 
         if self.chunk_size <= 0:
             raise ValueError("chunk_size must be greater than zero.")
@@ -94,6 +106,11 @@ class KnowledgeOSConfig:
             or self.qdrant_batch_size <= 0
         ):
             raise ValueError("qdrant_batch_size must be greater than zero.")
+        if (
+            isinstance(self.embedding_batch_size, bool)
+            or self.embedding_batch_size <= 0
+        ):
+            raise ValueError("embedding_batch_size must be greater than zero.")
         if not isinstance(self.qdrant_upsert_wait, bool):
             raise TypeError("qdrant_upsert_wait must be a boolean.")
         if not self.tokenizer_encoding_name.strip():

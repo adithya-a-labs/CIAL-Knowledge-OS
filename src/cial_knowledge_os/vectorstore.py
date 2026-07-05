@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -33,9 +34,9 @@ _LOCK_MESSAGE = (
 )
 
 _SERVER_ERROR_TEMPLATE = """Qdrant server mode is enabled but {url} is not reachable. Start local Qdrant with:
-docker start cial-qdrant
-or:
-docker run -d --name cial-qdrant -p 6333:6333 -p 6334:6334 -v "%cd%\\data\\qdrant_server:/qdrant/storage" qdrant/qdrant:latest"""
+docker compose -f docker-compose.qdrant.yml up -d
+or restart an existing container with:
+docker start cial-qdrant"""
 
 
 def _raise_useful_lock_error(exc: Exception) -> None:
@@ -237,6 +238,7 @@ def index_chunks(
     batch_size = config.qdrant_batch_size
     total_points = len(chunks)
     total_batches = (total_points + batch_size - 1) // batch_size
+    started_at = time.perf_counter()
     for batch_index, start in enumerate(
         range(0, total_points, batch_size),
         start=1,
@@ -265,6 +267,13 @@ def index_chunks(
             )
         except Exception as exc:
             _raise_useful_lock_error(exc)
+        elapsed = time.perf_counter() - started_at
+        remaining_batches = total_batches - batch_index
+        estimated_remaining_seconds = (
+            elapsed / batch_index * remaining_batches
+            if batch_index and remaining_batches
+            else 0.0
+        )
         logger.info(
             "qdrant_upsert_batch_complete",
             extra={
@@ -276,8 +285,15 @@ def index_chunks(
                 "batch_points": len(points),
                 "indexed_points": end,
                 "total_points": total_points,
+                "elapsed_seconds": round(elapsed, 3),
+                "remaining_batches": remaining_batches,
+                "estimated_remaining_seconds": round(
+                    estimated_remaining_seconds,
+                    3,
+                ),
             },
         )
+        points = []
 
 
 def _document_filter(
