@@ -31,8 +31,11 @@ RETRY_COOLDOWN_SECONDS = 20
 RERANKER_DEVICE = "auto"
 RERANKER_BATCH_SIZE = 16
 LOCAL_FILES_ONLY = False
-FORCE_REBUILD_INDEX = False
+FORCE_REBUILD_INDEX = True
 RESUME_RUN_FOLDER = None
+QDRANT_MODE = "server"
+QDRANT_URL = "http://localhost:6333"
+QDRANT_API_KEY = None
 
 
 def _print(message: str = "") -> None:
@@ -232,6 +235,9 @@ def build_config(args: argparse.Namespace) -> Any:
             args.force_rebuild_index,
             FORCE_REBUILD_INDEX,
         ),
+        qdrant_mode=QDRANT_MODE,
+        qdrant_url=QDRANT_URL,
+        qdrant_api_key=QDRANT_API_KEY,
         # The notebook guard protects interactive rendering. This script is the
         # intentionally unbounded batch surface.
         allow_large_run=True,

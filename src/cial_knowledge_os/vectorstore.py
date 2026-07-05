@@ -1,4 +1,4 @@
-"""Embedded local Qdrant storage helpers."""
+"""Local embedded and self-hosted Qdrant storage helpers."""
 
 from __future__ import annotations
 
@@ -29,6 +29,11 @@ _LOCK_MESSAGE = (
     "processes need concurrent access."
 )
 
+_SERVER_ERROR_TEMPLATE = """Qdrant server mode is enabled but {url} is not reachable. Start local Qdrant with:
+docker start cial-qdrant
+or:
+docker run -d --name cial-qdrant -p 6333:6333 -p 6334:6334 -v "%cd%\\data\\qdrant_server:/qdrant/storage" qdrant/qdrant:latest"""
+
 
 def _raise_useful_lock_error(exc: Exception) -> None:
     message = str(exc).lower()
@@ -48,18 +53,46 @@ def _raise_useful_lock_error(exc: Exception) -> None:
 
 
 def create_qdrant_client(config: KnowledgeOSConfig) -> QdrantClient:
-    """Open an embedded Qdrant client at the configured local path."""
+    """Open the configured local Qdrant backend and verify server connectivity."""
 
-    config.qdrant_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        return QdrantClient(path=str(config.qdrant_dir))
-    except Exception as exc:
-        _raise_useful_lock_error(exc)
-        raise
+    if config.qdrant_mode == "embedded":
+        config.qdrant_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            return QdrantClient(path=str(config.qdrant_dir))
+        except Exception as exc:
+            _raise_useful_lock_error(exc)
+            raise
+    if config.qdrant_mode == "server":
+        client: QdrantClient | None = None
+        try:
+            client = QdrantClient(
+                url=config.qdrant_url,
+                api_key=config.qdrant_api_key,
+            )
+            client.get_collections()
+        except Exception as exc:
+            if client is not None:
+                client.close()
+            raise RuntimeError(
+                _SERVER_ERROR_TEMPLATE.format(url=config.qdrant_url)
+            ) from exc
+        return client
+    raise ValueError("Unsupported qdrant_mode")
 
 
 def reset_qdrant_storage(config: KnowledgeOSConfig) -> None:
-    """Delete local runtime storage before opening a new embedded client."""
+    """Delete the configured embedded store or server collection."""
+
+    if config.qdrant_mode == "server":
+        client = create_qdrant_client(config)
+        try:
+            if client.collection_exists(config.qdrant_collection_name):
+                client.delete_collection(config.qdrant_collection_name)
+        finally:
+            client.close()
+        return
+    if config.qdrant_mode != "embedded":
+        raise ValueError("Unsupported qdrant_mode")
 
     path = Path(config.qdrant_dir)
     if not path.exists():

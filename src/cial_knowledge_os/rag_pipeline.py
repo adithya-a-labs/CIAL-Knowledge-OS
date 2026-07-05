@@ -78,7 +78,8 @@ class BasicRAGPipeline:
         text_documents = load_text_documents(self.config)
         pdf_started_at = time.perf_counter()
         manifest_without_vectorstore = (
-            self.config.document_manifest_path.is_file()
+            self.config.qdrant_mode == "embedded"
+            and self.config.document_manifest_path.is_file()
             and not self.config.qdrant_dir.exists()
         )
         self.indexing_plan = create_indexing_plan(
@@ -177,7 +178,7 @@ class BasicRAGPipeline:
         return self.embeddings
 
     def index(self) -> QdrantClient:
-        """Idempotently persist the current chunks in embedded local Qdrant."""
+        """Idempotently persist chunks in the configured local Qdrant backend."""
 
         if self.embeddings is None or self.embedding_model is None:
             raise RuntimeError("Call embed() before index().")
@@ -365,7 +366,7 @@ class BasicRAGPipeline:
         return response
 
     def close(self) -> None:
-        """Release the embedded Qdrant lock."""
+        """Release the Qdrant client and any embedded storage lock."""
 
         if self.client is not None:
             self.client.close()

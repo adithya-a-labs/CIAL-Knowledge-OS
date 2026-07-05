@@ -28,6 +28,9 @@ class KnowledgeOSConfig:
     # Deprecated compatibility alias. New code must use ``knowledge_root`` for
     # ingestion; ``legacy_pdf_root`` exists only for one-time migration.
     pdf_data_dir: Path | None = None
+    qdrant_mode: str = "embedded"
+    qdrant_url: str = "http://localhost:6333"
+    qdrant_api_key: str | None = None
     qdrant_dir: Path | None = None
     document_manifest_path: Path | None = None
     qdrant_collection_name: str = "cial_basic_rag"
