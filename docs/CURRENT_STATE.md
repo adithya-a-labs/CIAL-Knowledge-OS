@@ -1,6 +1,6 @@
 # CIAL Knowledge OS: Current State through Phase 5
 
-Last audited: 2026-07-05
+Last audited: 2026-07-06
 
 This document describes the implemented repository state. `PROJECT_REQUIREMENTS.md`
 defines the binding requirements, while this file distinguishes completed
@@ -109,9 +109,17 @@ curl http://localhost:6333/healthz
 
 Set `qdrant_mode="server"` and
 `qdrant_url="http://localhost:6333"` in the active phase configuration. Stop
-and start it with `docker stop cial-qdrant` and `docker start cial-qdrant`.
-Storage remains on-premises under `data/qdrant_server/`; there is no Qdrant
-Cloud dependency.
+and start it with Docker Compose. Storage remains on-premises in the Docker
+named volume `cial_qdrant_storage`; there is no Qdrant Cloud dependency. The
+named volume replaces the previous Windows bind mount that could fail Qdrant
+segment renames during optimization.
+
+Read-only health inspection reports reachability, collection presence, point
+and indexed-vector counts, collection and optimizer status, and embedding
+dimension compatibility. Infrastructure preflight also reports offline model
+flags, RAM, disk, configured GPU availability, and local Ollama availability.
+A red optimizer is a warning rather than an automatic crash; an unreachable
+opt-in server is a preflight error.
 
 Existing embedded collections can be inspected or migrated without changing
 the frozen notebooks:

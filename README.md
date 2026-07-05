@@ -159,8 +159,9 @@ vectors, and payload metadata retain the same behavior.
 Stop and restart the local service with:
 
 ```bash
-docker stop cial-qdrant
-docker start cial-qdrant
+docker compose -f docker-compose.qdrant.yml down
+docker compose -f docker-compose.qdrant.yml up -d
+python scripts/check_qdrant_health.py --url http://localhost:6333 --collection cial_phase4
 ```
 
 Migrate an existing embedded Phase 4 collection after starting the server:
@@ -175,8 +176,17 @@ python scripts/migrate_embedded_qdrant_to_server.py \
 
 Use `--dry-run` to inspect the source without changing the server. Use
 `--force` only when the target collection may be deleted and recreated. The
-Docker service stores data at `data/qdrant_server/`; it remains fully local,
-offline-capable, and on-premises. Qdrant Cloud is not used.
+Docker service stores data in the named volume `cial_qdrant_storage`; this
+avoids Windows bind-mount optimizer permission failures. It remains fully local,
+offline-capable, and on-premises. Qdrant Cloud is not used. See
+[`docs/qdrant_backend.md`](docs/qdrant_backend.md) for health checks, backup and
+restore, and backend-switch troubleshooting.
+
+After switching from embedded to server Qdrant, set
+`FORCE_REBUILD_INDEX=True` for the first server rebuild, or run the migration
+utility. Set `FORCE_REBUILD_INDEX=False` after the successful rebuild. If the
+manifest references unchanged chunks but the active collection is missing, the
+pipeline stops instead of silently creating an incomplete index.
 
 Place approved enterprise documents in the canonical `data/files/` knowledge
 repository. Discovery is recursive and configured through
@@ -495,6 +505,9 @@ supplies real pipeline outputs to these helpers.
 Embedded Qdrant permits only one process per storage path. Close other notebook
 kernels or clients before reopening the same `data/qdrant/` directory. Local
 server mode supports concurrent clients and is recommended for large corpora.
+For server `MemoryError` failures, retain or reduce `QDRANT_BATCH_SIZE=32`.
+A red optimizer warning is non-fatal because existing retrieval may still work,
+but the named volume must be backed up and repaired before production use.
 
 ## Batch QA Exports
 

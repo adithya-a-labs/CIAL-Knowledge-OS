@@ -64,12 +64,23 @@ interface remain planned or deferred.
 | Phase 2 | Query Transformations and Context Construction | ✅ Completed |
 | Phase 3 | Hybrid Retrieval | 🧪 Implemented / Qualification Pending |
 | Phase 4 | Reranking and Evidence Selection | 🧪 Implemented / Qualification Pending |
+| Phase 4.1 | Local Infrastructure Hardening | Implemented |
 | Phase 4.5 | Multimodal Understanding and Contradiction Research | Deferred |
 | Phase 5 | Adaptive Agentic Response Planning | 🧪 Implemented / Qualification Pending |
 | Phase 6 | Production Hardening and Enterprise UX | 🔮 Planned |
 | Phase 7 | Enterprise Knowledge OS | 🔮 Long-term Target |
 
 ## Detailed Phase Breakdown
+
+### Phase 4.1 — Local Infrastructure Hardening
+
+**Status:** Implemented.
+
+This additive hardening increment preserves Phase 1–5 retrieval and generation
+contracts while adding named-volume Qdrant storage, bounded server upserts,
+progress telemetry, collection health parsing, non-throwing deployment
+preflight, generated-artifact hygiene, and an offline release-packaging
+foundation. Server Qdrant remains opt-in and embedded Qdrant remains supported.
 
 ### Phase 1 — Basic Offline RAG
 
