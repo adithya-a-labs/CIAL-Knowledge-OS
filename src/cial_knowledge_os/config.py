@@ -29,6 +29,7 @@ class KnowledgeOSConfig:
     # ingestion; ``legacy_pdf_root`` exists only for one-time migration.
     pdf_data_dir: Path | None = None
     qdrant_dir: Path | None = None
+    document_manifest_path: Path | None = None
     qdrant_collection_name: str = "cial_basic_rag"
     embedding_model_name: str = "BAAI/bge-m3"
     embedding_device: str = "auto"
@@ -41,6 +42,8 @@ class KnowledgeOSConfig:
     # Persistence is the safe default: callers must explicitly opt into deleting
     # the local embedded Qdrant data.
     reset_vectorstore: bool = False
+    incremental_indexing_enabled: bool = True
+    force_rebuild_index: bool = False
     # Synthetic fixtures are opt-in so normal ingestion cannot contaminate a
     # real corpus when data/sample is absent.
     create_sample_documents: bool = False
@@ -69,6 +72,10 @@ class KnowledgeOSConfig:
         self.qdrant_dir = self._resolve(
             self.qdrant_dir,
             self.data_dir / "qdrant" / self.qdrant_collection_name,
+        )
+        self.document_manifest_path = self._resolve(
+            self.document_manifest_path,
+            self.data_dir / "indexes" / "document_manifest.json",
         )
 
         if self.chunk_size <= 0:
