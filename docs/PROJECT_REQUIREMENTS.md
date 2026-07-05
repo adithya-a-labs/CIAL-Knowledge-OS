@@ -334,6 +334,13 @@ This principle must remain true throughout the lifetime of the project.
 - Reuse loaded documents, chunks, embeddings, dense indexes, and unchanged BM25
   token caches; do not recompute them for every query or sweep configuration.
 - Preserve retriever-specific rank and score provenance after fusion.
+- Persist corpus fingerprints and chunk counts in
+  `data/indexes/document_manifest.json`.
+- Skip unchanged documents, replace changed document points, remove deleted
+  points, and expose additive indexing diagnostics.
+- Rebuild BM25 from the complete post-update corpus whenever files change.
+- Support explicit full rebuild and legacy full-processing configuration
+  without changing retrieval, reranking, or evidence-selection semantics.
 
 ## Pending Clarifications
 

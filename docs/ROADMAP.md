@@ -336,7 +336,7 @@ multi-user safety, maintainability, or an enterprise interface.
 **Major capabilities**
 
 - performance and memory optimization;
-- incremental and resumable indexing;
+- resumable indexing jobs (manifest-driven incremental indexing is complete);
 - stronger artifact and lifecycle management;
 - packaged reusable modules and stable service boundaries;
 - deployment preparation for organization-controlled infrastructure;
@@ -452,6 +452,12 @@ documents recursively. Category/collection folders form the initial enterprise
 taxonomy. The previous flat PDF directory is only a migration source and is not
 searched by runtime ingestion.
 
+Manifest-driven incremental indexing is implemented in the shared pipeline.
+It fingerprints the recursive canonical corpus, selectively updates Qdrant by
+stable document identity, reconstructs the complete chunk set for BM25, and
+emits indexing diagnostics. Event-driven ingestion and resumable background
+indexing jobs remain deferred.
+
 ## Deferred Ideas and Future Research
 
 These topics are intentionally deferred. They require separate evidence,
@@ -462,7 +468,7 @@ prioritization, and design review before entering an active phase:
 - multi-vector indexing;
 - document versioning and supersession rules;
 - retrieval-time access control;
-- incremental and event-driven indexing;
+- event-driven indexing;
 - a local HTTP server for clickable PDF citations;
 - Model Context Protocol (MCP) integration;
 - user feedback loops;

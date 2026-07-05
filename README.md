@@ -49,6 +49,15 @@ candidate-to-context token reduction, and richer standalone run diagnostics.
 Implementation and automated-test readiness are complete; full benchmark
 qualification is pending.
 
+Corpus indexing is incremental by default across all phases. A SHA-256 document
+manifest at `data/indexes/document_manifest.json` tracks canonical
+`data/files/` documents and chunk counts. Unchanged PDFs reuse their Qdrant
+vectors; changed or deleted document points are removed by stable document
+identity, and BM25 is rebuilt safely from the complete stored corpus after a
+change. Set `force_rebuild_index=True` (or `FORCE_REBUILD_INDEX = True` in the
+Phase 4 batch script) for a full rebuild. Setting
+`incremental_indexing_enabled=False` retains full processing behavior.
+
 ## Target Production Stack
 
 ### Frontend

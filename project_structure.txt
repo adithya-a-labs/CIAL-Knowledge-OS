@@ -21,6 +21,7 @@ CIAL-Knowledge-OS/
 |       |-- embeddings.py
 |       |-- llm.py
 |       |-- loaders.py
+|       |-- incremental_index.py
 |       |-- rag_pipeline.py
 |       |-- retrieval.py
 |       |-- vectorstore.py
@@ -31,6 +32,7 @@ CIAL-Knowledge-OS/
 |   |-- raw/          # Ignored runtime text
 |   |-- pdf/          # Optional temporary migration source
 |   |-- qdrant/       # Ignored embedded database
+|   |-- indexes/      # Document manifest for incremental indexing
 |   |-- cache/        # Ignored runtime cache
 |   `-- exports/      # Ignored generated exports
 |-- references/       # Conceptual learning resources only

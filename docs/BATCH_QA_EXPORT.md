@@ -220,6 +220,13 @@ TXT inputs contain one question per line, and CSV inputs must contain a
 `question` column. For a 440-question run, change `QUESTIONS_FILE` and
 optionally `MAX_ANSWER_WORDS`.
 
+Indexing is incremental by default. Set `FORCE_REBUILD_INDEX = True` in the
+user configuration or pass `--force-rebuild-index` for a one-off safe rebuild.
+The pipeline writes `data/indexes/document_manifest.json`; run `summary.json`
+and `metrics.json` include an additive `indexing_summary` with file
+classification, chunk updates, BM25/vector update flags, reused chunks, and the
+embedding-time-saved estimate.
+
 CLI options are advanced, one-off overrides; none are required:
 
 ```powershell
@@ -232,8 +239,8 @@ python scripts\run_phase4_batch.py --mode benchmark --questions-file <path-to-be
 
 `--mode` supports `smoke`, `manual_qa`, and `benchmark`. Additional controls
 include `--max-questions`, `--max-answer-words`, retry/cooldown overrides,
-`--reranker-device`, `--reranker-batch-size`, `--local-files-only`, and
-`--resume`. The existing runner remains responsible for CSV, XLSX,
+`--reranker-device`, `--reranker-batch-size`, `--local-files-only`,
+`--force-rebuild-index`, and `--resume`. The existing runner remains responsible for CSV, XLSX,
 standalone HTML, configuration, summary, metrics, retrieval traces, logs,
 per-question context, and supported SVG/HTML visualization exports.
 

@@ -65,6 +65,16 @@ empty canonical repositories produce an empty corpus rather than a fallback.
 copies legacy PDFs to `data/files/legacy_pdf/` by default and supports
 `--dry-run` and explicit `--move` modes.
 
+Indexing scans the canonical root on startup and compares SHA-256 fingerprints
+with `data/indexes/document_manifest.json`. Only new and changed PDFs are
+loaded, chunked, and embedded. Changed and deleted document points are removed
+from Qdrant before upsert. The complete stored chunk corpus is then reused for
+neighbor operations and BM25, which is rebuilt safely when corpus membership
+changes. Indexing summaries are logged and added to Phase 4 summary/metrics
+artifacts. `incremental_indexing_enabled=False` preserves full processing;
+`force_rebuild_index=True` recreates the configured collection. The manifest is
+collection-bound, so switching collection names safely causes a full scan.
+
 The current LLM adapter uses Ollama. The surrounding pipeline accepts replaceable
 local model objects, but adapters for other local runtimes such as vLLM and
 llama.cpp are still future work.
@@ -79,6 +89,7 @@ The frozen Phase 1 baseline is represented by
 - local text loading and metadata-preserving chunking;
 - local SentenceTransformers embeddings;
 - persistent embedded Qdrant storage;
+- manifest-driven incremental Qdrant updates and safe full rebuilds;
 - dense semantic retrieval;
 - local Ollama generation;
 - bounded grounded prompts and safe prompt instructions;
