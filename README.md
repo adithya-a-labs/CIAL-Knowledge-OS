@@ -4,10 +4,10 @@
 An enterprise-grade, fully offline, notebook-first RAG platform for enterprise
 documentation. The current repository provides completed dense-retrieval Phase
 1 and query/context-construction Phase 2 baselines plus implemented Phase 3
-hybrid retrieval and Phase 4 reranking/evidence-selection architectures. Phase
-3 and Phase 4 still await full local benchmark qualification. Agentic workflows,
-access control, multimodal retrieval, contradiction detection, and production
-applications remain target capabilities, not current implementation claims.
+hybrid retrieval, Phase 4 reranking/evidence selection, and optional Phase 5
+adaptive response-planning architectures. Phases 3–5 still await full local
+benchmark qualification. Access control, multimodal retrieval, contradiction
+detection, and production applications remain target capabilities.
 
 ## Vision
 
@@ -269,9 +269,8 @@ Phase 4 now supports semi-adaptive answer sections. With
 that fit the question shape while retaining detailed synthesis, selected-
 evidence grounding, inline citations, weak-evidence caveats, and explicit
 evidence gaps. Set it to `False` to restore the previous fixed Phase 4 template
-for reproducibility. This is not a full response planner; full adaptive
-response planning is deferred to Phase 5. No benchmark quality improvement is
-claimed from this prompt refinement.
+for reproducibility. Phase 5 now provides the separate full response planner;
+no benchmark quality improvement is claimed from the Phase 4 prompt refinement.
 
 For day-to-day Phase 4 runs, edit the clearly marked `USER CONFIGURATION`
 section near the top of `scripts/run_phase4_batch.py`, especially
@@ -473,3 +472,11 @@ These rules prioritize on-prem deployment, open-source local models, token effic
   implementation state, limitations, and qualification boundaries.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) describes the long-term phase-by-phase
   architectural direction without treating planned capabilities as implemented.
+# Phase 5: adaptive agentic response planning
+
+Phase 5 is available as an optional, fully local validation and response
+planning layer over Phase 4. It adds typed multimodal evidence, per-agent model
+capability routing, bounded consensus/revision, and an offline Decision
+Intelligence HTML dashboard. Phase 4 retrieval and evidence selection remain
+unchanged. See [docs/phase5.md](docs/phase5.md) and
+`notebooks/05_Agentic_Response_Planning.ipynb`.

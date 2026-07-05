@@ -1,4 +1,4 @@
-# CIAL Knowledge OS: Current State through Phase 4
+# CIAL Knowledge OS: Current State through Phase 5
 
 Last audited: 2026-07-05
 
@@ -243,9 +243,9 @@ or unsupported claims.
 Phase 4 now supports semi-adaptive answer sections. The default prompt chooses
 only section families that fit the question shape; setting
 `adaptive_answer_sections=False` restores the previous fixed template for
-reproducibility. This is not a full response planner; full adaptive response
-planning is deferred to Phase 5. This prompt refinement is implemented but does
-not establish a benchmark-qualified quality improvement.
+reproducibility. This Phase 4 mechanism is not the full response planner; the
+optional Phase 5 layer now provides that planner. Neither change establishes a
+benchmark-qualified quality improvement.
 
 The default `reranker_local_files_only=False` is a developer-experience policy,
 not a cloud-inference dependency. Loading remains lazy and always tries the
@@ -362,8 +362,10 @@ The current implementation has:
 - no retrieval-time authorization enforcement;
 - no OCR path for image-only PDFs beyond the configured local loaders;
 - no visual document understanding;
-- no multimodal retrieval; and
-- no contradiction detection.
+- no multimodal retrieval;
+- no contradiction detection;
+- no calibrated Phase 5 readiness or consensus thresholds; and
+- no completed real-model Phase 5 benchmark qualification.
 
 The repository does generate a self-contained HTML evaluation dashboard. That is
 an aggregate evaluation report and remains separate from the implemented
@@ -483,3 +485,11 @@ Expose these through typed configuration or explicit function arguments, validat
 them at the boundary, serialize the effective configuration with every run, and
 use one resolved configuration throughout the run. Central default values are
 acceptable; hidden duplicated constants are not.
+# Phase 5 additive implementation
+
+Adaptive Agentic Response Planning is implemented as an optional layer over
+Phase 4. It is disabled by default, uses injected local model clients, accepts
+text-only Phase 4 evidence without migration, and can preserve optional visual,
+table, diagram, screenshot, scanned-region, caption, and OCR fields. Its HTML
+report adds computed decision-readiness diagnostics without changing previous
+reports or notebooks.

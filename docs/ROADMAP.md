@@ -20,11 +20,11 @@ citation-driven while evolving toward production-ready deployment on
 organization-controlled infrastructure.
 
 The current repository provides completed Phase 1 and Phase 2 experimental
-baselines plus implemented Phase 3 hybrid retrieval and Phase 4
-reranking/evidence selection. Phase 3 and Phase 4 await full local benchmark
-qualification. Agentic workflows, enterprise access controls, multimodal
-retrieval, contradiction detection, and a production interface remain planned
-or deferred.
+baselines plus implemented Phase 3 hybrid retrieval, Phase 4
+reranking/evidence selection, and optional Phase 5 adaptive response planning.
+Phases 3–5 await full local benchmark qualification. Enterprise access
+controls, multimodal retrieval, contradiction detection, and a production
+interface remain planned or deferred.
 
 ## Guiding Principles
 
@@ -65,7 +65,7 @@ or deferred.
 | Phase 3 | Hybrid Retrieval | 🧪 Implemented / Qualification Pending |
 | Phase 4 | Reranking and Evidence Selection | 🧪 Implemented / Qualification Pending |
 | Phase 4.5 | Multimodal Understanding and Contradiction Research | Deferred |
-| Phase 5 | Agentic RAG and Multi-step Retrieval | 🔮 Planned |
+| Phase 5 | Adaptive Agentic Response Planning | 🧪 Implemented / Qualification Pending |
 | Phase 6 | Production Hardening and Enterprise UX | 🔮 Planned |
 | Phase 7 | Enterprise Knowledge OS | 🔮 Long-term Target |
 
@@ -276,43 +276,42 @@ contradiction detection, and clickable PDF citations do not imply visual
 understanding. These capabilities require separate architecture, datasets,
 tests, and qualification.
 
-### Phase 5 — Agentic RAG and Multi-step Retrieval
+### Phase 5 — Adaptive Agentic Response Planning
 
-**Status:** Planned.
+**Status:** Implemented / qualification pending.
 
 **Objective**
 
-Add bounded, inspectable planning and verification only where deterministic
-single-step retrieval is insufficient.
+Add bounded, inspectable answer planning and verification after deterministic
+Phase 4 retrieval and evidence selection.
 
 **Why this phase exists**
 
-Complex, multi-part, cross-document, and multi-hop questions may require query
-decomposition and repeated evidence gathering. Agent-like components should be
-introduced only after retrieval and reranking are strong baselines.
+Complex enterprise answers require explicit structure, criticism, compliance,
+risk, evidence verification, and consensus. Phase 5 adds those response stages
+without replacing or repeating the stable evidence engine.
 
 **Major capabilities**
 
-- agentic retrieval planning;
-- query decomposition;
-- multi-hop and iterative retrieval;
-- tool-like retrieval workflows;
+- intent analysis and response planning;
+- deterministic prompt composition over selected evidence;
+- one grounded draft;
 - evidence verification;
-- critic or verifier roles;
-- bounded iteration and explicit stop conditions; and
+- critic, compliance, risk, and consensus roles;
+- optional local vision verification;
+- a maximum of one revision and explicit stop conditions; and
 - strict grounding and safe failure.
 
 **Expected deliverables**
 
-- A new Phase 5 notebook and reusable planner/verifier interfaces.
-- Full traces of plans, subqueries, retrieved evidence, decisions, and final
-  citations.
+- A Phase 5 engineering notebook and reusable agent interfaces.
+- Full traces of plans, reviews, model routing, decisions, and final citations.
 - Configuration limits for steps, latency, context, and model calls.
 - Comparisons against the frozen non-agentic baseline.
 
 **Exit criteria**
 
-- Multi-step workflows improve selected complex-query metrics without reducing
+- Response planning improves selected complex-query metrics without reducing
   grounding or citation quality.
 - Every action and evidence transition is auditable.
 - Deterministic retrieval remains the default for questions that do not require
@@ -409,10 +408,10 @@ that makes answers explainable, reviewable, and operationally dependable.
 
 The diagram shows the intended end-state flow. Loading, dense/BM25 hybrid
 retrieval, RRF, local reranking, evidence selection, token-aware context
-construction, local Ollama generation, citations, and current
-evaluation/reporting are implemented today. Agent planning, multimodal
-retrieval, contradiction detection, production interfaces, and several
-enterprise controls remain planned or deferred.
+construction, local Ollama generation, citations, evaluation/reporting, and
+bounded Phase 5 response planning are implemented today. Multimodal retrieval,
+contradiction detection, production interfaces, and several enterprise
+controls remain planned or deferred.
 
 ```text
 Enterprise Documents in the configured recursive `data/files/` repository
