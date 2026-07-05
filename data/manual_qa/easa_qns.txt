@@ -1,0 +1,100 @@
+What are the most important principles of aviation safety management?
+How should an airport executive prioritize investments to improve operational safety?
+What are the major organizational responsibilities for implementing an effective Safety Management System (SMS)?
+Summarize the key responsibilities of senior management within an SMS.
+What governance structures are recommended for enterprise aviation safety?
+How should airport leadership measure safety performance?
+What are the most important safety performance indicators described in the documents?
+What are the strategic objectives of modern aviation safety management?
+How can airports develop a proactive safety culture?
+What organizational capabilities are essential for continuous safety improvement?
+Explain the components of an Aviation Safety Management System.
+Describe the Safety Risk Management process.
+Describe the Safety Assurance process.
+Explain Safety Promotion within an SMS.
+What are the major hazards involved in airport operations?
+How should hazards be identified and documented?
+Explain the difference between hazard identification and risk assessment.
+How should safety objectives be developed?
+How should safety performance be monitored?
+What documentation is required to support SMS implementation?
+How should aviation risks be identified?
+Describe the complete aviation risk assessment process.
+What methods are recommended for hazard analysis?
+How should safety risks be evaluated?
+How should risk mitigation measures be selected?
+What factors influence aviation risk severity?
+How should likelihood and consequence be assessed?
+Describe the process of continuous safety monitoring.
+How should residual risks be managed?
+Explain the role of safety assurance in reducing operational risk.
+What is Safety Promotion?
+How should safety communication be performed?
+How should organizations improve safety awareness?
+How should employee training support safety management?
+Describe effective aviation safety training programs.
+What role does organizational culture play in aviation safety?
+How should safety information be shared?
+How can organizations encourage voluntary safety reporting?
+What leadership behaviors improve safety culture?
+How should lessons learned from incidents be communicated?
+Summarize the major research priorities discussed by EASA.
+How is innovation changing aviation safety?
+What technologies are expected to improve airport safety?
+How is artificial intelligence being applied in aviation safety?
+Describe emerging trends in aviation safety research.
+How can digital technologies improve safety management?
+How can predictive analytics improve aviation safety?
+How does data-driven decision making improve aviation operations?
+What future challenges are identified for aviation safety?
+How should airports prepare for future technological changes?
+Compare Safety Risk Management and Safety Assurance.
+Compare reactive, proactive, and predictive safety management.
+Compare safety performance indicators and safety objectives.
+Compare hazard identification with occurrence reporting.
+Compare organizational safety culture with regulatory compliance.
+Compare traditional safety management with data-driven safety management.
+Compare different approaches to aviation risk mitigation.
+Compare safety investigations with safety audits.
+Compare leading and lagging safety indicators.
+Compare manual safety reporting with digital reporting systems.
+How should an airport implement a new Safety Management System?
+Describe the complete process for investigating a safety occurrence.
+Describe the steps required to perform an aviation risk assessment.
+How should safety audits be conducted?
+Describe the workflow for hazard reporting.
+How should corrective actions be managed?
+How should safety performance be reviewed?
+Describe the lifecycle of safety improvement initiatives.
+How should safety data be collected and analyzed?
+Describe the process of continuous safety monitoring.
+An airport has experienced several runway incursions. What actions should management take?
+How should an airport respond after identifying a high-risk operational hazard?
+An organization has weak safety reporting participation. How should this be improved?
+How should safety risks be managed during airport expansion?
+An airport is introducing autonomous vehicles. What safety considerations should be evaluated?
+How should management prioritize safety improvements under budget constraints?
+How should airports evaluate the safety impact of new technology?
+How should organizations respond when safety performance indicators deteriorate?
+How should an airport improve communication following a major safety event?
+What actions should be taken after identifying repeated operational incidents?
+How can artificial intelligence improve aviation safety while maintaining cybersecurity?
+What cybersecurity controls should protect digital aviation safety systems?
+How should AI-powered airport operations be governed?
+How can Safety Management Systems incorporate AI-assisted decision support?
+What are the cybersecurity risks of connected airport infrastructure?
+How should aviation organizations secure safety-critical operational data?
+How can digital twins improve airport safety management?
+How should airports balance innovation with operational safety?
+How should AI systems be validated before deployment in safety-critical environments?
+What governance controls are required before deploying generative AI within airport operations?
+What is the current runway status at Cochin International Airport?
+How many flights departed from CIAL today?
+What is the weather forecast for Kochi Airport tomorrow?
+Who is currently the Director General of EASA?
+What aircraft is arriving at Gate 12 right now?
+What is the current stock price of Airbus?
+How many safety incidents occurred at CIAL this month?
+Which airport has the best safety record this year?
+What is the latest EASA regulation published this week?
+What are today's NOTAMs for Kochi Airport?
