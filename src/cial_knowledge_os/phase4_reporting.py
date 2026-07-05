@@ -879,6 +879,22 @@ def write_phase4_html(
         key: _bar_svg(values, title=key.replace("_", " ").title())
         for key, values in charts.items()
     }
+    indexing_value = summary.get("indexing_summary")
+    indexing = (
+        indexing_value if isinstance(indexing_value, Mapping) else {}
+    )
+    indexing_cards = (
+        [
+            ("Index new files", indexing.get("new_files", 0)),
+            ("Index changed files", indexing.get("changed_files", 0)),
+            ("Index unchanged files", indexing.get("unchanged_files", 0)),
+            ("Index deleted files", indexing.get("deleted_files", 0)),
+            ("Chunks added", indexing.get("chunks_added", 0)),
+            ("Chunks removed", indexing.get("chunks_removed", 0)),
+        ]
+        if indexing
+        else []
+    )
     answer_sections = []
     reranking_sections = []
     selection_sections = []
@@ -1110,6 +1126,7 @@ a{{color:var(--link)}}details{{border:1px solid var(--border);border-radius:9px;
 ("Insufficient evidence", metrics.get("insufficient_evidence_count", 0)),
 ("Extractive fallbacks", metrics.get("extractive_fallback_count", 0)),
 ("Blocked fallbacks", metrics.get("fallback_blocked_count", 0)),
+*indexing_cards,
 ])}</div><h3>Decision diagnostics</h3><ul>{''.join(diagnostics) or '<li>No diagnostics available.</li>'}</ul></section>
 <section><h2>Answers</h2><p>Full generated answers are rendered below without preview truncation. Evidence selection reduces irrelevant context, not answer depth.</p>{''.join(answer_sections)}</section>
 <section><h2>Citations</h2><p>Structured, clickable citation evidence is included with each answer card above.</p></section>

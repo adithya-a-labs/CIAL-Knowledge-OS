@@ -21,7 +21,7 @@ if str(SOURCE_ROOT) not in sys.path:
 # =====================================================
 
 QUESTIONS_FILE = (
-    PROJECT_ROOT / "data" / "manual_qa" / "phase4_hal.txt"
+    PROJECT_ROOT / "data" / "manual_qa" / "easa_qns.txt"
 )
 RUN_MODE = "manual_qa"
 MAX_ANSWER_WORDS = 800
@@ -31,6 +31,7 @@ RETRY_COOLDOWN_SECONDS = 20
 RERANKER_DEVICE = "auto"
 RERANKER_BATCH_SIZE = 16
 LOCAL_FILES_ONLY = False
+FORCE_REBUILD_INDEX = False
 RESUME_RUN_FOLDER = None
 
 
@@ -183,6 +184,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--resume", type=Path)
     parser.add_argument(
+        "--force-rebuild-index",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Ignore the document manifest and safely rebuild the vector index.",
+    )
+    parser.add_argument(
         "--large-run",
         action="store_true",
         help=argparse.SUPPRESS,
@@ -220,6 +227,10 @@ def build_config(args: argparse.Namespace) -> Any:
         reranker_local_files_only=_value(
             args.local_files_only,
             LOCAL_FILES_ONLY,
+        ),
+        force_rebuild_index=_value(
+            args.force_rebuild_index,
+            FORCE_REBUILD_INDEX,
         ),
         # The notebook guard protects interactive rendering. This script is the
         # intentionally unbounded batch surface.

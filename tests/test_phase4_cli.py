@@ -134,6 +134,36 @@ class _InterruptingPhase4Pipeline(_FastPhase4Pipeline):
 
 
 class Phase4TerminalQuestionCountTests(unittest.TestCase):
+    def test_indexing_summary_is_added_to_phase4_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = Phase4Config(
+                project_root=Path(directory),
+                phase4_trace_mode="compact",
+            )
+            pipeline = _FastPhase4Pipeline(config)
+            pipeline.indexing_summary = {
+                "new_files": 1,
+                "changed_files": 0,
+                "unchanged_files": 2,
+                "deleted_files": 0,
+            }
+            result = Phase4Runner(
+                pipeline=pipeline,
+                config=config,
+            ).run(questions=["Question?"], run_mode="smoke")
+
+            self.assertEqual(
+                result.summary["indexing_summary"],
+                pipeline.indexing_summary,
+            )
+            self.assertEqual(
+                result.metrics["indexing_summary"],
+                pipeline.indexing_summary,
+            )
+            report = result.paths.report_html.read_text(encoding="utf-8")
+            self.assertIn("Index new files", report)
+            self.assertIn("Index unchanged files", report)
+
     def test_cli_config_is_unbounded_without_large_run_flag(self) -> None:
         args = phase4_cli.build_parser().parse_args([])
         config = phase4_cli.build_config(args)
@@ -157,6 +187,17 @@ class Phase4TerminalQuestionCountTests(unittest.TestCase):
         self.assertEqual(config.generation_retries, 1)
         self.assertEqual(config.retry_cooldown_seconds, 0.0)
         self.assertEqual(config.max_answer_words, 450)
+
+    def test_force_rebuild_index_cli_and_user_default(self) -> None:
+        default_args = phase4_cli.build_parser().parse_args([])
+        self.assertEqual(
+            phase4_cli.build_config(default_args).force_rebuild_index,
+            phase4_cli.FORCE_REBUILD_INDEX,
+        )
+        forced_args = phase4_cli.build_parser().parse_args(
+            ["--force-rebuild-index"]
+        )
+        self.assertTrue(phase4_cli.build_config(forced_args).force_rebuild_index)
 
     def test_max_questions_is_the_only_manual_cli_slice(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
