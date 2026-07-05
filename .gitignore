@@ -37,4 +37,7 @@ Thumbs.db
 
 # IDE
 .vscode/
-data/bm25/ 
+data/bm25/
+*.pkl
+*.lock
+*.tmp
