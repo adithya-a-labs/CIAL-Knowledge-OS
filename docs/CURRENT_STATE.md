@@ -82,11 +82,21 @@ llama.cpp are still future work.
 ### Qdrant deployment modes
 
 `KnowledgeOSConfig` provides `qdrant_mode`, `qdrant_url`,
-`qdrant_api_key`, `qdrant_collection_name`, and `qdrant_dir`. Omitting
-`qdrant_mode` preserves the `embedded` default and the existing path-based
-client. `qdrant_mode="server"` uses the configured URL and performs a health
-probe before indexing or retrieval. An unreachable service reports local
-Docker start commands rather than a low-level connection error.
+`qdrant_api_key`, `qdrant_collection_name`, `qdrant_dir`,
+`qdrant_batch_size`, and `qdrant_upsert_wait`. Omitting `qdrant_mode`
+preserves the `embedded` default and the existing path-based client.
+`qdrant_mode="server"` uses the configured URL and performs a health probe
+before indexing or retrieval. An unreachable service reports local Docker
+start commands rather than a low-level connection error.
+
+Indexing constructs and submits bounded point batches rather than serializing
+the full corpus update in one JSON request. The resolved default is 256 points
+per embedded upsert and 32 points per server upsert. Server deployments should
+retain a small batch unless measured vector and payload sizes justify a larger
+value. `qdrant_upsert_wait=True` preserves synchronous completion semantics and
+can be disabled explicitly when the caller accepts asynchronous server
+processing. Every completed batch emits structured progress without changing
+point IDs, vectors, or payload metadata.
 
 Embedded mode remains appropriate for notebooks, demonstrations, and small
 collections. The local Docker server is recommended for large collections and

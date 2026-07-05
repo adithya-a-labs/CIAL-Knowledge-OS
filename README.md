@@ -142,15 +142,19 @@ config = Phase4Config(
 ```
 
 For `scripts/run_phase4_batch.py`, the same opt-in is available through the
-`QDRANT_MODE`, `QDRANT_URL`, and `QDRANT_API_KEY` values in its user
-configuration section.
+`QDRANT_MODE`, `QDRANT_URL`, `QDRANT_API_KEY`, `QDRANT_BATCH_SIZE`, and
+`QDRANT_UPSERT_WAIT` values in its user configuration section.
 
 The defaults are `qdrant_mode="embedded"`,
 `qdrant_url="http://localhost:6333"`, `qdrant_api_key=None`, and the existing
-per-collection `qdrant_dir`. Phase 4 continues to use collection
-`cial_phase4`. Server mode changes only the client connection; collection
-creation, incremental indexing, stable point IDs, vectors, and payload metadata
-retain the same behavior.
+per-collection `qdrant_dir`. Upserts default to batches of 256 points in
+embedded mode and 32 points in server mode, with `qdrant_upsert_wait=True`.
+Set `qdrant_batch_size` explicitly to tune either backend. Small server batches
+bound the memory used by Qdrant client's JSON serialization; increase them only
+after measuring point payload and vector sizes. Phase 4 continues to use
+collection `cial_phase4`. Server mode changes only the client connection and
+batch transport; collection creation, incremental indexing, stable point IDs,
+vectors, and payload metadata retain the same behavior.
 
 Stop and restart the local service with:
 

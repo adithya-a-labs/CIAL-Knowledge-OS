@@ -205,7 +205,10 @@ on-premises Docker service with
 `qdrant_mode="server"` and `qdrant_url="http://localhost:6333"`. This does not
 use Qdrant Cloud. Existing embedded points can be copied with
 `scripts/migrate_embedded_qdrant_to_server.py`; see the repository README for
-the complete command and overwrite safeguards.
+the complete command and overwrite safeguards. Server indexing defaults to
+`qdrant_batch_size=32` to bound Qdrant client's JSON serialization memory;
+`qdrant_upsert_wait=True` retains synchronous upsert behavior. Keep batches
+small for large vectors or metadata-rich points.
 
 `Phase4Runner` reuses `collect_batch_answers()`, the Phase 3 columns, and the
 same `RunManager`. It appends these machine-readable columns:
