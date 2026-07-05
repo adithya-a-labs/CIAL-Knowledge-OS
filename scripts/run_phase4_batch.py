@@ -21,7 +21,7 @@ if str(SOURCE_ROOT) not in sys.path:
 # =====================================================
 
 QUESTIONS_FILE = (
-    PROJECT_ROOT / "data" / "manual_qa" / "easa_qns.txt"
+    PROJECT_ROOT / "data" / "manual_qa" / "CIAL_Enterprise_Stress_Test_500_Questions.txt"
 )
 RUN_MODE = "manual_qa"
 MAX_ANSWER_WORDS = 800
@@ -31,12 +31,12 @@ RETRY_COOLDOWN_SECONDS = 20
 RERANKER_DEVICE = "auto"
 RERANKER_BATCH_SIZE = 16
 LOCAL_FILES_ONLY = False
-FORCE_REBUILD_INDEX = True
+FORCE_REBUILD_INDEX = False
 RESUME_RUN_FOLDER = None
 QDRANT_MODE = "server"
 QDRANT_URL = "http://localhost:6333"
 QDRANT_API_KEY = None
-QDRANT_BATCH_SIZE = None  # Resolves to 32 for server and 256 for embedded.
+QDRANT_BATCH_SIZE = 32  # Recommended server value; embedded defaults to 256.
 QDRANT_UPSERT_WAIT = True
 
 
