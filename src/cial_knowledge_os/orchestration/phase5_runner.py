@@ -52,7 +52,29 @@ class Phase5Runner:
             "model_map": json.dumps(response.get("model_map") or {}, ensure_ascii=False),
         }
 
-    def run(self, questions: Iterable[str]) -> dict[str, Path]:
+    def run(
+        self,
+        questions: Iterable[str],
+        *,
+        live: bool = False,
+        live_host: str = "127.0.0.1",
+        live_port: int = 8765,
+    ) -> dict[str, Path]:
+        if live:
+            from ..live.command_center import start_in_thread
+            from ..live.event_bus import EventBus
+
+            if getattr(self.pipeline, "event_bus", None) is None:
+                self.pipeline.event_bus = EventBus()
+            self.live_server, self.live_thread = start_in_thread(
+                event_bus=self.pipeline.event_bus,
+                host=live_host,
+                port=live_port,
+            )
+            print(
+                "Phase 5 Agentic Command Center: "
+                f"http://{live_host}:{live_port}"
+            )
         self.output_dir.mkdir(parents=True, exist_ok=True)
         question_list = list(questions)
         collection = collect_batch_answers(
@@ -93,3 +115,31 @@ class Phase5Runner:
             "xlsx": xlsx_path,
             "html": html_path,
         }
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Phase 5 runner utilities.")
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="Start the standalone local command center.",
+    )
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", default=8765, type=int)
+    args = parser.parse_args(argv)
+    if not args.live:
+        parser.error(
+            "This module requires --live. Use Phase5Runner programmatically "
+            "for batch execution."
+        )
+    from ..live.command_center import main as command_center_main
+
+    return command_center_main(
+        ["--host", args.host, "--port", str(args.port)]
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

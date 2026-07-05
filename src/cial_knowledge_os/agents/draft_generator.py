@@ -57,6 +57,9 @@ class DraftGenerator(StructuredAgent):
                     "fallback_used": bool(
                         getattr(response, "fallback_used", False)
                     ),
+                    "token_estimate": getattr(
+                        response, "token_estimate", None
+                    ),
                 },
                 latency_ms=round((perf_counter() - started) * 1000, 3),
             )

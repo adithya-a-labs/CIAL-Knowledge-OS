@@ -2,7 +2,14 @@
 
 from .consensus_engine import ConsensusEngine
 from .phase5_pipeline import Phase5Pipeline
-from .phase5_runner import Phase5Runner
 from .phase5_trace import Phase5Trace
 
 __all__ = ["ConsensusEngine", "Phase5Pipeline", "Phase5Runner", "Phase5Trace"]
+
+
+def __getattr__(name: str):
+    if name == "Phase5Runner":
+        from .phase5_runner import Phase5Runner
+
+        return Phase5Runner
+    raise AttributeError(name)

@@ -89,7 +89,7 @@ from .phase4_reporting import write_phase4_figures, write_phase4_html
 from .phase4_runner import Phase4Runner, Phase4RunResult
 from .phase4_trace import Phase4Trace, build_phase4_trace, phase4_diagnostics
 from .agents import Agent, AgentResult, AgentState, Evidence, ModelRouter
-from .orchestration import ConsensusEngine, Phase5Pipeline, Phase5Runner, Phase5Trace
+from .orchestration import ConsensusEngine, Phase5Pipeline, Phase5Trace
 from .reporting import render_phase5_html, write_phase5_html
 from .query_transformations import (
     QueryTransformer,
@@ -351,3 +351,11 @@ __all__ = [
     "render_phase5_html",
     "write_phase5_html",
 ]
+
+
+def __getattr__(name: str):
+    if name == "Phase5Runner":
+        from .orchestration.phase5_runner import Phase5Runner
+
+        return Phase5Runner
+    raise AttributeError(name)
