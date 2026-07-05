@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>CIAL Phase 5 Command Center</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <span class="eyebrow">CIAL Knowledge OS</span>
+      <h1>Phase 5 Agentic Command Center</h1>
+    </div>
+    <div class="header-status">
+      <span id="connection" class="status waiting">Connecting</span>
+      <span id="runStatus" class="status idle">Idle</span>
+      <strong id="elapsed">00:00</strong>
+      <button id="theme" type="button" aria-label="Toggle color theme">Light mode</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="run-strip panel">
+      <div><span>Run ID</span><strong id="runId">—</strong></div>
+      <div class="question"><span>Current question</span><strong id="question">Waiting for a run</strong></div>
+      <div><span>Stage</span><strong id="stage">Idle</strong></div>
+      <div><span>Agent</span><strong id="currentAgent">—</strong></div>
+      <div><span>Revision</span><strong id="revision">Not used</strong></div>
+      <div><span>Answer status</span><strong id="answerStatus">—</strong></div>
+      <div class="progress-wrap">
+        <span>Pipeline progress</span><strong id="progressLabel">0%</strong>
+        <div class="progress"><i id="progressBar"></i></div>
+      </div>
+    </section>
+
+    <section class="panel pipeline-panel">
+      <div class="section-head"><div><span class="eyebrow">Execution path</span><h2>Pipeline graph</h2></div></div>
+      <div id="pipeline" class="pipeline" aria-label="Phase 5 pipeline graph"></div>
+    </section>
+
+    <div class="layout">
+      <section class="panel span-2">
+        <div class="section-head"><div><span class="eyebrow">Orchestration</span><h2>Agent execution timeline</h2></div></div>
+        <div id="agents" class="agent-grid"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head"><div><span class="eyebrow">Grounding</span><h2>Evidence</h2></div></div>
+        <div id="evidenceMetrics" class="metric-grid"></div>
+        <div><h3>Modality mix</h3><div id="modalityMix" class="bar-list"></div></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head"><div><span class="eyebrow">Validation</span><h2>Answer quality</h2></div><strong id="readiness" class="readiness">Waiting</strong></div>
+        <div id="qualityMetrics" class="metric-grid"></div>
+      </section>
+
+      <section class="panel span-2">
+        <div class="section-head"><div><span class="eyebrow">Local device only</span><h2>Device telemetry</h2></div><span id="gpuStatus">GPU unavailable</span></div>
+        <div id="telemetry" class="telemetry-grid"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head"><div><span class="eyebrow">Streaming</span><h2>Live event log</h2></div><button id="clearLog" type="button">Clear</button></div>
+        <div id="log" class="log" role="log" aria-live="polite"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head"><div><span class="eyebrow">Grounded output</span><h2>Answer preview</h2></div></div>
+        <pre id="answer" class="answer">Draft and final answer updates will appear here.</pre>
+        <div id="citations" class="citations"></div>
+      </section>
+    </div>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
