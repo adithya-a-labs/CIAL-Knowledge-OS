@@ -222,6 +222,35 @@ class Phase3RAGPipeline(Phase2RAGPipeline):
                 or plan.corpus_changed
                 or not self.config.incremental_indexing_enabled
             )
+            self.execution_manager.emit(
+                "bm25_health_checked",
+                stage="indexing",
+                status="completed",
+                payload={
+                    "indexed": bool(
+                        getattr(self.bm25_retriever, "is_indexed", True)
+                    ),
+                    "rebuilt": self.indexing_summary["bm25_rebuilt"],
+                    "chunk_count": len(self.chunks),
+                },
+                source="phase3_pipeline.index",
+            )
+            self.execution_manager.complete_stage(
+                "indexing",
+                event_type="indexing_completed",
+                metrics={
+                    "indexing_latency_seconds": self.metrics.get(
+                        "indexing_time", 0.0
+                    ),
+                    "bm25_indexing_latency_seconds": self.metrics.get(
+                        "bm25_indexing_time", 0.0
+                    ),
+                },
+                points_upserted=int(
+                    self.indexing_summary.get("chunks_added", 0)
+                ),
+                **self.indexing_summary,
+            )
         logger.info(
             "phase3_index_ready",
             extra={
