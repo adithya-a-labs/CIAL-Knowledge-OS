@@ -58,6 +58,14 @@ change. Set `force_rebuild_index=True` (or `FORCE_REBUILD_INDEX = True` in the
 Phase 4 batch script) for a full rebuild. Setting
 `incremental_indexing_enabled=False` retains full processing behavior.
 
+Long-running Phase 4, Phase 5, indexing, and preflight execution can be observed
+through the local Execution & Observability Framework (EOF). It writes typed
+JSONL events, an atomic progress snapshot, and a human-readable progress log
+under `outputs/runs/<run_id>/`, with optional Rich console and local machine
+telemetry. EOF is passive: pipelines continue to own all retrieval, generation,
+checkpoint, and agent decisions. See
+[`docs/execution_observability.md`](docs/execution_observability.md).
+
 ## Target Production Stack
 
 ### Frontend
