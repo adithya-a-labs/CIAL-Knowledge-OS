@@ -38,9 +38,14 @@ def run_preflight(
     embedding_dimension: int | None = None,
     generation_enabled: bool = True,
     client_factory: Callable[[KnowledgeOSConfig], QdrantClient] = create_qdrant_client,
+    execution_manager: Any | None = None,
 ) -> dict[str, Any]:
     """Return a structured report; callers decide whether errors should block."""
 
+    if execution_manager is not None:
+        execution_manager.start_stage(
+            "preflight", event_type="preflight_started"
+        )
     warnings: list[str] = []
     errors: list[str] = []
     checks: dict[str, Any] = {}
@@ -109,6 +114,14 @@ def run_preflight(
             if client is not None:
                 client.close()
         checks["qdrant"] = qdrant
+        if execution_manager is not None:
+            execution_manager.emit(
+                "qdrant_health_checked",
+                stage="preflight",
+                status="completed" if qdrant.get("passed") else "warning",
+                payload=qdrant,
+                source="infra.preflight",
+            )
         warnings.extend(qdrant["warnings"])
         errors.extend(qdrant["errors"])
     else:
@@ -130,9 +143,18 @@ def run_preflight(
     else:
         checks["ollama"] = {"skipped": True, "reason": "Generation is disabled."}
 
-    return {
+    result = {
         "passed": not errors,
         "warnings": warnings,
         "errors": errors,
         "checks": checks,
     }
+    if execution_manager is not None:
+        execution_manager.complete_stage(
+            "preflight",
+            event_type="preflight_completed",
+            passed=result["passed"],
+            warnings=len(warnings),
+            errors=len(errors),
+        )
+    return result
