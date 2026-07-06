@@ -17,6 +17,7 @@ from .config import Phase4Config
 from .context_builder import INSUFFICIENT_EVIDENCE_RESPONSE, compress_context
 from .evidence_quality import EvidenceQualityScorer
 from .evidence_selector import EvidenceSelectionResult, EvidenceSelector
+from .execution import ExecutionManager
 from .llm import GenerationFailedError, LocalLLM
 from .phase3_pipeline import Phase3RAGPipeline
 from .phase4_trace import build_phase4_trace
@@ -116,6 +117,7 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
         reranker: Reranker | None = None,
         evidence_selector: EvidenceSelector | None = None,
         evidence_quality_scorer: EvidenceQualityScorer | None = None,
+        execution_manager: ExecutionManager | None = None,
     ) -> None:
         phase4_config = config or Phase4Config()
         self.reranker = reranker or CrossEncoderReranker(
@@ -142,6 +144,8 @@ class Phase4RAGPipeline(Phase3RAGPipeline):
             tokenizer=tokenizer,
             retrievers=retrievers,
         )
+        if execution_manager is not None:
+            self.execution_manager = execution_manager
         self._configure_phase4_components()
 
     def _build_phase4_prompt(
@@ -340,11 +344,23 @@ ANSWER
         )
         total_attempts = self.config.generation_retries + 1
         last_error: Exception | None = None
+        generation_started = time.perf_counter()
+        self.execution_manager.start_stage(
+            "generation",
+            event_type="generation_started",
+            model=self.config.ollama_model_name,
+        )
         for attempt in range(1, total_attempts + 1):
             try:
                 answer = str(self.llm.invoke(prompt)).strip()
                 self.metrics["generation_attempts"] = float(attempt)
                 self.metrics["generation_retry_count"] = float(attempt - 1)
+                self.execution_manager.complete_stage(
+                    "generation",
+                    event_type="generation_completed",
+                    metrics={"retry_count": attempt - 1},
+                    model=self.config.ollama_model_name,
+                )
                 return answer
             except Exception as exc:
                 last_error = exc
@@ -362,6 +378,16 @@ ANSWER
                 if not retryable or attempt >= total_attempts:
                     self.metrics["generation_attempts"] = float(attempt)
                     self.metrics["generation_retry_count"] = float(attempt - 1)
+                    self.execution_manager.emit(
+                        "generation_failed",
+                        stage="generation",
+                        status="failed",
+                        error=str(exc),
+                        elapsed_seconds=time.perf_counter() - generation_started,
+                        metrics={"retry_count": attempt - 1},
+                        payload={"model": self.config.ollama_model_name},
+                        source="phase4_pipeline",
+                    )
                     raise GenerationFailedError(
                         exc,
                         attempts=attempt,
@@ -386,6 +412,15 @@ ANSWER
                 if self.config.retry_cooldown_seconds:
                     time.sleep(self.config.retry_cooldown_seconds)
         assert last_error is not None
+        self.execution_manager.emit(
+            "generation_failed",
+            stage="generation",
+            status="failed",
+            error=str(last_error),
+            elapsed_seconds=time.perf_counter() - generation_started,
+            metrics={"retry_count": total_attempts - 1},
+            source="phase4_pipeline",
+        )
         raise GenerationFailedError(last_error, attempts=total_attempts)
 
     @staticmethod
@@ -584,7 +619,20 @@ ANSWER
         """
 
         self._configure_phase4_components()
+        self.execution_manager.start_stage(
+            "retrieval", event_type="retrieval_started"
+        )
         phase3_candidates = super().retrieve(question)
+        self.execution_manager.complete_stage(
+            "retrieval",
+            event_type="retrieval_completed",
+            metrics={
+                "retrieval_latency_seconds": self.metrics.get(
+                    "retrieval_latency", 0.0
+                )
+            },
+            candidate_count=len(phase3_candidates),
+        )
         self.last_candidate_pool = [
             dict(item)
             for item in phase3_candidates[: self.config.reranker_candidate_top_k]
@@ -592,6 +640,9 @@ ANSWER
 
         # RRF is rank-based by design. Applying the cross-encoder here avoids
         # pretending cosine, BM25, and RRF values can be directly averaged.
+        self.execution_manager.start_stage(
+            "reranking", event_type="reranking_started"
+        )
         rerank_result = (
             self.reranker.rerank(question, self.last_candidate_pool)
             if self.config.reranker_enabled
@@ -601,7 +652,19 @@ ANSWER
         self.last_reranked_candidates = [
             dict(item) for item in rerank_result.candidates
         ]
+        self.execution_manager.complete_stage(
+            "reranking",
+            event_type="reranking_completed",
+            metrics={
+                "reranking_latency_seconds": rerank_result.latency_seconds
+            },
+            candidate_count=len(self.last_reranked_candidates),
+        )
 
+        self.execution_manager.start_stage(
+            "evidence_selection",
+            event_type="evidence_selection_started",
+        )
         selection = self.evidence_selector.select(
             self.last_reranked_candidates
         )
@@ -609,6 +672,15 @@ ANSWER
         self.metrics["evidence_selection_latency"] = selection.latency_seconds
         self.last_selected_chunks = [dict(item) for item in selection.selected]
         self.last_discarded_chunks = [dict(item) for item in selection.discarded]
+        self.execution_manager.complete_stage(
+            "evidence_selection",
+            event_type="evidence_selection_completed",
+            metrics={
+                "evidence_selection_latency_seconds": selection.latency_seconds
+            },
+            selected_count=len(self.last_selected_chunks),
+            discarded_count=len(self.last_discarded_chunks),
+        )
 
         # Phase 2/3 context construction stays unchanged; replacing this
         # internal hand-off is what preserves their public response contract.
