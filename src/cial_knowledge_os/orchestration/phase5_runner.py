@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from ..batch_qa import collect_batch_answers
+from ..execution import ExecutionManager
 from ..reporting.phase5_html import write_phase5_html
 
 PHASE5_COLUMNS = [
@@ -19,9 +20,23 @@ PHASE5_COLUMNS = [
 
 
 class Phase5Runner:
-    def __init__(self, pipeline: Any, output_dir: str | Path) -> None:
+    def __init__(
+        self,
+        pipeline: Any,
+        output_dir: str | Path,
+        execution_manager: ExecutionManager | None = None,
+    ) -> None:
         self.pipeline = pipeline
         self.output_dir = Path(output_dir)
+        self.execution_manager = (
+            execution_manager
+            or ExecutionManager.from_config(
+                pipeline.config,
+                phase="Phase 5",
+                run_mode="batch_qa",
+            )
+        )
+        self.pipeline.execution_manager = self.execution_manager
 
     @staticmethod
     def _row(response: Mapping[str, Any], question: str) -> dict[str, Any]:
@@ -77,9 +92,11 @@ class Phase5Runner:
             )
         self.output_dir.mkdir(parents=True, exist_ok=True)
         question_list = list(questions)
+        self.execution_manager.start_run(total_questions=len(question_list))
         collection = collect_batch_answers(
             pipeline=self.pipeline,
             questions=question_list,
+            execution_manager=self.execution_manager,
         )
         rows = [dict(item) for item in collection.rows]
         responses = [
@@ -91,6 +108,13 @@ class Phase5Runner:
             for question, response in zip(question_list, collection.responses)
         ]
         csv_path = self.output_dir / "results.csv"
+        self.execution_manager.emit(
+            "export_started",
+            stage="export",
+            status="running",
+            payload={"output_dir": str(self.output_dir)},
+            source="phase5_runner",
+        )
         fields = list(collection.columns)
         with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fields)
@@ -109,6 +133,20 @@ class Phase5Runner:
             xlsx_path = Path("")
         html_path = self.output_dir / "report.html"
         write_phase5_html(html_path, responses)
+        self.execution_manager.emit(
+            "export_completed",
+            stage="export",
+            status="completed",
+            payload={"output_dir": str(self.output_dir)},
+            source="phase5_runner",
+        )
+        self.execution_manager.emit(
+            "batch_completed",
+            status="completed",
+            payload={"question_count": len(question_list)},
+            source="phase5_runner",
+        )
+        self.execution_manager.complete_run(output_dir=str(self.output_dir))
         return {
             "csv": csv_path,
             "json": json_path,
