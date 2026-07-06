@@ -333,6 +333,17 @@ class Phase3Runner:
         )
         responses = [response for _, response in row_response_pairs]
         artifact_started_at = perf_counter()
+        execution_manager = getattr(
+            self.pipeline, "execution_manager", None
+        )
+        if execution_manager is not None:
+            execution_manager.emit(
+                "export_started",
+                stage="export",
+                status="running",
+                payload={"artifact_root": str(paths.root)},
+                source="phase3_runner",
+            )
         write_results_csv(paths.results_csv, rows, result_columns)
         write_results_xlsx(paths.results_xlsx, rows, result_columns)
         write_latency_svg(
@@ -421,6 +432,15 @@ class Phase3Runner:
             summary=summary,
             metrics=metrics,
         )
+        if execution_manager is not None:
+            execution_manager.emit(
+                "export_completed",
+                stage="export",
+                status="completed",
+                elapsed_seconds=perf_counter() - artifact_started_at,
+                payload={"artifact_root": str(paths.root)},
+                source="phase3_runner",
+            )
         logger.info(
             "phase3_run_complete",
             extra={
