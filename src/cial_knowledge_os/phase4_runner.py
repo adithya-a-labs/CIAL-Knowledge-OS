@@ -16,6 +16,7 @@ from typing import Any
 from .benchmark_loader import Benchmark
 from .batch_qa import _resolve_questions
 from .config import Phase4Config
+from .execution import ExecutionManager
 from .phase3_runner import Phase3Runner
 from .phase4_checkpoint import Phase4CheckpointManager
 from .phase4_reporting import write_phase4_figures, write_phase4_html
@@ -57,6 +58,7 @@ class Phase4Runner(Phase3Runner):
         pipeline: Any,
         config: Phase4Config | None = None,
         run_manager: RunManager | None = None,
+        execution_manager: ExecutionManager | None = None,
     ) -> None:
         phase4_config = config or pipeline.config
         if not isinstance(phase4_config, Phase4Config):
@@ -67,6 +69,15 @@ class Phase4Runner(Phase3Runner):
             run_manager=run_manager,
         )
         self.config = phase4_config
+        self.execution_manager = (
+            execution_manager
+            or ExecutionManager.from_config(
+                phase4_config,
+                phase="Phase 4",
+                run_mode=phase4_config.phase4_run_mode,
+            )
+        )
+        self.pipeline.execution_manager = self.execution_manager
 
     def _apply_mode_limits(
         self,
@@ -252,6 +263,7 @@ class Phase4Runner(Phase3Runner):
         if limited_questions is None:
             raise ValueError("Phase 4 requires questions or a benchmark.")
         all_questions = list(limited_questions)
+        self.execution_manager.run_mode = effective_mode
         if resume_run is not None:
             self.run_manager = RunManager.from_existing(
                 self.config,
@@ -269,6 +281,10 @@ class Phase4Runner(Phase3Runner):
         print(f"Skipped due to resume: {len(initial_rows)}")
         print(f"Remaining question count: {len(pending)}")
         print(f"Checkpoint path: {checkpoint.checkpoint_json}")
+        self.execution_manager.start_run(
+            total_questions=len(pending),
+            resumed=resume_run is not None,
+        )
 
         def checkpoint_question(
             position: int,
@@ -276,22 +292,30 @@ class Phase4Runner(Phase3Runner):
             response: Mapping[str, Any] | None,
         ) -> None:
             checkpoint.record(pending[position - 1], row, response)
+            self.execution_manager.write_checkpoint_event(
+                checkpoint.checkpoint_json,
+                question_index=position,
+            )
 
         metadata = dict(run_metadata or {})
         metadata.setdefault("run_mode", effective_mode)
         indexing_summary = getattr(self.pipeline, "indexing_summary", None)
         if isinstance(indexing_summary, Mapping) and indexing_summary:
             metadata.setdefault("indexing_summary", dict(indexing_summary))
-        phase3_result = super().run(
-            questions=[identity.question for identity in pending],
-            questions_path=None,
-            benchmark=benchmark,
-            top_k=top_k,
-            run_metadata=metadata,
-            initial_rows=initial_rows,
-            initial_responses=initial_responses,
-            on_question_complete=checkpoint_question,
-        )
+        try:
+            phase3_result = super().run(
+                questions=[identity.question for identity in pending],
+                questions_path=None,
+                benchmark=benchmark,
+                top_k=top_k,
+                run_metadata=metadata,
+                initial_rows=initial_rows,
+                initial_responses=initial_responses,
+                on_question_complete=checkpoint_question,
+            )
+        except Exception as exc:
+            self.execution_manager.fail_run(exc)
+            raise
         started = perf_counter()
         rows = self._read_rows(phase3_result.paths.results_csv)
         traces_value = json.loads(
@@ -348,6 +372,18 @@ class Phase4Runner(Phase3Runner):
                 "context": phase3_result.paths.context,
                 "figures": phase3_result.paths.figures,
             }
+        )
+        self.execution_manager.emit(
+            "batch_completed",
+            status="completed",
+            payload={
+                "artifact_root": str(phase3_result.paths.root),
+                "question_count": len(rows),
+            },
+            source="phase4_runner",
+        )
+        self.execution_manager.complete_run(
+            artifact_root=str(phase3_result.paths.root),
         )
         return Phase4RunResult(
             paths=phase3_result.paths,
