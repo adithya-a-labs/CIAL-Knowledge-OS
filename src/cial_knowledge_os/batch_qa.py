@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Callable, Protocol
 
 from .llm import GenerationFailedError
+from .execution import ExecutionManager
 from .token_budget import (
     DEFAULT_TIKTOKEN_ENCODING,
     TokenManager,
@@ -665,6 +666,7 @@ def collect_batch_answers(
     questions_path: str | Path | None = None,
     top_k: int | None = None,
     on_question_complete: QuestionCompleteCallback | None = None,
+    execution_manager: ExecutionManager | None = None,
 ) -> BatchAnswerCollection:
     """Collect rows and optionally checkpoint each completed question.
 
@@ -726,10 +728,16 @@ def collect_batch_answers(
     ]
     rows: list[dict[str, Any]] = []
     responses: list[Mapping[str, Any] | None] = []
+    manager = (
+        execution_manager
+        or getattr(pipeline, "execution_manager", None)
+        or ExecutionManager.disabled()
+    )
 
     try:
         setattr(config, retrieval_depth_attribute, requested_top_k)
         for position, question in enumerate(resolved_questions, start=1):
+            manager.start_question(position, len(resolved_questions), question)
             row = _blank_row(
                 question=question,
                 top_k=requested_top_k,
@@ -824,6 +832,21 @@ def collect_batch_answers(
                 )
                 rows.append(row)
                 responses.append(response)
+                answer_status = str(
+                    row.get("answer_status")
+                    or ("answered" if row.get("status") == "success" else "failed")
+                ).casefold().replace(" ", "_")
+                if row.get("status") == "success":
+                    manager.complete_question(
+                        answer_status=answer_status,
+                        total_latency_seconds=row["total_latency_seconds"],
+                    )
+                else:
+                    manager.fail_question(
+                        str(row.get("error") or "Question failed."),
+                        answer_status=answer_status,
+                        total_latency_seconds=row["total_latency_seconds"],
+                    )
                 if on_question_complete is not None:
                     on_question_complete(position, row, response)
     finally:
