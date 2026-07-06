@@ -47,4 +47,3 @@ class EventBus:
                 self.handler_warnings.append(message)
                 warnings.warn(message, RuntimeWarning, stacklevel=2)
         return event
-

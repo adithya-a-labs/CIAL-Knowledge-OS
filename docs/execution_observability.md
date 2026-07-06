@@ -122,4 +122,3 @@ A future Jarvis-style command center should consume the same `EventBus`,
 JSONL trace, or `progress.json`. It must remain a subscriber. It should not add
 new instrumentation inside retrieval or generation and must never become the
 component that decides pipeline work.
-

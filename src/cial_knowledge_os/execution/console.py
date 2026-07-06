@@ -11,4 +11,3 @@ __all__ = [
     "RichConsoleRenderer",
     "create_console_renderer",
 ]
-

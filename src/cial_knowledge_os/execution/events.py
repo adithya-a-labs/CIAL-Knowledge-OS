@@ -92,4 +92,3 @@ class ExecutionEvent:
         fields = cls.__dataclass_fields__
         kwargs = {key: value[key] for key in fields if key in value}
         return cls(**kwargs)
-

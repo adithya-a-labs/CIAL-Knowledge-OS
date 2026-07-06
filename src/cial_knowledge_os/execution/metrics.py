@@ -72,4 +72,3 @@ class MetricsCollector:
                 self.consensus_decisions
             ),
         }
-

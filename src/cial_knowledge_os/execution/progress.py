@@ -139,4 +139,3 @@ class ProgressTracker:
             "errors": self.error_count,
             "telemetry": dict(self.telemetry),
         }
-

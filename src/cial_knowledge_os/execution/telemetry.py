@@ -82,4 +82,3 @@ class TelemetryCollector:
         else:
             telemetry["gpu_available"] = False
         return telemetry
-
