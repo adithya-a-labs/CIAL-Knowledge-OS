@@ -64,6 +64,17 @@ class KnowledgeOSConfig:
     # Synthetic fixtures are opt-in so normal ingestion cannot contaminate a
     # real corpus when data/sample is absent.
     create_sample_documents: bool = False
+    # EOF is local-only and additive. Callers can disable all observers while
+    # retaining the same pipeline execution path.
+    observability_enabled: bool = True
+    observability_console: bool = True
+    observability_rich: str | bool = "auto"
+    observability_trace_jsonl: bool = True
+    observability_progress_log: bool = True
+    observability_telemetry: bool = True
+    observability_telemetry_interval_seconds: float = 5.0
+    observability_console_refresh_seconds: float = 1.0
+    observability_output_dir: Path | None = None
 
     def __post_init__(self) -> None:
         self.project_root = Path(self.project_root).expanduser().resolve()
@@ -94,6 +105,10 @@ class KnowledgeOSConfig:
             self.document_manifest_path,
             self.data_dir / "indexes" / "document_manifest.json",
         )
+        self.observability_output_dir = self._resolve(
+            self.observability_output_dir,
+            self.project_root / "outputs" / "runs",
+        )
         self.qdrant_batch_size = resolve_qdrant_batch_size(
             self.qdrant_mode,
             self.qdrant_batch_size,
@@ -122,6 +137,16 @@ class KnowledgeOSConfig:
             raise ValueError("top_k must be greater than zero.")
         if self.max_context_chars <= 0:
             raise ValueError("max_context_chars must be greater than zero.")
+        if self.observability_telemetry_interval_seconds <= 0:
+            raise ValueError(
+                "observability_telemetry_interval_seconds must be greater than zero."
+            )
+        if self.observability_console_refresh_seconds <= 0:
+            raise ValueError(
+                "observability_console_refresh_seconds must be greater than zero."
+            )
+        if self.observability_rich not in {True, False, "auto"}:
+            raise ValueError("observability_rich must be true, false, or 'auto'.")
 
     def _resolve(self, value: Path | None, default: Path) -> Path:
         path = Path(value).expanduser() if value is not None else default
