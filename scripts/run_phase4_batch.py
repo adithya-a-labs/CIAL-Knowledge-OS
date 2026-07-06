@@ -310,8 +310,15 @@ def execute(
     _print("Initializing pipeline")
     from cial_knowledge_os.phase4_pipeline import Phase4RAGPipeline
     from cial_knowledge_os.phase4_runner import Phase4Runner
+    from cial_knowledge_os.execution import ExecutionManager
 
+    execution_manager = ExecutionManager.from_config(
+        config,
+        phase="Phase 4",
+        run_mode=config.phase4_run_mode,
+    )
     pipeline = Phase4RAGPipeline(config)
+    pipeline.execution_manager = execution_manager
     try:
         pipeline.load()
         pipeline.chunk()
@@ -320,7 +327,11 @@ def execute(
         _print("Indexing complete")
 
         _print("Starting QA")
-        result = Phase4Runner(pipeline=pipeline, config=config).run(
+        result = Phase4Runner(
+            pipeline=pipeline,
+            config=config,
+            execution_manager=execution_manager,
+        ).run(
             questions=questions,
             benchmark=benchmark,
             run_mode=config.phase4_run_mode,
