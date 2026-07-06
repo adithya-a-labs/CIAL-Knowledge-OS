@@ -20,10 +20,14 @@ from cial_knowledge_os.phase3_pipeline import Phase3RAGPipeline
 
 
 class _EmbeddingModel:
+    def __init__(self) -> None:
+        self.encoded_texts: list[str] = []
+
     def get_sentence_embedding_dimension(self) -> int:
         return 3
 
     def encode(self, texts: list[str], **_: object) -> np.ndarray:
+        self.encoded_texts.extend(texts)
         return np.asarray(
             [
                 [
@@ -140,9 +144,16 @@ class IncrementalPipelineTests(unittest.TestCase):
         )
 
     def _run_index(self, config: Phase3Config) -> Phase3RAGPipeline:
+        return self._run_index_with_model(config, _EmbeddingModel())
+
+    def _run_index_with_model(
+        self,
+        config: Phase3Config,
+        embedding_model: _EmbeddingModel,
+    ) -> Phase3RAGPipeline:
         pipeline = Phase3RAGPipeline(
             config,
-            embedding_model=_EmbeddingModel(),  # type: ignore[arg-type]
+            embedding_model=embedding_model,  # type: ignore[arg-type]
         )
         with patch(
             "cial_knowledge_os.rag_pipeline.load_pdf_paths",
@@ -159,6 +170,68 @@ class IncrementalPipelineTests(unittest.TestCase):
             pipeline.embed()
             pipeline.index()
         return pipeline
+
+    def test_non_force_second_run_indexes_only_a_new_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self._config(root, force_rebuild_index=False)
+            first_source = config.knowledge_root / "first.pdf"
+            first_source.parent.mkdir(parents=True)
+            first_source.write_text("unchanged first document", encoding="utf-8")
+
+            first_model = _EmbeddingModel()
+            first = self._run_index_with_model(config, first_model)
+            self.assertEqual(first.indexing_summary["new_files"], 1)
+            self.assertTrue(first_model.encoded_texts)
+            first.close()
+
+            second_source = config.knowledge_root / "second.pdf"
+            second_source.write_text("new second document", encoding="utf-8")
+
+            second_model = _EmbeddingModel()
+            second = self._run_index_with_model(config, second_model)
+
+            self.assertEqual(second.indexing_summary["new_files"], 1)
+            self.assertEqual(second.indexing_summary["unchanged_files"], 1)
+            self.assertEqual(second.indexing_summary["changed_files"], 0)
+            self.assertEqual(second.indexing_summary["deleted_files"], 0)
+            self.assertTrue(second_model.encoded_texts)
+            self.assertTrue(
+                all(
+                    "new second document" in text
+                    for text in second_model.encoded_texts
+                )
+            )
+            self.assertTrue(
+                all(
+                    "unchanged first document" not in text
+                    for text in second_model.encoded_texts
+                )
+            )
+
+            indexed_paths = {
+                str(chunk.metadata.get("relative_path"))
+                for chunk in second.chunks
+            }
+            self.assertEqual(indexed_paths, {"first.pdf", "second.pdf"})
+            self.assertEqual(
+                {
+                    str(item["metadata"].get("relative_path"))
+                    for item in second.bm25_retriever._chunks  # type: ignore[union-attr]
+                },
+                indexed_paths,
+            )
+            manifest = json.loads(
+                config.document_manifest_path.read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                {
+                    item["relative_path"]
+                    for item in manifest["documents"]
+                },
+                indexed_paths,
+            )
+            second.close()
 
     def test_new_unchanged_changed_and_deleted_files_update_both_indexes(
         self,
