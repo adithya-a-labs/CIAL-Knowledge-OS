@@ -24,6 +24,7 @@ from .incremental_index import (
     write_manifest,
 )
 from .infra.qdrant_health import parse_collection_health
+from .execution import ExecutionManager
 from .llm import LocalLLM, create_local_llm, generate_answer
 from .loaders import (
     create_sample_airport_documents,
@@ -65,6 +66,7 @@ class BasicRAGPipeline:
         self.metrics: dict[str, float] = {}
         self.indexing_plan: IndexingPlan | None = None
         self.indexing_summary: dict[str, Any] = {}
+        self.execution_manager = ExecutionManager.disabled()
 
     @property
     def is_ready_for_answering(self) -> bool:
@@ -217,6 +219,16 @@ class BasicRAGPipeline:
                 "qdrant_batch_size": self.config.qdrant_batch_size,
             },
         )
+        manager = self.execution_manager
+        manager.start_stage(
+            "indexing",
+            event_type="indexing_started",
+            documents_discovered=total_documents,
+            chunks_created=total_chunks,
+            qdrant_mode=self.config.qdrant_mode,
+            collection_name=self.config.qdrant_collection_name,
+            batch_size=self.config.qdrant_batch_size,
+        )
         with Timer(self.metrics, "indexing_time"):
             self.client = create_qdrant_client(self.config)
             try:
@@ -276,6 +288,17 @@ class BasicRAGPipeline:
                         self.config.qdrant_collection_name
                     ),
                     embedding_dimension=embedding_dimension,
+                )
+                manager.emit(
+                    "qdrant_health_checked",
+                    stage="indexing",
+                    status=(
+                        "completed"
+                        if not collection_health["warnings"]
+                        else "warning"
+                    ),
+                    payload=collection_health,
+                    source="rag_pipeline.index",
                 )
                 for warning in collection_health["warnings"]:
                     logger.warning(
@@ -345,6 +368,7 @@ class BasicRAGPipeline:
                     self.chunks,
                     self.embeddings,
                     self.config,
+                    execution_manager=self.execution_manager,
                 )
                 changed = bool(
                     self.chunks or removed or self.config.force_rebuild_index
@@ -368,10 +392,34 @@ class BasicRAGPipeline:
                     )
                 if self.config.incremental_indexing_enabled:
                     self.chunks = load_indexed_chunks(self.client, self.config)
-            except Exception:
+            except Exception as exc:
+                manager.emit(
+                    "indexing_failed",
+                    stage="indexing",
+                    status="failed",
+                    error=str(exc),
+                    source="rag_pipeline.index",
+                )
                 self.client.close()
                 self.client = None
                 raise
+        if getattr(self.config, "retrieval_mode", "dense") not in {
+            "bm25",
+            "hybrid",
+        }:
+            manager.complete_stage(
+                "indexing",
+                event_type="indexing_completed",
+                metrics={
+                    "indexing_latency_seconds": self.metrics.get(
+                        "indexing_time", 0.0
+                    )
+                },
+                points_upserted=int(
+                    self.indexing_summary.get("chunks_added", 0)
+                ),
+                **self.indexing_summary,
+            )
         logger.info(
             "incremental_indexing_complete",
             extra={"event": "indexing", **self.indexing_summary},
