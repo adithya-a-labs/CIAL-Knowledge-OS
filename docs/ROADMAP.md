@@ -468,6 +468,13 @@ stable document identity, reconstructs the complete chunk set for BM25, and
 emits indexing diagnostics. Event-driven ingestion and resumable background
 indexing jobs remain deferred.
 
+Cross-phase execution observability is now implemented as a reusable local
+event layer. Current runners expose structured progress, timing, status,
+telemetry, traces, and checkpoint/export events without changing pipeline
+decisions. A richer live command center remains a presentation-layer extension:
+it should consume EOF events and snapshots rather than introduce another
+instrumentation path.
+
 ## Deferred Ideas and Future Research
 
 These topics are intentionally deferred. They require separate evidence,
