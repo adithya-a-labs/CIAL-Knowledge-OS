@@ -551,3 +551,18 @@ text-only Phase 4 evidence without migration, and can preserve optional visual,
 table, diagram, screenshot, scanned-region, caption, and OCR fields. Its HTML
 report adds computed decision-readiness diagnostics without changing previous
 reports or notebooks.
+
+## Cross-phase execution observability
+
+The Execution & Observability Framework is implemented under
+`src/cial_knowledge_os/execution/`. Phase 4 batch execution emits run, question,
+retrieval, reranking, evidence-selection, generation, checkpoint, and export
+events. Shared indexing emits start/progress/completion events, preflight emits
+health events, and Phase 5 mirrors its existing agent and consensus lifecycle
+into EOF.
+
+EOF writes `execution_trace.jsonl`, `progress.json`, and `progress.log` under
+`outputs/runs/<run_id>/`. Rich, psutil, and nvidia-smi are optional and degrade
+to plain or omitted output. The framework has no cloud dependency and no
+authority over pipeline control flow. Existing artifacts and checkpoint/resume
+behavior remain the source of truth for work products.
