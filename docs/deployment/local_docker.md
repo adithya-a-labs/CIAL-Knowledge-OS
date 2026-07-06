@@ -27,6 +27,12 @@ docker compose -f docker-compose.qdrant.yml down
 The service stores data in the named volume `cial_qdrant_storage`. Compose
 `down` preserves it.
 
+EOF runs in the Python process and does not require another container or
+network service. Run traces and progress snapshots remain on the project host
+under `outputs/runs/<run_id>/`. If the Python runner is later containerized,
+mount that directory to persistent local storage; no telemetry endpoint or
+external dashboard should be configured.
+
 ## Backup and restore the named volume
 
 Stop Qdrant before taking a filesystem-level backup:
