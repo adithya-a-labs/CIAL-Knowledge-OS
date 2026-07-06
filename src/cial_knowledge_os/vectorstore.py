@@ -210,6 +210,8 @@ def index_chunks(
     chunks: list[Document],
     embeddings: np.ndarray,
     config: KnowledgeOSConfig,
+    *,
+    execution_manager: Any | None = None,
 ) -> None:
     """Idempotently upsert chunk text, vectors, and metadata into local Qdrant."""
 
@@ -293,6 +295,27 @@ def index_chunks(
                 ),
             },
         )
+        if execution_manager is not None:
+            execution_manager.emit(
+                "indexing_progress",
+                stage="qdrant_upsert",
+                status="running",
+                elapsed_seconds=elapsed,
+                metrics={
+                    "qdrant_upsert_latency_seconds": elapsed,
+                },
+                payload={
+                    "collection_name": config.qdrant_collection_name,
+                    "qdrant_mode": config.qdrant_mode,
+                    "batch_index": batch_index,
+                    "total_batches": total_batches,
+                    "batch_size": batch_size,
+                    "points_upserted": end,
+                    "total_points": total_points,
+                    "eta_seconds": estimated_remaining_seconds,
+                },
+                source="vectorstore.index_chunks",
+            )
         points = []
 
 
