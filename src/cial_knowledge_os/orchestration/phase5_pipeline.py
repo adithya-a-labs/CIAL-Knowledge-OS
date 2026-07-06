@@ -21,6 +21,7 @@ from ..agents import (
     ResponsePlanner,
     RiskAgent,
 )
+from ..execution import ExecutionManager
 from .consensus_engine import ConsensusEngine
 from .phase5_trace import Phase5Trace
 
@@ -40,6 +41,7 @@ class Phase5Pipeline:
         model_router: Any | None = None,
         agents: Mapping[str, Agent] | None = None,
         event_bus: Any | None = None,
+        execution_manager: ExecutionManager | None = None,
     ) -> None:
         self.phase4_pipeline = phase4_pipeline
         raw_config = dict(config or {})
@@ -49,6 +51,9 @@ class Phase5Pipeline:
         self.enabled = bool(self.phase5_config.get("enabled", False))
         self.model_router = model_router
         self.event_bus = event_bus
+        self.execution_manager = (
+            execution_manager or ExecutionManager.disabled()
+        )
         defaults: dict[str, Agent] = {}
         if model_router is not None:
             defaults.update(
@@ -84,6 +89,24 @@ class Phase5Pipeline:
         model: str = "",
         data: Mapping[str, Any] | None = None,
     ) -> None:
+        eof_payload = dict(data or {})
+        if agent:
+            eof_payload["agent"] = agent
+        if model:
+            eof_payload["model"] = model
+        latency_ms = eof_payload.get("latency_ms")
+        self.execution_manager.emit(
+            event_type,
+            stage=stage,
+            status=status,
+            elapsed_seconds=(
+                float(latency_ms) / 1000
+                if latency_ms is not None
+                else None
+            ),
+            payload=eof_payload,
+            source="phase5_pipeline",
+        )
         if self.event_bus is None:
             return
         from ..live.schemas import LiveEvent
