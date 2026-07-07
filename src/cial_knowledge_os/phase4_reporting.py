@@ -379,6 +379,121 @@ def _cards(values: Sequence[tuple[str, Any]]) -> str:
     )
 
 
+def _readiness_section(readiness: Mapping[str, Any]) -> str:
+    if not readiness:
+        return (
+            "<section><h2>Enterprise File Format Readiness</h2>"
+            '<p class="muted">No file-format readiness scan was attached to this run.</p>'
+            "</section>"
+        )
+    extension_values = [
+        (str(item.get("extension") or ""), float(item.get("count") or 0))
+        for item in readiness.get("extensions") or []
+        if isinstance(item, Mapping)
+    ][:12]
+    status_values = [
+        (str(label), float(value or 0))
+        for label, value in (readiness.get("support_status_distribution") or {}).items()
+    ]
+    category_values = [
+        (str(label), float(value or 0))
+        for label, value in (readiness.get("category_distribution") or {}).items()
+    ]
+    extension_rows = [
+        {
+            **dict(item),
+            "sample_filenames": ", ".join(
+                str(value) for value in item.get("sample_filenames", [])
+            ),
+        }
+        for item in readiness.get("extensions") or []
+        if isinstance(item, Mapping)
+    ]
+    skipped = [
+        dict(item)
+        for item in readiness.get("skipped_files") or []
+        if isinstance(item, Mapping)
+    ][:20]
+    warnings_html = (
+        _table(
+            skipped,
+            (
+                ("path", "File"),
+                ("support_status", "Status"),
+                ("category", "Category"),
+                ("action", "Action"),
+                ("reason", "Reason"),
+            ),
+        )
+        if skipped
+        else '<p class="muted">No future-support or unsupported files were detected.</p>'
+    )
+    charts = (
+        '<div class="grid">'
+        + _bar_svg(extension_values, title="Top file extensions")
+        + _bar_svg(status_values, title="Support status distribution", color="#0f766e")
+        + _bar_svg(category_values, title="Category coverage", color="#7c3aed")
+        + "</div>"
+    )
+    return f"""<section><h2>Enterprise File Format Readiness</h2>
+<div class="metrics">{_cards([
+("Total files scanned", readiness.get("total_files", 0)),
+("Processable files", readiness.get("processable_files", 0)),
+("OCR-supported files", readiness.get("ocr_files", 0)),
+("Recognized future-support files", readiness.get("recognized_future_files", 0)),
+("Unsupported files", readiness.get("unsupported_files", 0)),
+])}</div>
+{charts}
+<h3>Extension Readiness</h3>{_table(
+    extension_rows,
+    (
+        ("extension", "Extension"),
+        ("count", "Count"),
+        ("category", "Category"),
+        ("format_label", "Format"),
+        ("support_status", "Support status"),
+        ("ingestion_enabled", "Ingestion enabled"),
+        ("requires_ocr", "Requires OCR"),
+        ("sample_filenames", "Samples"),
+    ),
+)}
+<h3>Skipped and Warning Files</h3>{warnings_html}</section>"""
+
+
+def _ocr_section(ocr_summary: Mapping[str, Any]) -> str:
+    if not ocr_summary:
+        return (
+            "<section><h2>OCR Processing Summary</h2>"
+            '<p class="muted">No OCR processing metrics were attached to this run.</p>'
+            "</section>"
+        )
+    failures = [
+        dict(item)
+        for item in ocr_summary.get("failures") or []
+        if isinstance(item, Mapping)
+    ]
+    return f"""<section><h2>OCR Processing Summary</h2>
+<div class="metrics">{_cards([
+("OCR files processed", ocr_summary.get("total_ocr_files_processed", 0)),
+("OCR successes", ocr_summary.get("ocr_success_count", 0)),
+("OCR failures", ocr_summary.get("ocr_failure_count", 0)),
+("OCR success rate", str(round(float(ocr_summary.get("ocr_success_rate") or 0.0) * 100, 2)) + "%"),
+("Average OCR time", str(ocr_summary.get("average_ocr_processing_time_ms", 0.0)) + " ms"),
+("Extracted characters", ocr_summary.get("total_extracted_characters", 0)),
+("Extracted words", ocr_summary.get("total_extracted_words", 0)),
+("OCR engine", ocr_summary.get("ocr_engine_used", "tesseract")),
+])}</div>
+{_table(
+    failures,
+    (
+        ("filename", "File"),
+        ("failure_reason", "Failure reason"),
+        ("action", "Action taken"),
+    ),
+) if failures else '<p class="muted">No OCR failures were recorded.</p>'}
+</section>"""
+
+
 def _table(
     rows: Sequence[Mapping[str, Any]],
     columns: Sequence[tuple[str, str]],
@@ -1027,6 +1142,14 @@ def write_phase4_html(
         "benchmark-qualified Phase 3 versus Phase 4 quality comparison is "
         "attached to this run; full qualification remains pending."
     )
+    readiness_value = summary.get("file_format_readiness") or metrics.get(
+        "file_format_readiness"
+    )
+    readiness = readiness_value if isinstance(readiness_value, Mapping) else {}
+    ocr_value = summary.get("ocr_summary") or metrics.get("ocr_summary")
+    ocr_summary = ocr_value if isinstance(ocr_value, Mapping) else {}
+    readiness_html = _readiness_section(readiness)
+    ocr_html = _ocr_section(ocr_summary)
     document = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Phase 4 Reranking and Evidence Selection</title>
@@ -1128,6 +1251,8 @@ a{{color:var(--link)}}details{{border:1px solid var(--border);border-radius:9px;
 ("Blocked fallbacks", metrics.get("fallback_blocked_count", 0)),
 *indexing_cards,
 ])}</div><h3>Decision diagnostics</h3><ul>{''.join(diagnostics) or '<li>No diagnostics available.</li>'}</ul></section>
+{readiness_html}
+{ocr_html}
 <section><h2>Answers</h2><p>Full generated answers are rendered below without preview truncation. Evidence selection reduces irrelevant context, not answer depth.</p>{''.join(answer_sections)}</section>
 <section><h2>Citations</h2><p>Structured, clickable citation evidence is included with each answer card above.</p></section>
 <section><h2>Reranking Trace</h2>{''.join(reranking_sections)}</section>

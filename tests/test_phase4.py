@@ -852,6 +852,9 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
                 paths.metrics_json,
                 paths.retrieval_json,
                 paths.logs,
+                paths.root / "file_format_summary.csv",
+                paths.root / "file_extension_distribution.csv",
+                paths.root / "skipped_files.csv",
             )
             self.assertTrue(all(path.is_file() for path in required))
             self.assertEqual(len(list(paths.context.glob("*.md"))), 1)
@@ -875,6 +878,9 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
             for column in PHASE4_CSV_COLUMNS:
                 self.assertIn(column, header)
             workbook = load_workbook(paths.results_xlsx)
+            self.assertIn("file_format_summary", workbook.sheetnames)
+            self.assertIn("file_extension_distribution", workbook.sheetnames)
+            self.assertIn("skipped_files", workbook.sheetnames)
             workbook_header = [
                 cell.value
                 for cell in next(workbook.active.iter_rows(min_row=1, max_row=1))
@@ -893,6 +899,8 @@ class Phase4PipelineAndArtifactTests(unittest.TestCase):
                 "Token Reduction",
                 "Latency Breakdown",
                 "Evidence Quality",
+                "Enterprise File Format Readiness",
+                "OCR Processing Summary",
                 "Source Diversity",
                 "Selected vs Discarded Chunks",
                 "Discard Reason Breakdown",

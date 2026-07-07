@@ -17,6 +17,7 @@ from .benchmark_loader import Benchmark
 from .batch_qa import _resolve_questions
 from .config import Phase4Config
 from .execution import ExecutionManager
+from .file_formats import scan_file_format_readiness
 from .phase3_runner import Phase3Runner
 from .phase4_checkpoint import Phase4CheckpointManager
 from .phase4_reporting import write_phase4_figures, write_phase4_html
@@ -214,6 +215,136 @@ class Phase4Runner(Phase3Runner):
             },
         }
 
+    @staticmethod
+    def _write_dict_csv(
+        path: Path,
+        rows: Sequence[Mapping[str, Any]],
+        columns: Sequence[str],
+    ) -> None:
+        with path.open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(columns))
+            writer.writeheader()
+            writer.writerows(rows)
+
+    @staticmethod
+    def _file_format_summary_rows(readiness: Mapping[str, Any]) -> list[dict[str, Any]]:
+        keys = (
+            "total_files",
+            "processable_files",
+            "ocr_files",
+            "recognized_future_files",
+            "unsupported_files",
+        )
+        return [{"metric": key, "value": readiness.get(key, 0)} for key in keys]
+
+    @staticmethod
+    def _extension_rows(readiness: Mapping[str, Any]) -> list[dict[str, Any]]:
+        rows = []
+        for item in readiness.get("extensions") or []:
+            if not isinstance(item, Mapping):
+                continue
+            rows.append(
+                {
+                    "extension": item.get("extension", ""),
+                    "count": item.get("count", 0),
+                    "category": item.get("category", ""),
+                    "format_label": item.get("format_label", ""),
+                    "support_status": item.get("support_status", ""),
+                    "ingestion_enabled": item.get("ingestion_enabled", False),
+                    "requires_ocr": item.get("requires_ocr", False),
+                }
+            )
+        return rows
+
+    @staticmethod
+    def _skipped_rows(readiness: Mapping[str, Any]) -> list[dict[str, Any]]:
+        rows = []
+        for item in readiness.get("skipped_files") or []:
+            if not isinstance(item, Mapping):
+                continue
+            rows.append(
+                {
+                    "filename": item.get("filename", ""),
+                    "path": item.get("path", ""),
+                    "extension": item.get("extension", ""),
+                    "category": item.get("category", ""),
+                    "support_status": item.get("support_status", ""),
+                    "reason": item.get("reason", ""),
+                    "action": item.get("action", ""),
+                }
+            )
+        return rows
+
+    def _write_file_format_exports(
+        self,
+        run_root: Path,
+        workbook_path: Path,
+        readiness: Mapping[str, Any],
+    ) -> None:
+        summary_rows = self._file_format_summary_rows(readiness)
+        extension_rows = self._extension_rows(readiness)
+        skipped_rows = self._skipped_rows(readiness)
+        self._write_dict_csv(
+            run_root / "file_format_summary.csv",
+            summary_rows,
+            ("metric", "value"),
+        )
+        self._write_dict_csv(
+            run_root / "file_extension_distribution.csv",
+            extension_rows,
+            (
+                "extension",
+                "count",
+                "category",
+                "format_label",
+                "support_status",
+                "ingestion_enabled",
+                "requires_ocr",
+            ),
+        )
+        self._write_dict_csv(
+            run_root / "skipped_files.csv",
+            skipped_rows,
+            (
+                "filename",
+                "path",
+                "extension",
+                "category",
+                "support_status",
+                "reason",
+                "action",
+            ),
+        )
+        try:
+            from openpyxl import load_workbook
+            from openpyxl.styles import Font, PatternFill
+        except ImportError:
+            return
+        workbook = load_workbook(workbook_path)
+        sheet_specs = (
+            ("file_format_summary", summary_rows),
+            ("file_extension_distribution", extension_rows),
+            ("skipped_files", skipped_rows),
+        )
+        for sheet_name, rows in sheet_specs:
+            if sheet_name in workbook.sheetnames:
+                del workbook[sheet_name]
+            sheet = workbook.create_sheet(sheet_name)
+            columns = list(rows[0].keys()) if rows else ["message"]
+            header_fill = PatternFill("solid", fgColor="1F4E78")
+            for column_index, name in enumerate(columns, start=1):
+                cell = sheet.cell(row=1, column=column_index, value=name)
+                cell.font = Font(color="FFFFFF", bold=True)
+                cell.fill = header_fill
+            if rows:
+                for row_index, row in enumerate(rows, start=2):
+                    for column_index, name in enumerate(columns, start=1):
+                        sheet.cell(row=row_index, column=column_index, value=row.get(name, ""))
+            else:
+                sheet.cell(row=2, column=1, value="No records.")
+            sheet.freeze_panes = "A2"
+        workbook.save(workbook_path)
+
     def run(
         self,
         *,
@@ -326,6 +457,22 @@ class Phase4Runner(Phase3Runner):
             for trace in traces_value
             if isinstance(trace, Mapping)
         ]
+        file_format_readiness = scan_file_format_readiness(
+            self.config.knowledge_root
+        )
+        ocr_summary = getattr(self.pipeline, "ocr_summary", None)
+        if not isinstance(ocr_summary, Mapping):
+            ocr_summary = {
+                "total_ocr_files_processed": 0,
+                "ocr_success_count": 0,
+                "ocr_failure_count": 0,
+                "ocr_success_rate": 0.0,
+                "average_ocr_processing_time_ms": 0.0,
+                "total_extracted_characters": 0,
+                "total_extracted_words": 0,
+                "ocr_engine_used": self.config.ocr_engine,
+                "failures": [],
+            }
         additions = self._phase4_metrics(rows, traces)
         summary = dict(phase3_result.summary) | {
             "phase": "Phase 4",
@@ -334,11 +481,20 @@ class Phase4Runner(Phase3Runner):
             "average_token_reduction_percent": additions[
                 "average_token_reduction_percent"
             ],
+            "file_format_readiness": file_format_readiness,
+            "ocr_summary": dict(ocr_summary),
         }
         metrics = dict(phase3_result.metrics) | additions | {
             "phase": "Phase 4",
             "run_mode": effective_mode,
+            "file_format_readiness": file_format_readiness,
+            "ocr_summary": dict(ocr_summary),
         }
+        self._write_file_format_exports(
+            phase3_result.paths.root,
+            phase3_result.paths.results_xlsx,
+            file_format_readiness,
+        )
         write_phase4_figures(phase3_result.paths.figures, traces)
         elapsed = perf_counter() - started
         for trace in traces:
