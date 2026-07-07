@@ -127,10 +127,10 @@ class CorpusArchitectureTests(unittest.TestCase):
                     self.assertEqual(corpus_root, config.knowledge_root)
                     self.assertEqual(paths, [])
 
-    def test_recognized_but_unimplemented_types_are_skipped_safely(self) -> None:
+    def test_recognized_future_types_are_skipped_safely(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             config = KnowledgeOSConfig(project_root=Path(directory))
-            future_document = config.knowledge_root / "legal" / "policy.docx"
+            future_document = config.knowledge_root / "legal" / "policy.msg"
             future_document.parent.mkdir(parents=True)
             future_document.write_bytes(b"not loaded yet")
 
@@ -144,7 +144,7 @@ class CorpusArchitectureTests(unittest.TestCase):
             self.assertEqual(paths, [])
             self.assertTrue(
                 any(
-                    "document_type_not_implemented" in message
+                    "document_type_not_ingested" in message
                     for message in captured.output
                 )
             )

@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
-from .loaders import IMPLEMENTED_KNOWLEDGE_EXTENSIONS
+from .file_formats import is_supported_file
 
 MANIFEST_VERSION = 1
 
@@ -107,7 +107,7 @@ def scan_corpus(root: Path) -> dict[str, DocumentManifestEntry]:
     entries = (
         _fingerprint(path, root)
         for path in sorted(root.rglob("*"))
-        if path.is_file() and path.suffix.lower() in IMPLEMENTED_KNOWLEDGE_EXTENSIONS
+        if path.is_file() and is_supported_file(path.name)
     )
     return {entry.relative_path: entry for entry in entries}
 

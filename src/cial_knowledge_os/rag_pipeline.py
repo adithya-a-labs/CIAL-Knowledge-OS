@@ -31,6 +31,7 @@ from .loaders import (
     load_pdf_documents,
     load_pdf_paths,
     load_text_documents,
+    scan_configured_file_format_readiness,
 )
 from .retrieval import format_retrieved_context, search_similar_chunks
 from .vectorstore import (
@@ -66,6 +67,8 @@ class BasicRAGPipeline:
         self.metrics: dict[str, float] = {}
         self.indexing_plan: IndexingPlan | None = None
         self.indexing_summary: dict[str, Any] = {}
+        self.file_format_readiness: dict[str, Any] = {}
+        self.ocr_summary: dict[str, Any] = {}
         self.execution_manager = ExecutionManager.disabled()
 
     @property
@@ -78,6 +81,9 @@ class BasicRAGPipeline:
         if getattr(self.config, "create_sample_documents", False):
             create_sample_airport_documents(self.config)
         started_at = time.perf_counter()
+        self.file_format_readiness = scan_configured_file_format_readiness(
+            self.config
+        )
         text_documents = load_text_documents(self.config)
         pdf_started_at = time.perf_counter()
         manifest_without_vectorstore = (
@@ -100,19 +106,67 @@ class BasicRAGPipeline:
             self.config.incremental_indexing_enabled
             and not self.indexing_plan.force_rebuild
         ):
-            pdf_documents = load_pdf_paths(
-                entry_paths(
-                    self.indexing_plan,
-                    self.indexing_plan.files_to_process,
-                ),
-                corpus_root=self.indexing_plan.corpus_root,
+            paths_to_process = entry_paths(
+                self.indexing_plan,
+                self.indexing_plan.files_to_process,
             )
+            try:
+                pdf_documents = load_pdf_paths(
+                    paths_to_process,
+                    corpus_root=self.indexing_plan.corpus_root,
+                    config=self.config,
+                )
+            except TypeError as exc:
+                if "unexpected keyword argument 'config'" not in str(exc):
+                    raise
+                pdf_documents = load_pdf_paths(
+                    paths_to_process,
+                    corpus_root=self.indexing_plan.corpus_root,
+                )
         else:
             pdf_documents = load_pdf_documents(self.config)
         pdf_elapsed = time.perf_counter() - pdf_started_at
         if pdf_documents:
             self.metrics["pdf_loading_time"] = pdf_elapsed
         self.documents = [*text_documents, *pdf_documents]
+        ocr_documents = [
+            document
+            for document in self.documents
+            if document.metadata.get("requires_ocr")
+        ]
+        scanned_ocr_files = int(self.file_format_readiness.get("ocr_files") or 0)
+        ocr_success_count = sum(
+            document.metadata.get("ocr_status") == "OCR_SUCCESS"
+            for document in ocr_documents
+        )
+        ocr_failure_count = max(0, scanned_ocr_files - int(ocr_success_count))
+        ocr_times = [
+            float(document.metadata.get("extraction_time_ms") or 0.0)
+            for document in ocr_documents
+        ]
+        self.ocr_summary = {
+            "total_ocr_files_processed": len(ocr_documents),
+            "ocr_success_count": int(ocr_success_count),
+            "ocr_failure_count": ocr_failure_count,
+            "ocr_success_rate": (
+                round(int(ocr_success_count) / scanned_ocr_files, 6)
+                if scanned_ocr_files
+                else 0.0
+            ),
+            "average_ocr_processing_time_ms": (
+                round(sum(ocr_times) / len(ocr_times), 6) if ocr_times else 0.0
+            ),
+            "total_extracted_characters": sum(
+                int(document.metadata.get("extracted_character_count") or 0)
+                for document in ocr_documents
+            ),
+            "total_extracted_words": sum(
+                int(document.metadata.get("extracted_word_count") or 0)
+                for document in ocr_documents
+            ),
+            "ocr_engine_used": self.config.ocr_engine,
+            "failures": [],
+        }
         entries = {
             entry.relative_path: entry
             for entry in self.indexing_plan.files_to_process
@@ -136,6 +190,8 @@ class BasicRAGPipeline:
             "vector_index_updated": False,
             "embedding_time_saved_estimate": 0.0,
             "manifest_path": str(self.config.document_manifest_path),
+            "file_format_readiness": self.file_format_readiness,
+            "ocr_summary": self.ocr_summary,
         }
         self.metrics["document_loading_time"] = time.perf_counter() - started_at
         if not self.documents and not (

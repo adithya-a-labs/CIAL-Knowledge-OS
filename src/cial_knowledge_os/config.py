@@ -61,6 +61,10 @@ class KnowledgeOSConfig:
     reset_vectorstore: bool = False
     incremental_indexing_enabled: bool = True
     force_rebuild_index: bool = False
+    ocr_enabled: bool = True
+    ocr_engine: str = "tesseract"
+    ocr_preprocessing: bool = True
+    ocr_language: str = "eng"
     # Synthetic fixtures are opt-in so normal ingestion cannot contaminate a
     # real corpus when data/sample is absent.
     create_sample_documents: bool = False
@@ -137,6 +141,14 @@ class KnowledgeOSConfig:
             raise ValueError("top_k must be greater than zero.")
         if self.max_context_chars <= 0:
             raise ValueError("max_context_chars must be greater than zero.")
+        if not self.ocr_engine.strip():
+            raise ValueError("ocr_engine must not be blank.")
+        self.ocr_engine = self.ocr_engine.strip().casefold()
+        if self.ocr_engine not in {"tesseract"}:
+            raise ValueError("ocr_engine must be 'tesseract'.")
+        if not self.ocr_language.strip():
+            raise ValueError("ocr_language must not be blank.")
+        self.ocr_language = self.ocr_language.strip()
         if self.observability_telemetry_interval_seconds <= 0:
             raise ValueError(
                 "observability_telemetry_interval_seconds must be greater than zero."
