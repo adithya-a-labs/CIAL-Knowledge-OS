@@ -185,12 +185,35 @@ def _render_inline_markdown(value: str) -> str:
             r"<strong>\1</strong>",
             escaped,
         )
+        escaped = re.sub(
+            r"(?<!\*)\*([^*\n]+)\*(?!\*)",
+            r"<em>\1</em>",
+            escaped,
+        )
         rendered.append(escaped)
     return "".join(rendered)
 
 
+def _markdown_table_cells(value: str) -> list[str]:
+    """Split one pipe-table row without allowing raw HTML through."""
+
+    stripped = value.strip()
+    if stripped.startswith("|"):
+        stripped = stripped[1:]
+    if stripped.endswith("|"):
+        stripped = stripped[:-1]
+    return [cell.strip() for cell in stripped.split("|")]
+
+
+def _is_markdown_table_separator(value: str) -> bool:
+    cells = _markdown_table_cells(value)
+    return bool(cells) and all(
+        re.fullmatch(r":?-{3,}:?", cell) is not None for cell in cells
+    )
+
+
 def _render_answer_markdown(value: str) -> str:
-    """Safely render headings, lists, paragraphs, emphasis, and code offline."""
+    """Safely render common enterprise Markdown without external dependencies."""
 
     output: list[str] = []
     paragraph: list[str] = []
@@ -223,7 +246,10 @@ def _render_answer_markdown(value: str) -> str:
             list_kind = None
             list_items.clear()
 
-    for raw_line in str(value).splitlines():
+    lines = str(value).splitlines()
+    line_index = 0
+    while line_index < len(lines):
+        raw_line = lines[line_index]
         stripped = raw_line.strip()
         if stripped.startswith("```"):
             flush_paragraph()
@@ -237,13 +263,53 @@ def _render_answer_markdown(value: str) -> str:
                     + "</code></pre>"
                 )
                 fenced_code = None
+            line_index += 1
             continue
         if fenced_code is not None:
             fenced_code.append(raw_line)
+            line_index += 1
             continue
         if not stripped:
             flush_paragraph()
             flush_list()
+            line_index += 1
+            continue
+        if (
+            "|" in stripped
+            and line_index + 1 < len(lines)
+            and _is_markdown_table_separator(lines[line_index + 1])
+        ):
+            flush_paragraph()
+            flush_list()
+            headers = _markdown_table_cells(stripped)
+            rows: list[list[str]] = []
+            line_index += 2
+            while line_index < len(lines):
+                candidate = lines[line_index].strip()
+                if not candidate or "|" not in candidate:
+                    break
+                rows.append(_markdown_table_cells(candidate))
+                line_index += 1
+            width = len(headers)
+            output.append(
+                '<div class="markdown-table-wrap"><table class="markdown-table">'
+                "<thead><tr>"
+                + "".join(
+                    f"<th>{_render_inline_markdown(cell)}</th>"
+                    for cell in headers
+                )
+                + "</tr></thead><tbody>"
+                + "".join(
+                    "<tr>"
+                    + "".join(
+                        f"<td>{_render_inline_markdown(cell)}</td>"
+                        for cell in [*row[:width], *([""] * max(0, width - len(row)))]
+                    )
+                    + "</tr>"
+                    for row in rows
+                )
+                + "</tbody></table></div>"
+            )
             continue
 
         heading = re.match(r"^(#{1,6})\s+(.+)$", stripped)
@@ -271,6 +337,7 @@ def _render_answer_markdown(value: str) -> str:
         else:
             flush_list()
             paragraph.append(stripped)
+        line_index += 1
 
     if fenced_code is not None:
         output.append(

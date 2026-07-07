@@ -264,7 +264,12 @@ def render_citation_coverage_map(record: Mapping[str, Any]) -> str:
     rows = []
     for name, text in sections:
         claims = max(1, len([x for x in re.split(r"[.!?]+", text) if len(x.split()) >= 4]))
-        citations = len(re.findall(r"\[\d+\]", text))
+        citations = len(
+            re.findall(
+                r"(?i)\[(?:\d+|source\s*\d+|[^\]]*(?:page|chunk)[^\]]*)\]",
+                text,
+            )
+        )
         ratio = citations / claims
         label = "citation-dense" if ratio >= 0.8 else "weakly cited" if ratio > 0 else "uncited major claims"
         rows.append((name, ratio, label))
