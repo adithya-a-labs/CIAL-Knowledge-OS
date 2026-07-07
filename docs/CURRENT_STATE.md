@@ -29,7 +29,8 @@ The platform is designed around these principles:
 
 ```text
 Enterprise documents in configured data/files/ taxonomy
-  -> recursive PDF discovery and local PDF/text loading
+  -> Enterprise File Format Registry validation and readiness scan
+  -> recursive supported-document loading plus OCR-supported image extraction
   -> metadata-preserving chunking
   -> local embeddings
   -> embedded local Qdrant (default) or local Docker Qdrant server (opt-in)
@@ -56,8 +57,17 @@ enterprise source repository. Files may be nested to any depth; the first folder
 is recorded as `category` and the second, when present, as `collection`.
 Recommended top-level categories include `aviation`, `cybersecurity`,
 `engineering`, `hr`, and `legal`, with standards bodies, systems, or document
-sets as second-level collections. PDF loading is implemented today. Recognized
-future extensions (`.txt`, `.md`, `.docx`, and `.html`) are logged and skipped.
+sets as second-level collections. Discovery is governed by the Enterprise File
+Format Registry, which classifies files as `SUPPORTED_NOW`, `OCR_SUPPORTED`,
+`RECOGNIZED_FUTURE_SUPPORT`, or `UNSUPPORTED`. Only `SUPPORTED_NOW` and
+`OCR_SUPPORTED` files enter extraction, chunking, embedding, and indexing.
+Recognized future and unsupported files are logged, skipped, and reported.
+
+Currently processed formats include PDF, DOCX, DOC, XLSX, XLS, CSV, PPTX, PPT,
+TXT, Markdown, HTML, JSON, XML, and YAML. PNG, JPG/JPEG, and TIFF are processed
+through the modular OCR subsystem before chunking. Recognized future categories
+include email, archives, source code, configuration and DevOps files,
+audio/video, and CAD/engineering formats.
 
 Runtime ingestion does not search the former `data/pdf/` corpus. Missing or
 empty canonical repositories produce an empty corpus rather than a fallback.
@@ -66,12 +76,13 @@ copies legacy PDFs to `data/files/legacy_pdf/` by default and supports
 `--dry-run` and explicit `--move` modes.
 
 Indexing scans the canonical root on startup and compares SHA-256 fingerprints
-with `data/indexes/document_manifest.json`. Only new and changed PDFs are
-loaded, chunked, and embedded. Changed and deleted document points are removed
-from Qdrant before upsert. The complete stored chunk corpus is then reused for
-neighbor operations and BM25, which is rebuilt safely when corpus membership
-changes. Indexing summaries are logged and added to Phase 4 summary/metrics
-artifacts. `incremental_indexing_enabled=False` preserves full processing;
+with `data/indexes/document_manifest.json`. Only new and changed processable
+registry files are loaded, chunked, and embedded. Changed and deleted document
+points are removed from Qdrant before upsert. The complete stored chunk corpus
+is then reused for neighbor operations and BM25, which is rebuilt safely when
+corpus membership changes. Indexing, file-format readiness, and OCR summaries
+are logged and added to Phase 4 summary/metrics/HTML/CSV/XLSX artifacts.
+`incremental_indexing_enabled=False` preserves full processing;
 `force_rebuild_index=True` recreates the configured collection. The manifest is
 collection-bound, so switching collection names safely causes a full scan.
 
@@ -417,7 +428,6 @@ The current implementation has:
 - no full-corpus Phase 3 or Phase 4 benchmark qualification;
 - no calibrated semantic relevance/entailment evaluator;
 - no retrieval-time authorization enforcement;
-- no OCR path for image-only PDFs beyond the configured local loaders;
 - no visual document understanding;
 - no multimodal retrieval;
 - no contradiction detection;

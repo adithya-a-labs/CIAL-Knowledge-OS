@@ -380,10 +380,19 @@ candidates or candidates with empty text. Exact discard reasons are
 
 The Phase 4 HTML report remains standalone and offline. It adds Executive
 Summary, Answers, Citations, Reranking Trace, Evidence Selection, Token
-Reduction, Latency Breakdown, Evidence Quality, Source Diversity, Selected
-versus Discarded, Discard Reasons, comparison-status, and collapsible
-context/debug sections. Its charts are inline SVG; no CDN or external
-JavaScript is required.
+Reduction, Latency Breakdown, Evidence Quality, Enterprise File Format
+Readiness, OCR Processing Summary, Source Diversity, Selected versus
+Discarded, Discard Reasons, comparison-status, and collapsible context/debug
+sections. Its charts are inline SVG; no CDN or external JavaScript is required.
+
+Phase 4 run bundles also include file-format readiness exports:
+`file_format_summary.csv`, `file_extension_distribution.csv`, and
+`skipped_files.csv`. The XLSX workbook keeps the existing active results sheet
+and adds matching `file_format_summary`, `file_extension_distribution`, and
+`skipped_files` sheets. These outputs are generated from the central Enterprise
+File Format Registry, where only `SUPPORTED_NOW` and `OCR_SUPPORTED` files are
+processable; `RECOGNIZED_FUTURE_SUPPORT` and `UNSUPPORTED` files are reported
+but not ingested.
 
 The report includes an accessible Light/Dark/System theme control in its
 header. System mode is the default and follows `prefers-color-scheme`; an

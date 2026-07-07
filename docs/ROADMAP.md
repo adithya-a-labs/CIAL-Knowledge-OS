@@ -63,7 +63,7 @@ interface remain planned or deferred.
 | Phase 1 | Basic Offline RAG | ✅ Completed |
 | Phase 2 | Query Transformations and Context Construction | ✅ Completed |
 | Phase 3 | Hybrid Retrieval | 🧪 Implemented / Qualification Pending |
-| Phase 4 | Reranking and Evidence Selection | 🧪 Implemented / Qualification Pending |
+| Phase 4 | Reranking, Evidence Selection, File Readiness Settings | 🧪 Implemented / Qualification Pending |
 | Phase 4.1 | Local Infrastructure Hardening | Implemented |
 | Phase 4.5 | Multimodal Understanding and Contradiction Research | Deferred |
 | Phase 5 | Adaptive Agentic Response Planning | 🧪 Implemented / Qualification Pending |
@@ -427,7 +427,9 @@ controls remain planned or deferred.
 ```text
 Enterprise Documents in the configured recursive `data/files/` repository
         ↓
-Ingestion
+Enterprise File Format Registry validation
+        ↓
+Extraction and OCR where required
         ↓
 Chunking
         ↓
@@ -461,6 +463,15 @@ The implemented source stage now uses
 documents recursively. Category/collection folders form the initial enterprise
 taxonomy. The previous flat PDF directory is only a migration source and is not
 searched by runtime ingestion.
+
+The ingestion front door now uses the Enterprise File Format Registry to
+distinguish `SUPPORTED_NOW`, `OCR_SUPPORTED`, `RECOGNIZED_FUTURE_SUPPORT`, and
+`UNSUPPORTED` files. Only currently processable and OCR-supported files reach
+extraction, chunking, embedding, and indexing. Recognized future formats are
+logged and reported but intentionally skipped until parser support is added.
+Phase 4 reports and exports include file-format readiness, skipped-file
+warnings, and OCR processing summaries; future upload/settings UI should consume
+the same registry payload.
 
 Manifest-driven incremental indexing is implemented in the shared pipeline.
 It fingerprints the recursive canonical corpus, selectively updates Qdrant by
