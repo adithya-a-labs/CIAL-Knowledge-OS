@@ -349,6 +349,22 @@ evidence gaps. Set it to `False` to restore the previous fixed Phase 4 template
 for reproducibility. Phase 5 now provides the separate full response planner;
 no benchmark quality improvement is claimed from the Phase 4 prompt refinement.
 
+Phase 4 also exposes Enterprise File Format Readiness. A central registry
+classifies files as `SUPPORTED_NOW`, `OCR_SUPPORTED`,
+`RECOGNIZED_FUTURE_SUPPORT`, or `UNSUPPORTED`. Currently processed formats are
+PDF, DOCX, DOC, XLSX, XLS, CSV, PPTX, PPT, TXT, Markdown, HTML, JSON, XML, and
+YAML. PNG, JPG/JPEG, and TIFF are processed through the modular OCR subsystem
+before normal chunking, embedding, and indexing. Email, archives, source code,
+configuration/DevOps files, multimedia, and CAD/engineering formats are
+recognized for future support, logged, skipped, and reported rather than
+silently ingested.
+
+Each Phase 4 run writes `file_format_summary.csv`,
+`file_extension_distribution.csv`, `skipped_files.csv`, matching XLSX sheets,
+and HTML report sections for file readiness and OCR processing. The same
+registry payload is shaped for future upload indicators, settings pages, admin
+dashboards, and enterprise capability matrices.
+
 For day-to-day Phase 4 runs, edit the clearly marked `USER CONFIGURATION`
 section near the top of `scripts/run_phase4_batch.py`, especially
 `QUESTIONS_FILE`, and then click **Run Python File** in VS Code. The same

@@ -72,14 +72,59 @@ Retrieval should apply metadata filters wherever possible.
 - Organize enterprise files by category and optional collection, for example
   `cybersecurity/nist/`, `aviation/icao/`, `engineering/electrical/`, `hr/`,
   and `legal/`.
-- Implement PDF ingestion first. Recognize `.pdf`, `.txt`, `.md`, `.docx`, and
-  `.html` for extension filtering, and log-and-skip types without a loader.
+- Route discovery, ingestion validation, dataset scanning, reporting, and future
+  frontend settings through one Enterprise File Format Registry. Do not duplicate
+  hardcoded format lists in notebooks, runners, loaders, or reports.
 - Preserve legacy Phase 1--4 source metadata and export contracts while adding
   taxonomy and path metadata.
 - Do not search `data/pdf/` during runtime ingestion. A missing or empty
   canonical root must remain empty rather than silently switching corpora.
 - Provide a safe migration utility that copies to `data/files/legacy_pdf/` by
   default, supports `--dry-run`, and moves only with explicit `--move`.
+
+### Enterprise File Format Registry
+
+- Maintain one backend registry with these support statuses:
+  `SUPPORTED_NOW`, `OCR_SUPPORTED`, `RECOGNIZED_FUTURE_SUPPORT`, and
+  `UNSUPPORTED`.
+- Process only `SUPPORTED_NOW` and `OCR_SUPPORTED` files. Recognized future
+  formats must be logged, skipped, reported, and never extracted, chunked,
+  embedded, or indexed until a parser is implemented.
+- Currently processed document formats are PDF, DOCX, DOC, XLSX, XLS, CSV, PPTX,
+  PPT, TXT, Markdown, HTML, JSON, XML, and YAML.
+- PNG, JPG/JPEG, and TIFF are `OCR_SUPPORTED`; image text must pass through OCR
+  before entering the existing chunking, embedding, and indexing pipeline.
+- Recognized future categories are email and communication files, archives,
+  source code, configuration and DevOps files, audio/video, and CAD/engineering
+  formats.
+- The registry must expose category name, category description, format label,
+  extensions, support status, ingestion enablement, OCR requirement, user-facing
+  message, and backend notes for reports and future upload/settings UI.
+- Dataset readiness scans must report totals, extension distribution, category
+  coverage, support status distribution, future-support examples, unsupported
+  examples, skipped files, and sample filenames by extension.
+- Phase 4 CSV, XLSX, HTML, metrics, and notebook diagnostics must include
+  Enterprise File Format Readiness without breaking existing batch-answer
+  outputs.
+
+### OCR Subsystem
+
+- OCR is a first-class ingestion component for supported image formats, not a
+  generic text loader. Images must be validated, preprocessed, OCR-extracted,
+  cleaned, then sent into the same chunking, embedding, and indexing pipeline as
+  other extracted text.
+- The ingestion pipeline must depend on an abstract OCR engine interface. The
+  default backend is Tesseract through `pytesseract` and Pillow, configured by
+  `ocr_enabled`, `ocr_engine`, `ocr_preprocessing`, and `ocr_language`.
+- OCR preprocessing should include EXIF orientation correction, grayscale
+  conversion, contrast enhancement, small-image resizing where useful, and
+  denoising.
+- OCR metadata must include engine, engine version, preprocessing steps,
+  extraction time, extracted character and word counts, image dimensions, source
+  format, and OCR status.
+- OCR failures must log and skip the failed image without crashing the remaining
+  ingestion run. Reports must summarize OCR success, failure, success rate,
+  processing time, extracted text volume, and engine used.
 
 ## 6. Security and Data Privacy
 
@@ -308,6 +353,8 @@ This principle must remain true throughout the lifetime of the project.
 - Record candidate, selected, and final-context tokens; reduction percentage;
   discarded chunks/reasons; evidence quality; latency; citations; answer; and
   artifact paths.
+- Additive Phase 4 settings/reporting must surface enterprise file-format
+  readiness and OCR processing summaries from the registry and OCR subsystem.
 - Provide deterministic mock reranking and dependency injection so automated
   tests do not require real model weights or Ollama.
 - Write compatible run bundles below
