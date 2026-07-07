@@ -31,7 +31,12 @@
   }
   function render(s) {
     state = s;
-    $("runId").textContent = safe(s.run_id); $("question").textContent = safe(s.question);
+    const t = s.telemetry || {}, batch = t.batch || {}, qdrant = t.qdrant || {};
+    $("runId").textContent = safe(s.run_id); $("question").textContent = safe(batch.current_question || s.question);
+    $("batchQuestion").textContent = `${batch.question_index || 0} / ${batch.question_total || 0}`;
+    $("statusCounts").textContent = Object.entries(batch.answer_status_counts || {}).map(([name, count]) => `${name}=${count}`).join(", ") || "—";
+    $("modelRouting").textContent = safe(t.model_routing_summary);
+    $("qdrantHealth").textContent = qdrant.collection_status ? `${qdrant.collection_status} · ${qdrant.point_count || 0} points` : "Waiting";
     $("stage").textContent = safe(s.current_stage); $("currentAgent").textContent = names[s.current_agent] || safe(s.current_agent);
     $("answerStatus").textContent = safe(s.answer_status); $("elapsed").textContent = duration(s.elapsed_seconds || 0);
     $("runStatus").textContent = s.run_status; $("runStatus").className = `status ${s.run_status}`;
@@ -49,7 +54,7 @@
     $("modalityMix").innerHTML = Object.entries(modalities).length ? Object.entries(modalities).map(([name, count]) => `<div class="bar-row"><span>${esc(name)}</span><div class="bar-track"><i style="width:${count / max * 100}%"></i></div><b>${count}</b></div>`).join("") : "<span class='eyebrow'>No evidence yet</span>";
     $("qualityMetrics").innerHTML = metric("Verification", pct(m.verification_rate)) + metric("Compliance", m.compliance_passed === undefined ? "Waiting" : m.compliance_passed ? "Passed" : "Failed") + metric("Risk", m.risk_level) + metric("Unsupported", m.unsupported_claim_count) + metric("Citation mismatches", m.citation_mismatch_count) + metric("Critic issues", m.critic_issue_count) + metric("Consensus", m.consensus_decision) + metric("Final status", m.final_status);
     const ready = readiness(m); $("readiness").textContent = ready[0]; $("readiness").className = `readiness ${ready[1]}`;
-    const t = s.telemetry || {}, gpu = t.gpu || {};
+    const gpu = t.gpu || {};
     $("gpuStatus").textContent = gpu.available ? (gpu.devices?.map(d => d.name).join(", ") || "GPU available") : "GPU unavailable";
     $("telemetry").innerHTML = telemetryCard("CPU", pct(t.cpu_percent), t.cpu_percent) + telemetryCard("RAM", `${pct(t.ram_percent)} · ${bytes(t.ram_used_bytes)}`, t.ram_percent) + telemetryCard("GPU", gpu.available ? pct(gpu.usage_percent) : "Unavailable", gpu.usage_percent) + telemetryCard("VRAM", gpu.available ? `${gpu.memory_used_mb} / ${gpu.memory_total_mb} MB` : "Unavailable", gpu.available && gpu.memory_total_mb ? gpu.memory_used_mb / gpu.memory_total_mb * 100 : undefined) + telemetryCard("Disk", `${pct(t.disk_percent)} · ${bytes(t.disk_used_bytes)}`, t.disk_percent) + telemetryCard("Process RAM", bytes(t.process_memory_bytes)) + telemetryCard("Current model", t.current_model || Object.values(s.agents || {}).find(a => a.status === "running")?.model || "—") + telemetryCard("Model latency", t.model_latency_ms == null ? "—" : `${t.model_latency_ms} ms`) + telemetryCard("Generated tokens", t.tokens_generated) + telemetryCard("Tokens / sec", t.tokens_per_second);
     $("answer").textContent = s.final_answer || s.draft_answer || "Draft and final answer updates will appear here.";
