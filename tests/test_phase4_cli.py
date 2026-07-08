@@ -220,7 +220,9 @@ class Phase4TerminalQuestionCountTests(unittest.TestCase):
         self.assertEqual(len(questions), 25)
         self.assertIsNone(benchmark)
 
-    def test_notebook_and_smoke_limits_remain_scoped(self) -> None:
+    def test_manual_default_is_unbounded_and_explicit_limits_remain_scoped(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             config = Phase4Config(project_root=Path(directory))
             runner = Phase4Runner(
@@ -228,21 +230,34 @@ class Phase4TerminalQuestionCountTests(unittest.TestCase):
                 config=config,
             )
             questions = [f"Question {index}?" for index in range(440)]
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                notebook_manual = runner._apply_mode_limits(
-                    questions,
-                    run_mode="manual_qa",
-                )
+            manual = runner._apply_mode_limits(
+                questions,
+                run_mode="manual_qa",
+            )
             smoke = runner._apply_mode_limits(questions, run_mode="smoke")
             benchmark = runner._apply_mode_limits(
                 questions,
                 run_mode="benchmark",
             )
+            capped_config = Phase4Config(
+                project_root=Path(directory),
+                max_inline_manual_questions=25,
+            )
+            capped_runner = Phase4Runner(
+                pipeline=_FastPhase4Pipeline(capped_config),
+                config=capped_config,
+            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                capped_manual = capped_runner._apply_mode_limits(
+                    questions,
+                    run_mode="manual_qa",
+                )
 
-        self.assertEqual(len(notebook_manual), 25)
+        self.assertEqual(len(manual), 440)
         self.assertEqual(len(smoke), 3)
         self.assertEqual(len(benchmark), 440)
+        self.assertEqual(len(capped_manual), 25)
 
     def test_manual_cli_counts_reach_every_export(self) -> None:
         for question_count in (5, 25, 440):
