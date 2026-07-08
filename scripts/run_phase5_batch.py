@@ -818,6 +818,7 @@ def execute(
         phase5_pipeline.indexing_summary = phase4_pipeline.indexing_summary
 
         _print("Starting QA")
+        manual_question_limit = phase4_config.max_inline_manual_questions
         result = Phase4Runner(
             pipeline=phase5_pipeline,
             config=phase4_config,
@@ -832,8 +833,8 @@ def execute(
                 "question_source": source_label,
                 "large_run": (
                     phase4_config.phase4_run_mode == "manual_qa"
-                    and len(questions)
-                    > phase4_config.max_inline_manual_questions
+                    and manual_question_limit is not None
+                    and len(questions) > manual_question_limit
                 ),
             },
             resume_run=resume_run,
