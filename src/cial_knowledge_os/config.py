@@ -420,7 +420,7 @@ class Phase4Config(Phase3Config):
         "export_only",
     ] = "manual_qa"
     phase4_trace_mode: Literal["compact", "full"] = "full"
-    max_inline_manual_questions: int = 25
+    max_inline_manual_questions: int | None = None
     allow_large_run: bool = False
 
     def __post_init__(self) -> None:
@@ -544,7 +544,10 @@ class Phase4Config(Phase3Config):
             )
         if not self.evidence_selection_strategies:
             raise ValueError("evidence_selection_strategies must not be empty.")
-        if self.max_inline_manual_questions <= 0:
+        if (
+            self.max_inline_manual_questions is not None
+            and self.max_inline_manual_questions <= 0
+        ):
             raise ValueError(
-                "max_inline_manual_questions must be greater than zero."
+                "max_inline_manual_questions must be greater than zero or None."
             )
