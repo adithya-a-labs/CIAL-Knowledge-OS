@@ -1,0 +1,103 @@
+1.  Summarize the main purpose of the CISG PDF document.
+2.  Which section discusses the obligations of the buyer?
+3.  What remedies are available to the seller?
+4.  Explain how breach of contract is handled.
+5.  Which articles define contract formation?
+6.  List three important concepts introduced in the PDF.
+7.  What are the conditions for avoidance of a contract?
+8.  Summarize the dispute resolution provisions.
+9.  Which chapter discusses damages?
+10. What are the key takeaways from the PDF?
+11. Summarize the CIAL Knowledge OS whitepaper.
+12. What are the core strategic objectives of the Knowledge OS?
+13. Describe the proposed system architecture.
+14. What technologies are recommended in the technical stack?
+15. Explain the roadmap from Documents Knowledge Base to Airport
+    Foundry.
+16. Summarize the Anthropic weekly review.
+17. Why were restrictions placed on Anthropic according to the document?
+18. What arguments support the restrictions?
+19. What criticisms are presented against the restrictions?
+20. Compare the tone and purpose of the two DOCX documents.
+21. Summarize the AI Ethics presentation.
+22. What are the key ethical principles mentioned?
+23. Which slide discusses bias?
+24. Which slide discusses transparency?
+25. Explain the fairness section.
+26. What examples are used to explain AI ethics?
+27. Which slide introduces the presentation?
+28. Which slide summarizes the conclusions?
+29. List the main topics covered in the presentation.
+30. Provide an executive summary of the presentation.
+31. Summarize the investment tracker workbook.
+32. Which asset has the highest value?
+33. Which investment has generated the highest return?
+34. What is the current portfolio value?
+35. Which sheet contains portfolio information?
+36. Identify the largest holding.
+37. Compare the best and worst performing assets.
+38. Which investments are currently losing money?
+39. Describe the diversification of the portfolio.
+40. Summarize the overall investment strategy.
+41. Summarize the CO2 emissions dataset.
+42. Which country has the highest emissions?
+43. Which country has the lowest emissions?
+44. What trends are visible in the dataset?
+45. Compare India and China.
+46. Compare the USA and European countries.
+47. Which decade experienced the largest increase?
+48. Which records appear to be outliers?
+49. Summarize the dataset in five bullet points.
+50. Which country has shown the greatest reduction?
+51. Summarize the HTML article.
+52. What are the key concepts explained?
+53. Which heading discusses the main topic?
+54. Explain the overall structure of the HTML page.
+55. List the major sections of the HTML document.
+56. Summarize the Markdown README.
+57. How do you install the project?
+58. What are the main features?
+59. Which dependencies are mentioned?
+60. Explain the project architecture described in the README.
+61. Summarize the iOS GitHub Actions workflow.
+62. What events trigger the workflow?
+63. Which jobs are executed?
+64. Explain the CI/CD pipeline.
+65. Which simulator is used during testing?
+66. Summarize the uploaded OCR image.
+67. Extract all readable text from the image.
+68. What is the central topic of the image?
+69. Are there any highlighted words or phrases?
+70. Explain the image in plain English.
+71. Summarize the OpenAPI specification JSON.
+72. Which endpoints are defined?
+73. What schemas are available?
+74. Explain the configuration structure.
+75. What retrieval settings are configured?
+76. Summarize the XML invoice.
+77. What is the invoice total?
+78. Who is the buyer?
+79. List the purchased items.
+80. Summarize the XML RSS feed.
+81. Compare the AI Ethics PPT with the Anthropic report.
+82. Compare the Markdown README and the HTML article.
+83. Compare the CIAL whitepaper with the Anthropic review.
+84. Which documents discuss AI governance?
+85. Which documents mention retrieval?
+86. Which documents mention architecture?
+87. Which files discuss safety?
+88. Compare the structured data sources with the narrative documents.
+89. Which formats provide tabular information?
+90. Summarize the entire test corpus.
+91. Using the OCR image and related text documents, explain the document
+    contents.
+92. Which document best supports the OCR image?
+93. Are there any documents discussing OCR?
+94. Compare the OCR image with the HTML article.
+95. Which documents contain visual information?
+96. Which documents mention Qdrant?
+97. Which documents discuss hybrid retrieval?
+98. Which files contain configuration data?
+99. Which files discuss enterprise AI systems?
+100. Produce an executive summary of the entire multimodal knowledge
+     base with citations from multiple document types.
