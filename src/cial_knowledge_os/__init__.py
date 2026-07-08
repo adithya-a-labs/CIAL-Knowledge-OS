@@ -1,199 +1,8 @@
 """Reusable, local-first components for CIAL Knowledge OS."""
 
-from .batch_qa import (
-    CSV_COLUMNS,
-    PHASE2_CSV_COLUMNS,
-    PHASE3_CSV_COLUMNS,
-    PHASE4_CSV_COLUMNS,
-    PHASE5_CSV_COLUMNS,
-    BatchAnswerCollection,
-    collect_batch_answers,
-    export_batch_answers,
-)
-from .benchmarking import Timer, benchmark_pipeline_steps, print_benchmark_table
-from .benchmark_loader import Benchmark, BenchmarkQuestion, load_benchmark
-from .chunking import chunk_documents, summarize_chunks
-from .citations import (
-    build_citations,
-    render_answer_with_citations,
-    render_citations,
-)
-from .citation_links import CitationLinkBuilder
-from .config import (
-    KnowledgeOSConfig,
-    Phase2Config,
-    Phase3Config,
-    Phase4Config,
-    RunArtifactNames,
-)
-from .context_builder import (
-    INSUFFICIENT_EVIDENCE_RESPONSE,
-    ContextBuilder,
-    ContextBuildResult,
-    compress_context,
-    merge_overlapping_chunks,
-)
-from .embeddings import embed_texts, get_embedding_dimension, load_embedding_model
-from .evaluation_metrics import (
-    aggregate_experiment,
-    evaluate_answer,
-    rank_experiments,
-)
-from .evaluation_report import (
-    build_recommendations,
-    write_recommendation_report,
-)
-from .experiment_config import ExperimentConfig, ExperimentGrid
-from .experiment_runner import (
-    ExperimentRunner,
-    ExperimentSweepResult,
-    ReconfiguringPipelineFactory,
-)
-from .file_formats import (
-    FORMAT_REGISTRY,
-    SupportStatus,
-    get_file_extension,
-    get_file_format_info,
-    is_recognized_file,
-    is_supported_file,
-    list_formats_by_category,
-    list_recognized_formats,
-    list_supported_formats,
-    scan_file_format_readiness,
-    validate_ingestion_file,
-)
-from .fusion import ReciprocalRankFusion
-from .llm import (
-    GenerationFailedError,
-    build_grounded_prompt,
-    create_local_llm,
-    generate_answer,
-)
-from .loaders import (
-    IMPLEMENTED_KNOWLEDGE_EXTENSIONS,
-    SUPPORTED_DOCUMENT_EXTENSIONS,
-    create_sample_airport_documents,
-    discover_knowledge_documents,
-    load_all_documents,
-    load_pdf_documents,
-    load_text_documents,
-    resolve_corpus_root,
-    summarize_documents,
-)
-from .rag_pipeline import BasicRAGPipeline
-from .phase2_pipeline import Phase2RAGPipeline
-from .phase3_pipeline import Phase3RAGPipeline
-from .phase3_reporting import (
-    write_results_csv,
-    write_results_xlsx,
-    write_latency_svg,
-    write_standalone_html,
-)
-from .phase3_runner import Phase3Runner, Phase3RunResult
-from .evidence_quality import EvidenceQualityReport, EvidenceQualityScorer
-from .evidence_selector import EvidenceSelectionResult, EvidenceSelector
-from .phase4_pipeline import Phase4RAGPipeline, UNSUPPORTED_QUERY_RESPONSE
-from .phase4_checkpoint import (
-    Phase4CheckpointManager,
-    QuestionIdentity,
-    normalize_question,
-)
-from .phase4_reporting import write_phase4_figures, write_phase4_html
-from .phase4_runner import Phase4Runner, Phase4RunResult
-from .phase4_trace import Phase4Trace, build_phase4_trace, phase4_diagnostics
-from .agents import Agent, AgentResult, AgentState, Evidence, ModelRouter
-from .orchestration import ConsensusEngine, Phase5Pipeline, Phase5Trace
-from .reporting import render_phase5_html, write_phase5_html
-from .query_transformations import (
-    QueryTransformer,
-    QueryVariant,
-    expand_query_keywords,
-    reformulate_for_domain,
-    rewrite_query,
-)
-from .retrieval import (
-    format_retrieved_context,
-    print_retrieval_results,
-    search_similar_chunks,
-)
-from .retrieval_postprocessing import (
-    deduplicate_results,
-    expand_neighbor_chunks,
-    retrieve_multiple_queries,
-)
-from .retrieval_trace import build_question_trace
-from .retrievers import (
-    BM25Retriever,
-    DenseRetriever,
-    HybridRetriever,
-    Retriever,
-    default_bm25_tokenize,
-)
-from .reranker import (
-    CrossEncoderReranker,
-    MockReranker,
-    RerankResult,
-    Reranker,
-)
-from .run_manager import RunManager, RunPaths
-from .token_budget import (
-    DEFAULT_TIKTOKEN_ENCODING,
-    TiktokenTokenizer,
-    TokenBudgetManager,
-    TokenBudgetUsage,
-    TokenManager,
-    create_token_budget_manager,
-    create_token_manager,
-)
-from .trace_visualization import (
-    decision_frame,
-    display_question_trace,
-    funnel_frame,
-    load_question_traces,
-    query_variants_frame,
-    retrieval_results_frame,
-    rrf_contribution_frame,
-)
-from .vectorstore import (
-    create_qdrant_client,
-    ensure_collection,
-    index_chunks,
-    recreate_collection,
-    reset_qdrant_storage,
-)
-from .visualization import (
-    batch_retrieval_trace_table,
-    citation_quality_table,
-    context_stage_counts_table,
-    display_context_sections_table,
-    display_high_duplicate_chunks_table,
-    display_low_score_chunks_table,
-    display_query_variant_contribution_table,
-    display_retrieval_trace_table,
-    display_top_sources_table,
-    duplicate_chunk_frequency_table,
-    neighbor_expansion_table,
-    plot_answer_status_distribution,
-    plot_chunk_size_distribution,
-    plot_context_compression_ratio,
-    plot_context_section_lengths,
-    plot_context_stage_counts,
-    plot_duplicate_chunk_frequency,
-    plot_latency_by_question,
-    plot_page_distribution,
-    plot_query_variant_contribution,
-    plot_retrieval_comparison,
-    plot_retrieval_funnel,
-    plot_retrieval_scores,
-    plot_score_by_query_variant,
-    plot_score_distribution,
-    plot_source_distribution,
-    plot_timing_breakdown,
-    query_variants_table,
-    retrieval_chunks_table,
-    retrieval_comparison_table,
-)
-from .visualization_dashboard import generate_dashboard, load_dashboard_data
+from __future__ import annotations
+
+from importlib import import_module
 
 __all__ = [
     "BasicRAGPipeline",
@@ -376,10 +185,196 @@ __all__ = [
     "write_phase5_html",
 ]
 
+_EXPORTS = {
+    "BasicRAGPipeline": (".rag_pipeline", "BasicRAGPipeline"),
+    "Benchmark": (".benchmark_loader", "Benchmark"),
+    "BenchmarkQuestion": (".benchmark_loader", "BenchmarkQuestion"),
+    "CSV_COLUMNS": (".batch_qa", "CSV_COLUMNS"),
+    "PHASE2_CSV_COLUMNS": (".batch_qa", "PHASE2_CSV_COLUMNS"),
+    "PHASE3_CSV_COLUMNS": (".batch_qa", "PHASE3_CSV_COLUMNS"),
+    "PHASE4_CSV_COLUMNS": (".batch_qa", "PHASE4_CSV_COLUMNS"),
+    "PHASE5_CSV_COLUMNS": (".batch_qa", "PHASE5_CSV_COLUMNS"),
+    "BatchAnswerCollection": (".batch_qa", "BatchAnswerCollection"),
+    "collect_batch_answers": (".batch_qa", "collect_batch_answers"),
+    "export_batch_answers": (".batch_qa", "export_batch_answers"),
+    "Timer": (".benchmarking", "Timer"),
+    "benchmark_pipeline_steps": (".benchmarking", "benchmark_pipeline_steps"),
+    "print_benchmark_table": (".benchmarking", "print_benchmark_table"),
+    "load_benchmark": (".benchmark_loader", "load_benchmark"),
+    "chunk_documents": (".chunking", "chunk_documents"),
+    "summarize_chunks": (".chunking", "summarize_chunks"),
+    "build_citations": (".citations", "build_citations"),
+    "render_answer_with_citations": (".citations", "render_answer_with_citations"),
+    "render_citations": (".citations", "render_citations"),
+    "CitationLinkBuilder": (".citation_links", "CitationLinkBuilder"),
+    "KnowledgeOSConfig": (".config", "KnowledgeOSConfig"),
+    "Phase2Config": (".config", "Phase2Config"),
+    "Phase3Config": (".config", "Phase3Config"),
+    "Phase4Config": (".config", "Phase4Config"),
+    "RunArtifactNames": (".config", "RunArtifactNames"),
+    "INSUFFICIENT_EVIDENCE_RESPONSE": (".context_builder", "INSUFFICIENT_EVIDENCE_RESPONSE"),
+    "ContextBuilder": (".context_builder", "ContextBuilder"),
+    "ContextBuildResult": (".context_builder", "ContextBuildResult"),
+    "compress_context": (".context_builder", "compress_context"),
+    "merge_overlapping_chunks": (".context_builder", "merge_overlapping_chunks"),
+    "embed_texts": (".embeddings", "embed_texts"),
+    "get_embedding_dimension": (".embeddings", "get_embedding_dimension"),
+    "load_embedding_model": (".embeddings", "load_embedding_model"),
+    "aggregate_experiment": (".evaluation_metrics", "aggregate_experiment"),
+    "evaluate_answer": (".evaluation_metrics", "evaluate_answer"),
+    "rank_experiments": (".evaluation_metrics", "rank_experiments"),
+    "build_recommendations": (".evaluation_report", "build_recommendations"),
+    "write_recommendation_report": (".evaluation_report", "write_recommendation_report"),
+    "ExperimentConfig": (".experiment_config", "ExperimentConfig"),
+    "ExperimentGrid": (".experiment_config", "ExperimentGrid"),
+    "ExperimentRunner": (".experiment_runner", "ExperimentRunner"),
+    "ExperimentSweepResult": (".experiment_runner", "ExperimentSweepResult"),
+    "ReconfiguringPipelineFactory": (".experiment_runner", "ReconfiguringPipelineFactory"),
+    "FORMAT_REGISTRY": (".file_formats", "FORMAT_REGISTRY"),
+    "SupportStatus": (".file_formats", "SupportStatus"),
+    "get_file_extension": (".file_formats", "get_file_extension"),
+    "get_file_format_info": (".file_formats", "get_file_format_info"),
+    "is_recognized_file": (".file_formats", "is_recognized_file"),
+    "is_supported_file": (".file_formats", "is_supported_file"),
+    "list_formats_by_category": (".file_formats", "list_formats_by_category"),
+    "list_recognized_formats": (".file_formats", "list_recognized_formats"),
+    "list_supported_formats": (".file_formats", "list_supported_formats"),
+    "scan_file_format_readiness": (".file_formats", "scan_file_format_readiness"),
+    "validate_ingestion_file": (".file_formats", "validate_ingestion_file"),
+    "ReciprocalRankFusion": (".fusion", "ReciprocalRankFusion"),
+    "GenerationFailedError": (".llm", "GenerationFailedError"),
+    "build_grounded_prompt": (".llm", "build_grounded_prompt"),
+    "create_local_llm": (".llm", "create_local_llm"),
+    "generate_answer": (".llm", "generate_answer"),
+    "IMPLEMENTED_KNOWLEDGE_EXTENSIONS": (".loaders", "IMPLEMENTED_KNOWLEDGE_EXTENSIONS"),
+    "SUPPORTED_DOCUMENT_EXTENSIONS": (".loaders", "SUPPORTED_DOCUMENT_EXTENSIONS"),
+    "create_sample_airport_documents": (".loaders", "create_sample_airport_documents"),
+    "discover_knowledge_documents": (".loaders", "discover_knowledge_documents"),
+    "load_all_documents": (".loaders", "load_all_documents"),
+    "load_pdf_documents": (".loaders", "load_pdf_documents"),
+    "load_text_documents": (".loaders", "load_text_documents"),
+    "resolve_corpus_root": (".loaders", "resolve_corpus_root"),
+    "summarize_documents": (".loaders", "summarize_documents"),
+    "Phase2RAGPipeline": (".phase2_pipeline", "Phase2RAGPipeline"),
+    "Phase3RAGPipeline": (".phase3_pipeline", "Phase3RAGPipeline"),
+    "write_results_csv": (".phase3_reporting", "write_results_csv"),
+    "write_results_xlsx": (".phase3_reporting", "write_results_xlsx"),
+    "write_latency_svg": (".phase3_reporting", "write_latency_svg"),
+    "write_standalone_html": (".phase3_reporting", "write_standalone_html"),
+    "Phase3Runner": (".phase3_runner", "Phase3Runner"),
+    "Phase3RunResult": (".phase3_runner", "Phase3RunResult"),
+    "EvidenceQualityReport": (".evidence_quality", "EvidenceQualityReport"),
+    "EvidenceQualityScorer": (".evidence_quality", "EvidenceQualityScorer"),
+    "EvidenceSelectionResult": (".evidence_selector", "EvidenceSelectionResult"),
+    "EvidenceSelector": (".evidence_selector", "EvidenceSelector"),
+    "Phase4RAGPipeline": (".phase4_pipeline", "Phase4RAGPipeline"),
+    "UNSUPPORTED_QUERY_RESPONSE": (".phase4_pipeline", "UNSUPPORTED_QUERY_RESPONSE"),
+    "Phase4CheckpointManager": (".phase4_checkpoint", "Phase4CheckpointManager"),
+    "QuestionIdentity": (".phase4_checkpoint", "QuestionIdentity"),
+    "normalize_question": (".phase4_checkpoint", "normalize_question"),
+    "write_phase4_figures": (".phase4_reporting", "write_phase4_figures"),
+    "write_phase4_html": (".phase4_reporting", "write_phase4_html"),
+    "Phase4Runner": (".phase4_runner", "Phase4Runner"),
+    "Phase4RunResult": (".phase4_runner", "Phase4RunResult"),
+    "Phase4Trace": (".phase4_trace", "Phase4Trace"),
+    "build_phase4_trace": (".phase4_trace", "build_phase4_trace"),
+    "phase4_diagnostics": (".phase4_trace", "phase4_diagnostics"),
+    "Agent": (".agents", "Agent"),
+    "AgentResult": (".agents", "AgentResult"),
+    "AgentState": (".agents", "AgentState"),
+    "Evidence": (".agents", "Evidence"),
+    "ModelRouter": (".agents", "ModelRouter"),
+    "ConsensusEngine": (".orchestration", "ConsensusEngine"),
+    "Phase5Pipeline": (".orchestration", "Phase5Pipeline"),
+    "Phase5Trace": (".orchestration", "Phase5Trace"),
+    "render_phase5_html": (".reporting", "render_phase5_html"),
+    "write_phase5_html": (".reporting", "write_phase5_html"),
+    "QueryTransformer": (".query_transformations", "QueryTransformer"),
+    "QueryVariant": (".query_transformations", "QueryVariant"),
+    "expand_query_keywords": (".query_transformations", "expand_query_keywords"),
+    "reformulate_for_domain": (".query_transformations", "reformulate_for_domain"),
+    "rewrite_query": (".query_transformations", "rewrite_query"),
+    "format_retrieved_context": (".retrieval", "format_retrieved_context"),
+    "print_retrieval_results": (".retrieval", "print_retrieval_results"),
+    "search_similar_chunks": (".retrieval", "search_similar_chunks"),
+    "deduplicate_results": (".retrieval_postprocessing", "deduplicate_results"),
+    "expand_neighbor_chunks": (".retrieval_postprocessing", "expand_neighbor_chunks"),
+    "retrieve_multiple_queries": (".retrieval_postprocessing", "retrieve_multiple_queries"),
+    "build_question_trace": (".retrieval_trace", "build_question_trace"),
+    "BM25Retriever": (".retrievers", "BM25Retriever"),
+    "DenseRetriever": (".retrievers", "DenseRetriever"),
+    "HybridRetriever": (".retrievers", "HybridRetriever"),
+    "Retriever": (".retrievers", "Retriever"),
+    "default_bm25_tokenize": (".retrievers", "default_bm25_tokenize"),
+    "CrossEncoderReranker": (".reranker", "CrossEncoderReranker"),
+    "MockReranker": (".reranker", "MockReranker"),
+    "RerankResult": (".reranker", "RerankResult"),
+    "Reranker": (".reranker", "Reranker"),
+    "RunManager": (".run_manager", "RunManager"),
+    "RunPaths": (".run_manager", "RunPaths"),
+    "DEFAULT_TIKTOKEN_ENCODING": (".token_budget", "DEFAULT_TIKTOKEN_ENCODING"),
+    "TiktokenTokenizer": (".token_budget", "TiktokenTokenizer"),
+    "TokenBudgetManager": (".token_budget", "TokenBudgetManager"),
+    "TokenBudgetUsage": (".token_budget", "TokenBudgetUsage"),
+    "TokenManager": (".token_budget", "TokenManager"),
+    "create_token_budget_manager": (".token_budget", "create_token_budget_manager"),
+    "create_token_manager": (".token_budget", "create_token_manager"),
+    "decision_frame": (".trace_visualization", "decision_frame"),
+    "display_question_trace": (".trace_visualization", "display_question_trace"),
+    "funnel_frame": (".trace_visualization", "funnel_frame"),
+    "load_question_traces": (".trace_visualization", "load_question_traces"),
+    "query_variants_frame": (".trace_visualization", "query_variants_frame"),
+    "retrieval_results_frame": (".trace_visualization", "retrieval_results_frame"),
+    "rrf_contribution_frame": (".trace_visualization", "rrf_contribution_frame"),
+    "batch_retrieval_trace_table": (".visualization", "batch_retrieval_trace_table"),
+    "citation_quality_table": (".visualization", "citation_quality_table"),
+    "context_stage_counts_table": (".visualization", "context_stage_counts_table"),
+    "display_context_sections_table": (".visualization", "display_context_sections_table"),
+    "display_high_duplicate_chunks_table": (".visualization", "display_high_duplicate_chunks_table"),
+    "display_low_score_chunks_table": (".visualization", "display_low_score_chunks_table"),
+    "display_query_variant_contribution_table": (".visualization", "display_query_variant_contribution_table"),
+    "display_retrieval_trace_table": (".visualization", "display_retrieval_trace_table"),
+    "display_top_sources_table": (".visualization", "display_top_sources_table"),
+    "duplicate_chunk_frequency_table": (".visualization", "duplicate_chunk_frequency_table"),
+    "neighbor_expansion_table": (".visualization", "neighbor_expansion_table"),
+    "plot_answer_status_distribution": (".visualization", "plot_answer_status_distribution"),
+    "plot_chunk_size_distribution": (".visualization", "plot_chunk_size_distribution"),
+    "plot_context_compression_ratio": (".visualization", "plot_context_compression_ratio"),
+    "plot_context_section_lengths": (".visualization", "plot_context_section_lengths"),
+    "plot_context_stage_counts": (".visualization", "plot_context_stage_counts"),
+    "plot_duplicate_chunk_frequency": (".visualization", "plot_duplicate_chunk_frequency"),
+    "plot_latency_by_question": (".visualization", "plot_latency_by_question"),
+    "plot_page_distribution": (".visualization", "plot_page_distribution"),
+    "plot_query_variant_contribution": (".visualization", "plot_query_variant_contribution"),
+    "plot_retrieval_comparison": (".visualization", "plot_retrieval_comparison"),
+    "plot_retrieval_funnel": (".visualization", "plot_retrieval_funnel"),
+    "plot_retrieval_scores": (".visualization", "plot_retrieval_scores"),
+    "plot_score_by_query_variant": (".visualization", "plot_score_by_query_variant"),
+    "plot_score_distribution": (".visualization", "plot_score_distribution"),
+    "plot_source_distribution": (".visualization", "plot_source_distribution"),
+    "plot_timing_breakdown": (".visualization", "plot_timing_breakdown"),
+    "query_variants_table": (".visualization", "query_variants_table"),
+    "retrieval_chunks_table": (".visualization", "retrieval_chunks_table"),
+    "retrieval_comparison_table": (".visualization", "retrieval_comparison_table"),
+    "generate_dashboard": (".visualization_dashboard", "generate_dashboard"),
+    "load_dashboard_data": (".visualization_dashboard", "load_dashboard_data"),
+    "create_qdrant_client": (".vectorstore", "create_qdrant_client"),
+    "ensure_collection": (".vectorstore", "ensure_collection"),
+    "index_chunks": (".vectorstore", "index_chunks"),
+    "recreate_collection": (".vectorstore", "recreate_collection"),
+    "reset_qdrant_storage": (".vectorstore", "reset_qdrant_storage"),
+}
+
 
 def __getattr__(name: str):
-    if name == "Phase5Runner":
-        from .orchestration.phase5_runner import Phase5Runner
-
-        return Phase5Runner
+    if name in _EXPORTS:
+        module_name, attr_name = _EXPORTS[name]
+        module = import_module(module_name, __name__)
+        value = getattr(module, attr_name)
+        globals()[name] = value
+        return value
     raise AttributeError(name)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))
