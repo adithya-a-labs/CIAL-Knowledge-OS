@@ -91,19 +91,21 @@ class Phase4Runner(Phase3Runner):
         values = list(questions)
         if run_mode == "smoke":
             return values[: min(3, len(values))]
-        if (
-            run_mode in {"manual_qa", "export_only"}
-            and len(values) > self.config.max_inline_manual_questions
-            and not self.config.allow_large_run
-        ):
-            warnings.warn(
-                "Phase 4 manual input exceeds "
-                f"{self.config.max_inline_manual_questions} questions; only the "
-                "first configured limit will run. Set allow_large_run=True and "
-                "use export_only mode for an intentional large batch.",
-                stacklevel=3,
-            )
-            return values[: self.config.max_inline_manual_questions]
+        if run_mode in {"manual_qa", "export_only"}:
+            limit = self.config.max_inline_manual_questions
+            if (
+                limit is not None
+                and len(values) > limit
+                and not self.config.allow_large_run
+            ):
+                warnings.warn(
+                    "Phase 4 manual input exceeds "
+                    f"{limit} questions; only the first configured limit will run. "
+                    "Set allow_large_run=True and use export_only mode for an "
+                    "intentional large batch.",
+                    stacklevel=3,
+                )
+                return values[:limit]
         return values
 
     @staticmethod
@@ -360,8 +362,9 @@ class Phase4Runner(Phase3Runner):
 
         Inputs match :class:`Phase3Runner` plus ``run_mode`` and optional
         ``resume_run``. Smoke mode caps an in-memory list at three questions.
-        Manual/export-only lists above the configured notebook-safe limit are
-        warned and truncated unless ``allow_large_run`` is explicit. Benchmark
+        Manual/export-only runs are unlimited by default; setting
+        ``max_inline_manual_questions`` to a positive integer restores an
+        explicit safety cap unless ``allow_large_run`` is enabled. Benchmark
         mode is never silently truncated. Each attempt is checkpointed before
         final CSV/XLSX/HTML/JSON/context/figure exports. Resume validates indexed
         question hashes, skips successful occurrences, retries failed ones, and
