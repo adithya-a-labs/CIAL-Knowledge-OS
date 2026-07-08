@@ -317,6 +317,7 @@ def execute(
         phase="Phase 4",
         run_mode=config.phase4_run_mode,
     )
+    manual_question_limit = config.max_inline_manual_questions
     pipeline = Phase4RAGPipeline(config)
     pipeline.execution_manager = execution_manager
     try:
@@ -340,7 +341,8 @@ def execute(
                 "question_source": source_label,
                 "large_run": (
                     config.phase4_run_mode == "manual_qa"
-                    and len(questions) > config.max_inline_manual_questions
+                    and manual_question_limit is not None
+                    and len(questions) > manual_question_limit
                 ),
             },
             resume_run=_resume_path(args),
